@@ -63,7 +63,11 @@ enum btrace_format
   BTRACE_FORMAT_BTS,
 
   /* Branch trace is in Intel Processor Trace format.  */
-  BTRACE_FORMAT_PT
+  BTRACE_FORMAT_PT,
+  
+  /* Branch trace is arm CoreSight ETM.  */
+  BTRACE_FORMAT_ETM 
+
 };
 
 /* An enumeration of cpu vendors.  */
@@ -74,7 +78,10 @@ enum btrace_cpu_vendor
   CV_UNKNOWN,
 
   /* Intel.  */
-  CV_INTEL
+  CV_INTEL,
+  
+  /* arm.    */
+  CV_ARM
 };
 
 /* A cpu identifier.  */
@@ -116,6 +123,18 @@ struct btrace_config_pt
   unsigned int size;
 };
 
+
+/* An arm CoreSight ETM Trace configuration.  */
+
+struct btrace_config_etm
+{
+  /* The size of the branch trace buffer in bytes.
+
+     This is unsigned int and not size_t since it is registered as
+     control variable for "set record btrace etm buffer-size".  */
+  unsigned int size;
+};
+
 /* A branch tracing configuration.
 
    This describes the requested configuration as well as the actually
@@ -133,6 +152,9 @@ struct btrace_config
 
   /* The Intel Processor Trace format configuration.  */
   struct btrace_config_pt pt;
+
+  /* An arm CoreSight ETM Trace configuration.  */
+  struct btrace_config_etm etm;
 };
 
 /* Branch trace in BTS format.  */
@@ -156,6 +178,26 @@ struct btrace_data_pt
 {
   /* Some configuration information to go with the data.  */
   struct btrace_data_pt_config config;
+
+  /* The trace data.  */
+  gdb_byte *data;
+
+  /* The size of DATA in bytes.  */
+  size_t size;
+};
+
+/* Configuration information to go with the etm trace data.  */
+struct btrace_data_etm_config
+{
+  /* The processor on which the trace has been collected.  */
+  struct btrace_cpu cpu;
+};
+
+/* Branch trace in arm Processor Trace format.  */
+struct btrace_data_etm
+{
+  /* Some configuration information to go with the data.  */
+  struct btrace_data_etm_config config;
 
   /* The trace data.  */
   gdb_byte *data;
@@ -201,6 +243,9 @@ struct btrace_data
 
     /* Format == BTRACE_FORMAT_PT.  */
     struct btrace_data_pt pt;
+    
+    /* Format == BTRACE_FORMAT_ETM.  */
+    struct btrace_data_etm etm;
   } variant;
 
 private:

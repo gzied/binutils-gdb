@@ -200,6 +200,10 @@ static struct cmd_list_element *show_record_btrace_bts_cmdlist;
 static struct cmd_list_element *set_record_btrace_pt_cmdlist;
 static struct cmd_list_element *show_record_btrace_pt_cmdlist;
 
+/* Command lists for "set/show record btrace etm".  */
+static struct cmd_list_element *set_record_btrace_etm_cmdlist;
+static struct cmd_list_element *show_record_btrace_etm_cmdlist;
+
 /* Command list for "set record btrace cpu".  */
 static struct cmd_list_element *set_record_btrace_cpu_cmdlist;
 
@@ -519,6 +523,22 @@ record_btrace_print_pt_conf (const struct btrace_config_pt *conf)
     }
 }
 
+/* Print an arm Processor Trace configuration.  */
+
+static void
+record_btrace_print_etm_conf (const struct btrace_config_pt *conf)
+{
+  const char *suffix;
+  unsigned int size;
+
+  size = conf->size;
+  if (size > 0)
+    {
+      suffix = record_btrace_adjust_size (&size);
+      printf_unfiltered (_("Buffer size: %u%s.\n"), size, suffix);
+    }
+}
+
 /* Print a branch tracing configuration.  */
 
 static void
@@ -538,6 +558,10 @@ record_btrace_print_conf (const struct btrace_config *conf)
 
     case BTRACE_FORMAT_PT:
       record_btrace_print_pt_conf (&conf->pt);
+      return;
+
+    case BTRACE_FORMAT_ETM:
+      record_btrace_print_etm_conf (&conf->pt);
       return;
     }
 
@@ -2913,6 +2937,27 @@ cmd_record_btrace_pt_start (const char *args, int from_tty)
     }
 }
 
+/* Start recording in arm CoreSight ETM Trace format.  */
+
+static void
+cmd_record_btrace_etm_start (const char *args, int from_tty)
+{
+  if (args != NULL && *args != 0)
+    error (_("Invalid argument."));
+
+  record_btrace_conf.format = BTRACE_FORMAT_ETM;
+
+  try
+    {
+      execute_command ("target record-btrace", from_tty);
+    }
+  catch (const gdb_exception &exception)
+    {
+      record_btrace_conf.format = BTRACE_FORMAT_NONE;
+      throw;
+    }
+}
+
 /* Alias for "target record".  */
 
 static void
@@ -2927,7 +2972,7 @@ cmd_record_btrace_start (const char *args, int from_tty)
     {
       execute_command ("target record-btrace", from_tty);
     }
-  catch (const gdb_exception &exception)
+  catch (const gdb_exception &exception_pt)
     {
       record_btrace_conf.format = BTRACE_FORMAT_BTS;
 
@@ -2935,10 +2980,19 @@ cmd_record_btrace_start (const char *args, int from_tty)
 	{
 	  execute_command ("target record-btrace", from_tty);
 	}
-      catch (const gdb_exception &ex)
+      catch (const gdb_exception &exception_bts)
 	{
-	  record_btrace_conf.format = BTRACE_FORMAT_NONE;
-	  throw;
+          record_btrace_conf.format = BTRACE_FORMAT_ETM;
+
+          try
+	    {
+	      execute_command ("target record-btrace", from_tty);
+	    }
+          catch (const gdb_exception &ex)
+	    {
+	      record_btrace_conf.format = BTRACE_FORMAT_NONE;
+	      throw;
+	    }
 	}
     }
 }
@@ -2995,7 +3049,7 @@ cmd_set_record_btrace_cpu_auto (const char *args, int from_tty)
 }
 
 /* The "set record btrace cpu" command.  */
-
+/* todo: amend for coresight*/
 static void
 cmd_set_record_btrace_cpu (const char *args, int from_tty)
 {
@@ -3070,6 +3124,18 @@ cmd_show_record_btrace_cpu (const char *args, int from_tty)
 			       record_btrace_cpu.model,
 			       record_btrace_cpu.stepping);
 	  return;
+        case CV_ARM:
+	  if (record_btrace_cpu.stepping == 0)
+	    printf_unfiltered (_("btrace cpu is 'arm: %u/%u'.\n"),
+			       record_btrace_cpu.family,
+			       record_btrace_cpu.model);
+	  else
+	    printf_unfiltered (_("btrace cpu is 'arm: %u/%u/%u'.\n"),
+			       record_btrace_cpu.family,
+			       record_btrace_cpu.model,
+			       record_btrace_cpu.stepping);
+	  return;
+
 	}
     }
 
@@ -3114,6 +3180,26 @@ cmd_show_record_btrace_pt (const char *args, int from_tty)
   cmd_show_list (show_record_btrace_pt_cmdlist, from_tty, "");
 }
 
+/* The "set record btrace etm" command.  */
+
+static void
+cmd_set_record_btrace_etm (const char *args, int from_tty)
+{
+  printf_unfiltered (_("\"set record btrace etm\" must be followed "
+		       "by an appropriate subcommand.\n"));
+  help_list (set_record_btrace_etm_cmdlist, "set record btrace etm ",
+	     all_commands, gdb_stdout);
+}
+
+/* The "show record btrace etm" command.  */
+
+static void
+cmd_show_record_btrace_etm (const char *args, int from_tty)
+{
+  cmd_show_list (show_record_btrace_etm_cmdlist, from_tty, "");
+}
+
+
 /* The "record bts buffer-size" show value function.  */
 
 static void
@@ -3133,6 +3219,17 @@ show_record_pt_buffer_size_value (struct ui_file *file, int from_tty,
 				  const char *value)
 {
   fprintf_filtered (file, _("The record/replay pt buffer size is %s.\n"),
+		    value);
+}
+
+/* The "record etm buffer-size" show value function.  */
+
+static void
+show_record_etm_buffer_size_value (struct ui_file *file, int from_tty,
+				  struct cmd_list_element *c,
+				  const char *value)
+{
+  fprintf_filtered (file, _("The record/replay etm buffer size is %s.\n"),
 		    value);
 }
 
@@ -3197,7 +3294,24 @@ When set to \"none\", errata workarounds are disabled."),
 		  &set_record_btrace_cpu_cmdlist,
 		  "set record btrace cpu ", 1,
 		  &set_record_btrace_cmdlist);
+/*-------------*/
+  
+  add_cmd ("etm", class_obscure, cmd_record_btrace_etm_start,
+	   _("\
+Start branch trace recording in arm CoreSight ETM Trace format.\n\n\
+This format may not be available on all processors."),
+	   &record_btrace_cmdlist);
+  add_alias_cmd ("etm", "btrace etm", class_obscure, 1, &record_cmdlist);
 
+  add_prefix_cmd ("btrace", class_support, cmd_set_record_btrace,
+		  _("Set record options."), &set_record_btrace_cmdlist,
+		  "set record btrace ", 0, &set_record_cmdlist);
+
+  add_prefix_cmd ("btrace", class_support, cmd_show_record_btrace,
+		  _("Show record options."), &show_record_btrace_cmdlist,
+		  "show record btrace ", 0, &show_record_cmdlist);
+
+/*--------------------*/ 
   add_cmd ("auto", class_support, cmd_set_record_btrace_cpu_auto, _("\
 Automatically determine the cpu to be used for trace decode."),
 	   &set_record_btrace_cpu_cmdlist);
@@ -3254,6 +3368,28 @@ The actual buffer size may differ from the requested size.  Use \"info record\" 
 to see the actual buffer size."), NULL, show_record_pt_buffer_size_value,
 			    &set_record_btrace_pt_cmdlist,
 			    &show_record_btrace_pt_cmdlist);
+/*----------------*/
+  add_prefix_cmd ("etm", class_support, cmd_set_record_btrace_etm,
+		  _("Set record btrace etm options."),
+		  &set_record_btrace_etm_cmdlist,
+		  "set record btrace etm ", 0, &set_record_btrace_cmdlist);
+
+  add_prefix_cmd ("etm", class_support, cmd_show_record_btrace_etm,
+		  _("Show record btrace etm options."),
+		  &show_record_btrace_etm_cmdlist,
+		  "show record btrace etm ", 0, &show_record_btrace_cmdlist);
+
+  add_setshow_uinteger_cmd ("buffer-size", no_class,
+			    &record_btrace_conf.pt.size,
+			    _("Set the record/replay pt buffer size."),
+			    _("Show the record/replay pt buffer size."), _("\
+Bigger buffers allow longer recording but also take more time to process \
+the recorded execution.\n\
+The actual buffer size may differ from the requested size.  Use \"info record\" \
+to see the actual buffer size."), NULL, show_record_etm_buffer_size_value,
+			    &set_record_btrace_etm_cmdlist,
+			    &show_record_btrace_etm_cmdlist);
+/*-------------------*/
 
   add_target (record_btrace_target_info, record_btrace_target_open);
 
@@ -3262,4 +3398,6 @@ to see the actual buffer size."), NULL, show_record_pt_buffer_size_value,
 
   record_btrace_conf.bts.size = 64 * 1024;
   record_btrace_conf.pt.size = 16 * 1024;
+  record_btrace_conf.etm.size = 8 * 1024;
+
 }
