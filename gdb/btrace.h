@@ -304,6 +304,18 @@ struct btrace_maint_info
       struct btrace_maint_packet_history packet_history;
     } pt;
 #endif /* defined (HAVE_LIBIPT)  */
+#if defined (HAVE_LIBOPENCSD)
+    /* BTRACE.DATA.FORMAT == BTRACE_FORMAT_ETM  */
+    struct
+    {
+      /* A vector of decoded packets.  */
+      std::vector<btrace_etm_packet> *packets;
+
+      /* The packet history iterator.
+      We are iterating over the above PACKETS vector.  */
+      struct btrace_maint_packet_history packet_history;
+    } etm;
+#endif /* defined (HAVE_LIBOPENCSD)  */
   } variant;
 };
 

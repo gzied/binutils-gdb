@@ -1502,6 +1502,24 @@ btrace_compute_ftrace_pt (struct thread_info *tp,
 
 #endif /* defined (HAVE_LIBIPT)  */
 
+
+#if defined (HAVE_LIBOPENCSD)
+btrace_compute_ftrace_etm (struct thread_info *tp,
+			  const struct btrace_data_etm *btrace,
+			  std::vector<unsigned int> &gaps)
+{
+	DEBUG ("btrace_compute_ftrace_etm (\nthread_info *tp = %s\nbtrace_data_etm *btrace = %x", print_thread_id (tp),
+			btrace);
+}
+#else /*    defined (HAVE_LIBOPENCSD)    */
+static void
+btrace_compute_ftrace_etm (struct thread_info *tp,
+			  const struct btrace_data_etm *btrace,
+			  std::vector<unsigned int> &gaps)
+{
+  internal_error (__FILE__, __LINE__, _("Unexpected branch trace format."));
+}
+#endif /*    defined (HAVE_LIBOPENCSD)    */
 /* Compute the function branch trace from a block branch trace BTRACE for
    a thread given by BTINFO.  If CPU is not NULL, overwrite the cpu in the
    branch trace configuration.  This is currently only used for the PT
@@ -1531,6 +1549,10 @@ btrace_compute_ftrace_1 (struct thread_info *tp,
 
       btrace_compute_ftrace_pt (tp, &btrace->variant.pt, gaps);
       return;
+
+    case BTRACE_FORMAT_PT:
+    	btrace_compute_ftrace_etm (tp, &btrace->variant.etm, gaps);
+    	return;
     }
 
   internal_error (__FILE__, __LINE__, _("Unkown branch trace format."));

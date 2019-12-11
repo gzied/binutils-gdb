@@ -11954,6 +11954,7 @@ _ACEOF
   else
     # todo: check for HAVE_LIBOPENCSD #
     with_arm_cs=yes
+    HAVE_LIBOPENCSD=yes
   fi
 fi
 # ------------------------- #

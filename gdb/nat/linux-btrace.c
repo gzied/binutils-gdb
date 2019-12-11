@@ -682,6 +682,127 @@ linux_enable_pt (ptid_t ptid, const struct btrace_config_pt *conf)
 }
 
 #endif /* !defined (PERF_ATTR_SIZE_VER5) */
+/*-----------------------------------------*/
+/* Determine the event type.  */
+
+static int
+perf_event_etm_event_type ()
+{
+  static const char filename[] = "/sys/bus/event_source/devices/cs_etm/type";
+
+  errno = 0;
+  gdb_file_up file = gdb_fopen_cloexec (filename, "r");
+  if (file.get () == nullptr)
+    error (_("Failed to open %s: %s."), filename, safe_strerror (errno));
+
+  int type, found = fscanf (file.get (), "%d", &type);
+  if (found != 1)
+    error (_("Failed to read the PT event type from %s."), filename);
+
+  return type;
+}
+
+/* Enable arm CoreSight ETM tracing.  */
+
+static struct btrace_target_info *
+linux_enable_etm (ptid_t ptid, const struct btrace_config_etm *conf)
+{
+  struct btrace_tinfo_etm *etm;
+  size_t pages;
+  int pid, pg;
+
+  pid = ptid.lwp ();
+  if (pid == 0)
+    pid = ptid.pid ();
+
+  gdb::unique_xmalloc_ptr<btrace_target_info> tinfo
+    (XCNEW (btrace_target_info));
+  tinfo->ptid = ptid;
+
+  tinfo->conf.format = BTRACE_FORMAT_ETM;
+  etm = &tinfo->variant.etm;
+
+  etm->attr.size = sizeof (etm->attr);
+  etm->attr.type = perf_event_etm_event_type ();
+
+  etm->attr.exclude_kernel = 1;
+  etm->attr.exclude_hv = 1;
+  etm->attr.exclude_idle = 1;
+
+  errno = 0;
+  scoped_fd fd (syscall (SYS_perf_event_open, &etm->attr, pid, -1, -1, 0));
+  if (fd.get () < 0)
+    diagnose_perf_event_open_fail ();
+
+  /* Allocate the configuration page. */
+  scoped_mmap data (nullptr, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED,
+		    fd.get (), 0);
+  if (data.get () == MAP_FAILED)
+    error (_("Failed to map trace user page: %s."), safe_strerror (errno));
+
+  struct perf_event_mmap_page *header = (struct perf_event_mmap_page *)
+    data.get ();
+
+  header->aux_offset = header->data_offset + header->data_size;
+
+  /* Convert the requested size in bytes to pages (rounding up).  */
+  pages = ((size_t) conf->size / PAGE_SIZE
+	   + ((conf->size % PAGE_SIZE) == 0 ? 0 : 1));
+  /* We need at least one page.  */
+  if (pages == 0)
+    pages = 1;
+
+  /* The buffer size can be requested in powers of two pages.  Adjust PAGES
+     to the next power of two.  */
+  for (pg = 0; pages != ((size_t) 1 << pg); ++pg)
+    if ((pages & ((size_t) 1 << pg)) != 0)
+      pages += ((size_t) 1 << pg);
+
+  /* We try to allocate the requested size.
+     If that fails, try to get as much as we can.  */
+  scoped_mmap aux;
+  for (; pages > 0; pages >>= 1)
+    {
+      size_t length;
+      __u64 data_size;
+
+      data_size = (__u64) pages * PAGE_SIZE;
+
+      /* Don't ask for more than we can represent in the configuration.  */
+      if ((__u64) UINT_MAX < data_size)
+	continue;
+
+      length = (size_t) data_size;
+
+      /* Check for overflows.  */
+      if ((__u64) length != data_size)
+	continue;
+
+      header->aux_size = data_size;
+
+      errno = 0;
+      aux.reset (nullptr, length, PROT_READ, MAP_SHARED, fd.get (),
+		 header->aux_offset);
+      if (aux.get () != MAP_FAILED)
+	break;
+    }
+
+  if (pages == 0)
+    error (_("Failed to map trace buffer: %s."), safe_strerror (errno));
+
+  etm->etm.size = aux.size ();
+  etm->etm.mem = (const uint8_t *) aux.release ();
+  etm->etm.data_head = &header->aux_head;
+  etm->header = (struct perf_event_mmap_page *) data.release ();
+  gdb_assert (etm->header == header);
+  etm->file = fd.release ();
+
+  tinfo->conf.etm.size = (unsigned int) etm->etm.size;
+  return tinfo.release ();
+}
+
+/*-------------------------------------------*/
+
 
 /* See linux-btrace.h.  */
 
@@ -701,6 +822,9 @@ linux_enable_btrace (ptid_t ptid, const struct btrace_config *conf)
 
     case BTRACE_FORMAT_PT:
       return linux_enable_pt (ptid, &conf->pt);
+
+    case BTRACE_FORMAT_ETM:
+          return linux_enable_etm (ptid, &conf->etm);
     }
 }
 
@@ -727,6 +851,18 @@ linux_disable_pt (struct btrace_tinfo_pt *tinfo)
   return BTRACE_ERR_NONE;
 }
 
+/* Disable arm CoreSight ETM tracing.  */
+
+static enum btrace_error
+linux_disable_etm (struct btrace_tinfo_etm *tinfo)
+{
+  munmap((void *) tinfo->etm.mem, tinfo->etm.size);
+  munmap((void *) tinfo->header, PAGE_SIZE);
+  close (tinfo->file);
+
+  return BTRACE_ERR_NONE;
+}
+
 /* See linux-btrace.h.  */
 
 enum btrace_error
@@ -746,6 +882,10 @@ linux_disable_btrace (struct btrace_target_info *tinfo)
 
     case BTRACE_FORMAT_PT:
       errcode = linux_disable_pt (&tinfo->variant.pt);
+      break;
+
+    case BTRACE_FORMAT_ETM:
+      errcode = linux_disable_etm (&tinfo->variant.etm);
       break;
     }
 
@@ -892,6 +1032,44 @@ linux_read_pt (struct btrace_data_pt *btrace,
   internal_error (__FILE__, __LINE__, _("Unkown btrace read type."));
 }
 
+static void
+linux_fill_btrace_etm_config (struct btrace_data_etm_config *conf)
+{
+  conf->cpu = btrace_this_cpu ();
+}
+
+static enum btrace_error
+linux_read_etm (struct btrace_data_etm *btrace,
+	       struct btrace_target_info *tinfo,
+	       enum btrace_read_type type)
+{
+  struct perf_event_buffer *etm;
+
+  etm = &tinfo->variant.etm.etm;
+
+  linux_fill_btrace_etm_config (&btrace->config);
+
+  switch (type)
+    {
+    case BTRACE_READ_DELTA:
+      /* We don't support delta reads.  The data head (i.e. aux_head) wraps
+	 around to stay inside the aux buffer.  */
+      return BTRACE_ERR_NOT_SUPPORTED;
+
+    case BTRACE_READ_NEW:
+      if (!perf_event_new_data (etm))
+	return BTRACE_ERR_NONE;
+
+      /* Fall through.  */
+    case BTRACE_READ_ALL:
+      perf_event_read_all (etm, &btrace->data, &btrace->size);
+      return BTRACE_ERR_NONE;
+    }
+
+  internal_error (__FILE__, __LINE__, _("Unkown btrace read type."));
+}
+
+
 /* See linux-btrace.h.  */
 
 enum btrace_error
@@ -918,6 +1096,14 @@ linux_read_btrace (struct btrace_data *btrace,
       btrace->variant.pt.size = 0;
 
       return linux_read_pt (&btrace->variant.pt, tinfo, type);
+
+    case BTRACE_FORMAT_ETM:
+          /* We read btrace in arm CoreSight ETM Trace format.  */
+          btrace->format = BTRACE_FORMAT_ETM;
+          btrace->variant.etm.data = NULL;
+          btrace->variant.etm.size = 0;
+
+          return linux_read_etm (&btrace->variant.etm, tinfo, type);
     }
 
   internal_error (__FILE__, __LINE__, _("Unkown branch trace format."));

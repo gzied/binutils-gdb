@@ -78,6 +78,22 @@ struct btrace_tinfo_pt
   /* The trace perf event buffer.  */
   struct perf_event_buffer pt;
 };
+
+/* Branch trace target information for arm CoreSight ETM Trace. */
+struct btrace_tinfo_etm
+{
+  /* The Linux perf_event configuration for collecting the branch trace.  */
+  struct perf_event_attr attr;
+
+  /* The perf event file.  */
+  int file;
+
+  /* The perf event configuration page. */
+  volatile struct perf_event_mmap_page *header;
+
+  /* The trace perf event buffer.  */
+  struct perf_event_buffer etm;
+};
 #endif /* HAVE_LINUX_PERF_EVENT_H */
 
 /* Branch trace target information per thread.  */
@@ -98,6 +114,9 @@ struct btrace_target_info
 
     /* CONF.FORMAT == BTRACE_FORMAT_PT.  */
     struct btrace_tinfo_pt pt;
+
+    /* CONF.FORMAT == BTRACE_FORMAT_ETM.  */
+    struct btrace_tinfo_etm etm;
   } variant;
 #endif /* HAVE_LINUX_PERF_EVENT_H */
 };

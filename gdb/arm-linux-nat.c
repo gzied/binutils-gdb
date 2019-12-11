@@ -94,7 +94,16 @@ public:
   bool watchpoint_addr_within_range (CORE_ADDR, CORE_ADDR, int) override;
 
   const struct target_desc *read_description () override;
-
+  /*------------------------*/
+  struct btrace_target_info *enable_btrace (ptid_t ptid,
+  					    const struct btrace_config *conf) override;
+    void disable_btrace (struct btrace_target_info *tinfo) override;
+    void teardown_btrace (struct btrace_target_info *tinfo) override;
+    enum btrace_error read_btrace (struct btrace_data *data,
+  				 struct btrace_target_info *btinfo,
+  				 enum btrace_read_type type) override;
+    const struct btrace_config *btrace_conf (const struct btrace_target_info *) override;
+  /*-------------------------------*/
   /* Override linux_nat_target low methods.  */
 
   /* Handle thread creation and exit.  */
@@ -574,7 +583,64 @@ arm_linux_nat_target::read_description ()
 
   return this->beneath ()->read_description ();
 }
+/*-----------------------------------------*/
+/* Enable branch tracing.  */
 
+struct btrace_target_info *
+arm_linux_nat_target::enable_btrace (ptid_t ptid,
+				     const struct btrace_config *conf)
+{
+  struct btrace_target_info *tinfo = nullptr;
+  try
+    {
+      tinfo = linux_enable_btrace (ptid, conf);
+    }
+  catch (const gdb_exception_error &exception)
+    {
+      error (_("Could not enable branch tracing for %s: %s"),
+	     target_pid_to_str (ptid).c_str (), exception.what ());
+    }
+
+  return tinfo;
+}
+
+/* Disable branch tracing.  */
+
+void
+arm_linux_nat_target::disable_btrace (struct btrace_target_info *tinfo)
+{
+  enum btrace_error errcode = linux_disable_btrace (tinfo);
+
+  if (errcode != BTRACE_ERR_NONE)
+    error (_("Could not disable branch tracing."));
+}
+
+/* Teardown branch tracing.  */
+
+void
+arm_linux_nat_target::teardown_btrace (struct btrace_target_info *tinfo)
+{
+  /* Ignore errors.  */
+  linux_disable_btrace (tinfo);
+}
+
+enum btrace_error
+x86_linux_nat_target::read_btrace (struct btrace_data *data,
+				   struct btrace_target_info *btinfo,
+				   enum btrace_read_type type)
+{
+  return linux_read_btrace (data, btinfo, type);
+}
+
+/* See to_btrace_conf in target.h.  */
+
+const struct btrace_config *
+arm_linux_nat_target::btrace_conf (const struct btrace_target_info *btinfo)
+{
+  return linux_btrace_conf (btinfo);
+}
+
+/*-------------------------------------------*/
 /* Information describing the hardware breakpoint capabilities.  */
 struct arm_linux_hwbp_cap
 {
@@ -1189,7 +1255,65 @@ arm_linux_nat_target::watchpoint_addr_within_range (CORE_ADDR addr,
 {
   return start <= addr && start + length - 1 >= addr;
 }
+/*----------------------*/
+/* Enable branch tracing.  */
 
+struct btrace_target_info *
+arm_linux_nat_target::enable_btrace (ptid_t ptid,
+				     const struct btrace_config *conf)
+{
+  struct btrace_target_info *tinfo = nullptr;
+  try
+    {
+      tinfo = linux_enable_btrace (ptid, conf);
+    }
+  catch (const gdb_exception_error &exception)
+    {
+      error (_("Could not enable branch tracing for %s: %s"),
+	     target_pid_to_str (ptid).c_str (), exception.what ());
+    }
+
+  return tinfo;
+}
+
+/* Disable branch tracing.  */
+
+void
+arm_linux_nat_target::disable_btrace (struct btrace_target_info *tinfo)
+{
+  enum btrace_error errcode = linux_disable_btrace (tinfo);
+
+  if (errcode != BTRACE_ERR_NONE)
+    error (_("Could not disable branch tracing."));
+}
+
+/* Teardown branch tracing.  */
+
+void
+arm_linux_nat_target::teardown_btrace (struct btrace_target_info *tinfo)
+{
+  /* Ignore errors.  */
+  linux_disable_btrace (tinfo);
+}
+
+enum btrace_error
+x86_linux_nat_target::read_btrace (struct btrace_data *data,
+				   struct btrace_target_info *btinfo,
+				   enum btrace_read_type type)
+{
+  return linux_read_btrace (data, btinfo, type);
+}
+
+/* See to_btrace_conf in target.h.  */
+
+const struct btrace_config *
+arm_linux_nat_target::btrace_conf (const struct btrace_target_info *btinfo)
+{
+  return linux_btrace_conf (btinfo);
+}
+
+
+/*-----------------------*/
 /* Handle thread creation.  We need to copy the breakpoints and watchpoints
    in the parent thread to the child thread.  */
 void
