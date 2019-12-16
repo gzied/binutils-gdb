@@ -1512,11 +1512,18 @@ btrace_compute_ftrace_etm (struct thread_info *tp,
 			btrace);
 }
 #else /*    defined (HAVE_LIBOPENCSD)    */
+
+#define MIN(x, y) (((x) < (y)) ? (x) : (y))
 static void
 btrace_compute_ftrace_etm (struct thread_info *tp,
 			  const struct btrace_data_etm *btrace,
 			  std::vector<unsigned int> &gaps)
 {
+  printf ("btrace_data_etm *btrace is 0x%p\n", (void*)(btrace));
+  printf ("btrace->size is 0x%x\n", (unsigned int)(btrace->size));
+  for (int i=0;i<MIN(btrace->size,100); i++)
+	  printf ("btrace->data is 0x%x\n", (unsigned int)(btrace->data[i]));
+
   internal_error (__FILE__, __LINE__, _("Unexpected branch trace format."));
 }
 #endif /*    defined (HAVE_LIBOPENCSD)    */
@@ -1550,7 +1557,7 @@ btrace_compute_ftrace_1 (struct thread_info *tp,
       btrace_compute_ftrace_pt (tp, &btrace->variant.pt, gaps);
       return;
 
-    case BTRACE_FORMAT_PT:
+    case BTRACE_FORMAT_ETM:
     	btrace_compute_ftrace_etm (tp, &btrace->variant.etm, gaps);
     	return;
     }

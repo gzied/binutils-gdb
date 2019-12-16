@@ -3294,7 +3294,6 @@ When set to \"none\", errata workarounds are disabled."),
 		  &set_record_btrace_cpu_cmdlist,
 		  "set record btrace cpu ", 1,
 		  &set_record_btrace_cmdlist);
-/*-------------*/
   
   add_cmd ("etm", class_obscure, cmd_record_btrace_etm_start,
 	   _("\
@@ -3311,7 +3310,6 @@ This format may not be available on all processors."),
 		  _("Show record options."), &show_record_btrace_cmdlist,
 		  "show record btrace ", 0, &show_record_cmdlist);
 
-/*--------------------*/ 
   add_cmd ("auto", class_support, cmd_set_record_btrace_cpu_auto, _("\
 Automatically determine the cpu to be used for trace decode."),
 	   &set_record_btrace_cpu_cmdlist);
@@ -3368,7 +3366,7 @@ The actual buffer size may differ from the requested size.  Use \"info record\" 
 to see the actual buffer size."), NULL, show_record_pt_buffer_size_value,
 			    &set_record_btrace_pt_cmdlist,
 			    &show_record_btrace_pt_cmdlist);
-/*----------------*/
+
   add_prefix_cmd ("etm", class_support, cmd_set_record_btrace_etm,
 		  _("Set record btrace etm options."),
 		  &set_record_btrace_etm_cmdlist,
@@ -3380,16 +3378,15 @@ to see the actual buffer size."), NULL, show_record_pt_buffer_size_value,
 		  "show record btrace etm ", 0, &show_record_btrace_cmdlist);
 
   add_setshow_uinteger_cmd ("buffer-size", no_class,
-			    &record_btrace_conf.pt.size,
-			    _("Set the record/replay pt buffer size."),
-			    _("Show the record/replay pt buffer size."), _("\
+			    &record_btrace_conf.etm.size,
+			    _("Set the record/replay etm buffer size."),
+			    _("Show the record/replay etm buffer size."), _("\
 Bigger buffers allow longer recording but also take more time to process \
 the recorded execution.\n\
 The actual buffer size may differ from the requested size.  Use \"info record\" \
 to see the actual buffer size."), NULL, show_record_etm_buffer_size_value,
 			    &set_record_btrace_etm_cmdlist,
 			    &show_record_btrace_etm_cmdlist);
-/*-------------------*/
 
   add_target (record_btrace_target_info, record_btrace_target_open);
 

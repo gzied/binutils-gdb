@@ -26,19 +26,22 @@
 const char *
 btrace_format_string (enum btrace_format format)
 {
-  switch (format)
-    {
-    case BTRACE_FORMAT_NONE:
-      return _("No or unknown format");
+	switch (format)
+	{
+	case BTRACE_FORMAT_NONE:
+		return _("No or unknown format");
 
-    case BTRACE_FORMAT_BTS:
-      return _("Branch Trace Store");
+	case BTRACE_FORMAT_BTS:
+		return _("Branch Trace Store");
 
-    case BTRACE_FORMAT_PT:
-      return _("Intel Processor Trace");
-    }
+	case BTRACE_FORMAT_PT:
+		return _("Intel Processor Trace");
 
-  internal_error (__FILE__, __LINE__, _("Unknown branch trace format"));
+	case BTRACE_FORMAT_ETM:
+		return _("arm Processor CoreSight ETM Trace");
+	}
+
+	internal_error (__FILE__, __LINE__, _("Unknown branch trace format"));
 }
 
 /* See btrace-common.h.  */
@@ -46,19 +49,22 @@ btrace_format_string (enum btrace_format format)
 const char *
 btrace_format_short_string (enum btrace_format format)
 {
-  switch (format)
-    {
-    case BTRACE_FORMAT_NONE:
-      return "unknown";
+	switch (format)
+	{
+	case BTRACE_FORMAT_NONE:
+		return "unknown";
 
-    case BTRACE_FORMAT_BTS:
-      return "bts";
+	case BTRACE_FORMAT_BTS:
+		return "bts";
 
-    case BTRACE_FORMAT_PT:
-      return "pt";
-    }
+	case BTRACE_FORMAT_PT:
+		return "pt";
 
-  internal_error (__FILE__, __LINE__, _("Unknown branch trace format"));
+	case BTRACE_FORMAT_ETM:
+		return "etm";
+	}
+
+	internal_error (__FILE__, __LINE__, _("Unknown branch trace format"));
 }
 
 /* See btrace-common.h.  */
@@ -66,23 +72,27 @@ btrace_format_short_string (enum btrace_format format)
 void
 btrace_data::fini ()
 {
-  switch (format)
-    {
-    case BTRACE_FORMAT_NONE:
-      /* Nothing to do.  */
-      return;
+	switch (format)
+	{
+	case BTRACE_FORMAT_NONE:
+		/* Nothing to do.  */
+		return;
 
-    case BTRACE_FORMAT_BTS:
-      delete variant.bts.blocks;
-      variant.bts.blocks = nullptr;
-      return;
+	case BTRACE_FORMAT_BTS:
+		delete variant.bts.blocks;
+		variant.bts.blocks = nullptr;
+		return;
 
-    case BTRACE_FORMAT_PT:
-      xfree (variant.pt.data);
-      return;
-    }
+	case BTRACE_FORMAT_PT:
+		xfree (variant.pt.data);
+		return;
 
-  internal_error (__FILE__, __LINE__, _("Unkown branch trace format."));
+	case BTRACE_FORMAT_ETM:
+		xfree (variant.etm.data);
+		return;
+	}
+
+	internal_error (__FILE__, __LINE__, _("Unkown branch trace format."));
 }
 
 /* See btrace-common.h.  */
@@ -90,19 +100,22 @@ btrace_data::fini ()
 bool
 btrace_data::empty () const
 {
-  switch (format)
-    {
-    case BTRACE_FORMAT_NONE:
-      return true;
+	switch (format)
+	{
+	case BTRACE_FORMAT_NONE:
+		return true;
 
-    case BTRACE_FORMAT_BTS:
-      return variant.bts.blocks->empty ();
+	case BTRACE_FORMAT_BTS:
+		return variant.bts.blocks->empty ();
 
-    case BTRACE_FORMAT_PT:
-      return (variant.pt.size == 0);
-    }
+	case BTRACE_FORMAT_PT:
+		return (variant.pt.size == 0);
 
-  internal_error (__FILE__, __LINE__, _("Unkown branch trace format."));
+	case BTRACE_FORMAT_ETM:
+		return (variant.etm.size == 0);
+	}
+
+	internal_error (__FILE__, __LINE__, _("Unkown branch trace format."));
 }
 
 /* See btrace-common.h.  */
@@ -110,81 +123,113 @@ btrace_data::empty () const
 void
 btrace_data::clear ()
 {
-  fini ();
-  format = BTRACE_FORMAT_NONE;
+	fini ();
+	format = BTRACE_FORMAT_NONE;
 }
 
 /* See btrace-common.h.  */
 
 int
 btrace_data_append (struct btrace_data *dst,
-		    const struct btrace_data *src)
+		const struct btrace_data *src)
 {
-  switch (src->format)
-    {
-    case BTRACE_FORMAT_NONE:
-      return 0;
-
-    case BTRACE_FORMAT_BTS:
-      switch (dst->format)
+	switch (src->format)
 	{
-	default:
-	  return -1;
-
 	case BTRACE_FORMAT_NONE:
-	  dst->format = BTRACE_FORMAT_BTS;
-	  dst->variant.bts.blocks = new std::vector<btrace_block>;
+		return 0;
 
-	  /* Fall-through.  */
 	case BTRACE_FORMAT_BTS:
-	  {
-	    unsigned int blk;
+		switch (dst->format)
+		{
+		default:
+			return -1;
 
-	    /* We copy blocks in reverse order to have the oldest block at
+		case BTRACE_FORMAT_NONE:
+			dst->format = BTRACE_FORMAT_BTS;
+			dst->variant.bts.blocks = new std::vector<btrace_block>;
+
+			/* Fall-through.  */
+		case BTRACE_FORMAT_BTS:
+		{
+			unsigned int blk;
+
+			/* We copy blocks in reverse order to have the oldest block at
 	       index zero.  */
-	    blk = src->variant.bts.blocks->size ();
-	    while (blk != 0)
-	      {
-		const btrace_block &block
-		  = src->variant.bts.blocks->at (--blk);
-		dst->variant.bts.blocks->push_back (block);
-	      }
-	  }
+			blk = src->variant.bts.blocks->size ();
+			while (blk != 0)
+			{
+				const btrace_block &block
+				= src->variant.bts.blocks->at (--blk);
+				dst->variant.bts.blocks->push_back (block);
+			}
+		}
+		}
+		return 0;
+
+		case BTRACE_FORMAT_PT:
+			switch (dst->format)
+			{
+			default:
+				return -1;
+
+			case BTRACE_FORMAT_NONE:
+				dst->format = BTRACE_FORMAT_PT;
+				dst->variant.pt.data = NULL;
+				dst->variant.pt.size = 0;
+
+				/* fall-through.  */
+			case BTRACE_FORMAT_PT:
+			{
+				gdb_byte *data;
+				size_t size;
+
+				size = src->variant.pt.size + dst->variant.pt.size;
+				data = (gdb_byte *) xmalloc (size);
+
+				memcpy (data, dst->variant.pt.data, dst->variant.pt.size);
+				memcpy (data + dst->variant.pt.size, src->variant.pt.data,
+						src->variant.pt.size);
+
+				xfree (dst->variant.pt.data);
+
+				dst->variant.pt.data = data;
+				dst->variant.pt.size = size;
+			}
+			}
+			return 0;
+
+			case BTRACE_FORMAT_ETM:
+				switch (dst->format)
+				{
+				default:
+					return -1;
+
+				case BTRACE_FORMAT_NONE:
+					dst->format = BTRACE_FORMAT_ETM;
+					dst->variant.etm.data = NULL;
+					dst->variant.etm.size = 0;
+
+					/* fall-through.  */
+				case BTRACE_FORMAT_ETM:
+				{
+					gdb_byte *data;
+					size_t size;
+
+					size = src->variant.etm.size + dst->variant.etm.size;
+					data = (gdb_byte *) xmalloc (size);
+
+					memcpy (data, dst->variant.etm.data, dst->variant.etm.size);
+					memcpy (data + dst->variant.etm.size, src->variant.etm.data,
+							src->variant.etm.size);
+
+					xfree (dst->variant.etm.data);
+
+					dst->variant.etm.data = data;
+					dst->variant.etm.size = size;
+				}
+				}
+				return 0;
 	}
-      return 0;
 
-    case BTRACE_FORMAT_PT:
-      switch (dst->format)
-	{
-	default:
-	  return -1;
-
-	case BTRACE_FORMAT_NONE:
-	  dst->format = BTRACE_FORMAT_PT;
-	  dst->variant.pt.data = NULL;
-	  dst->variant.pt.size = 0;
-
-	  /* fall-through.  */
-	case BTRACE_FORMAT_PT:
-	  {
-	    gdb_byte *data;
-	    size_t size;
-
-	    size = src->variant.pt.size + dst->variant.pt.size;
-	    data = (gdb_byte *) xmalloc (size);
-
-	    memcpy (data, dst->variant.pt.data, dst->variant.pt.size);
-	    memcpy (data + dst->variant.pt.size, src->variant.pt.data,
-		    src->variant.pt.size);
-
-	    xfree (dst->variant.pt.data);
-
-	    dst->variant.pt.data = data;
-	    dst->variant.pt.size = size;
-	  }
-	}
-      return 0;
-    }
-
-  internal_error (__FILE__, __LINE__, _("Unkown branch trace format."));
+	internal_error (__FILE__, __LINE__, _("Unkown branch trace format."));
 }

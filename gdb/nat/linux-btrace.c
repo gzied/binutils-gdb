@@ -38,7 +38,6 @@
 #include <sys/user.h>
 #include "nat/gdb_ptrace.h"
 #include <sys/types.h>
-#include <signal.h>
 
 /* A branch trace record in perf_event.  */
 struct perf_event_bts
@@ -478,9 +477,11 @@ linux_enable_bts (ptid_t ptid, const struct btrace_config_bts *conf)
   if (fd.get () < 0)
     diagnose_perf_event_open_fail ();
 
+  long page_size = sysconf(_SC_PAGESIZE);
+
   /* Convert the requested size in bytes to pages (rounding up).  */
-  pages = ((size_t) conf->size / PAGE_SIZE
-	   + ((conf->size % PAGE_SIZE) == 0 ? 0 : 1));
+  pages = ((size_t) conf->size / page_size
+	   + ((conf->size % page_size) == 0 ? 0 : 1));
   /* We need at least one page.  */
   if (pages == 0)
     pages = 1;
@@ -499,17 +500,17 @@ linux_enable_bts (ptid_t ptid, const struct btrace_config_bts *conf)
       size_t length;
       __u64 data_size;
 
-      data_size = (__u64) pages * PAGE_SIZE;
+      data_size = (__u64) pages * page_size;
 
       /* Don't ask for more than we can represent in the configuration.  */
       if ((__u64) UINT_MAX < data_size)
 	continue;
 
       size = (size_t) data_size;
-      length = size + PAGE_SIZE;
+      length = size + page_size;
 
       /* Check for overflows.  */
-      if ((__u64) length != data_size + PAGE_SIZE)
+      if ((__u64) length != data_size + page_size)
 	continue;
 
       errno = 0;
@@ -524,7 +525,7 @@ linux_enable_bts (ptid_t ptid, const struct btrace_config_bts *conf)
 
   struct perf_event_mmap_page *header = (struct perf_event_mmap_page *)
     data.get ();
-  data_offset = PAGE_SIZE;
+  data_offset = page_size;
 
 #if defined (PERF_ATTR_SIZE_VER5)
   if (offsetof (struct perf_event_mmap_page, data_size) <= header->size)
@@ -607,7 +608,8 @@ linux_enable_pt (ptid_t ptid, const struct btrace_config_pt *conf)
     diagnose_perf_event_open_fail ();
 
   /* Allocate the configuration page. */
-  scoped_mmap data (nullptr, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED,
+  long page_size = sysconf(_SC_PAGESIZE);
+  scoped_mmap data (nullptr, page_size, PROT_READ | PROT_WRITE, MAP_SHARED,
 		    fd.get (), 0);
   if (data.get () == MAP_FAILED)
     error (_("Failed to map trace user page: %s."), safe_strerror (errno));
@@ -618,8 +620,8 @@ linux_enable_pt (ptid_t ptid, const struct btrace_config_pt *conf)
   header->aux_offset = header->data_offset + header->data_size;
 
   /* Convert the requested size in bytes to pages (rounding up).  */
-  pages = ((size_t) conf->size / PAGE_SIZE
-	   + ((conf->size % PAGE_SIZE) == 0 ? 0 : 1));
+  pages = ((size_t) conf->size / page_size
+	   + ((conf->size % page_size) == 0 ? 0 : 1));
   /* We need at least one page.  */
   if (pages == 0)
     pages = 1;
@@ -638,7 +640,7 @@ linux_enable_pt (ptid_t ptid, const struct btrace_config_pt *conf)
       size_t length;
       __u64 data_size;
 
-      data_size = (__u64) pages * PAGE_SIZE;
+      data_size = (__u64) pages * page_size;
 
       /* Don't ask for more than we can represent in the configuration.  */
       if ((__u64) UINT_MAX < data_size)
@@ -682,8 +684,8 @@ linux_enable_pt (ptid_t ptid, const struct btrace_config_pt *conf)
 }
 
 #endif /* !defined (PERF_ATTR_SIZE_VER5) */
-/*-----------------------------------------*/
-/* Determine the event type.  */
+
+/* Determine the etm event type.  */
 
 static int
 perf_event_etm_event_type ()
@@ -697,9 +699,27 @@ perf_event_etm_event_type ()
 
   int type, found = fscanf (file.get (), "%d", &type);
   if (found != 1)
-    error (_("Failed to read the PT event type from %s."), filename);
+    error (_("Failed to read the ETM event type from %s."), filename);
 
   return type;
+}
+
+static unsigned int
+perf_event_etm_event_sink ()
+{
+  static const char filename[] = "/sys/bus/event_source/devices/cs_etm/sinks/tmc_etf0";
+
+  errno = 0;
+  gdb_file_up file = gdb_fopen_cloexec (filename, "r");
+  if (file.get () == nullptr)
+    error (_("Failed to open %s: %s."), filename, safe_strerror (errno));
+
+  unsigned int sink;
+  int  found = fscanf (file.get (), "0x%x", &sink);
+  if (found != 1)
+    error (_("Failed to read the ETM sink from %s."), filename);
+
+  return sink;
 }
 
 /* Enable arm CoreSight ETM tracing.  */
@@ -728,6 +748,7 @@ linux_enable_etm (ptid_t ptid, const struct btrace_config_etm *conf)
   etm->attr.exclude_kernel = 1;
   etm->attr.exclude_hv = 1;
   etm->attr.exclude_idle = 1;
+  etm->attr.config2 = perf_event_etm_event_sink();
 
   errno = 0;
   scoped_fd fd (syscall (SYS_perf_event_open, &etm->attr, pid, -1, -1, 0));
@@ -735,7 +756,8 @@ linux_enable_etm (ptid_t ptid, const struct btrace_config_etm *conf)
     diagnose_perf_event_open_fail ();
 
   /* Allocate the configuration page. */
-  scoped_mmap data (nullptr, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED,
+  long page_size = sysconf(_SC_PAGESIZE);
+  scoped_mmap data (nullptr, page_size, PROT_READ | PROT_WRITE, MAP_SHARED,
 		    fd.get (), 0);
   if (data.get () == MAP_FAILED)
     error (_("Failed to map trace user page: %s."), safe_strerror (errno));
@@ -744,10 +766,9 @@ linux_enable_etm (ptid_t ptid, const struct btrace_config_etm *conf)
     data.get ();
 
   header->aux_offset = header->data_offset + header->data_size;
-
   /* Convert the requested size in bytes to pages (rounding up).  */
-  pages = ((size_t) conf->size / PAGE_SIZE
-	   + ((conf->size % PAGE_SIZE) == 0 ? 0 : 1));
+  pages = ((size_t) conf->size / page_size
+	   + ((conf->size % page_size) == 0 ? 0 : 1));
   /* We need at least one page.  */
   if (pages == 0)
     pages = 1;
@@ -758,6 +779,7 @@ linux_enable_etm (ptid_t ptid, const struct btrace_config_etm *conf)
     if ((pages & ((size_t) 1 << pg)) != 0)
       pages += ((size_t) 1 << pg);
 
+
   /* We try to allocate the requested size.
      If that fails, try to get as much as we can.  */
   scoped_mmap aux;
@@ -765,18 +787,19 @@ linux_enable_etm (ptid_t ptid, const struct btrace_config_etm *conf)
     {
       size_t length;
       __u64 data_size;
-
-      data_size = (__u64) pages * PAGE_SIZE;
+      data_size = (__u64) pages * page_size;
 
       /* Don't ask for more than we can represent in the configuration.  */
       if ((__u64) UINT_MAX < data_size)
-	continue;
+    	  continue;
+
 
       length = (size_t) data_size;
 
       /* Check for overflows.  */
       if ((__u64) length != data_size)
-	continue;
+         continue;
+
 
       header->aux_size = data_size;
 
@@ -784,9 +807,8 @@ linux_enable_etm (ptid_t ptid, const struct btrace_config_etm *conf)
       aux.reset (nullptr, length, PROT_READ, MAP_SHARED, fd.get (),
 		 header->aux_offset);
       if (aux.get () != MAP_FAILED)
-	break;
+    	  break;
     }
-
   if (pages == 0)
     error (_("Failed to map trace buffer: %s."), safe_strerror (errno));
 
@@ -800,8 +822,6 @@ linux_enable_etm (ptid_t ptid, const struct btrace_config_etm *conf)
   tinfo->conf.etm.size = (unsigned int) etm->etm.size;
   return tinfo.release ();
 }
-
-/*-------------------------------------------*/
 
 
 /* See linux-btrace.h.  */
@@ -833,7 +853,8 @@ linux_enable_btrace (ptid_t ptid, const struct btrace_config *conf)
 static enum btrace_error
 linux_disable_bts (struct btrace_tinfo_bts *tinfo)
 {
-  munmap((void *) tinfo->header, tinfo->bts.size + PAGE_SIZE);
+  long page_size = sysconf(_SC_PAGESIZE);
+  munmap((void *) tinfo->header, tinfo->bts.size + page_size);
   close (tinfo->file);
 
   return BTRACE_ERR_NONE;
@@ -844,8 +865,9 @@ linux_disable_bts (struct btrace_tinfo_bts *tinfo)
 static enum btrace_error
 linux_disable_pt (struct btrace_tinfo_pt *tinfo)
 {
+  long page_size = sysconf(_SC_PAGESIZE);
   munmap((void *) tinfo->pt.mem, tinfo->pt.size);
-  munmap((void *) tinfo->header, PAGE_SIZE);
+  munmap((void *) tinfo->header, page_size);
   close (tinfo->file);
 
   return BTRACE_ERR_NONE;
@@ -856,8 +878,9 @@ linux_disable_pt (struct btrace_tinfo_pt *tinfo)
 static enum btrace_error
 linux_disable_etm (struct btrace_tinfo_etm *tinfo)
 {
+  long page_size = sysconf(_SC_PAGESIZE);
   munmap((void *) tinfo->etm.mem, tinfo->etm.size);
-  munmap((void *) tinfo->header, PAGE_SIZE);
+  munmap((void *) tinfo->header, page_size);
   close (tinfo->file);
 
   return BTRACE_ERR_NONE;

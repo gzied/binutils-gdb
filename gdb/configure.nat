@@ -241,7 +241,7 @@ case ${gdb_host} in
 	    arm)
 		# Host: ARM based machine running GNU/Linux
 		NATDEPFILES="${NATDEPFILES} arm-linux-nat.o \
-		aarch32-linux-nat.o"
+		aarch32-linux-nat.o nat/linux-btrace.o"
 		;;
 	    i386)
 		# Host: Intel 386 running GNU/Linux.
