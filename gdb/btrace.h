@@ -35,6 +35,8 @@
 #endif
 
 #if defined (HAVE_LIBOPENCSD)
+#  include <opencsd/c_api/opencsd_c_api.h>
+#  include <opencsd/etmv4/trc_pkt_types_etmv4.h>
 #  include <opencsd/ocsd_if_types.h>
 #endif
 
@@ -269,6 +271,21 @@ struct btrace_pt_packet
 };
 
 #endif /* defined (HAVE_LIBIPT)  */
+#if defined (HAVE_LIBOPENCSD)
+/* A packet.  */
+struct btrace_etm_packet
+{
+  /* The offset in the trace stream.  */
+  uint64_t offset;
+
+  /* The decode error code.  */
+  //enum etm_error_code errcode;
+
+  /* The decoded packet.  Only valid if ERRCODE == etm_ok.  */
+  //struct etm_packet packet;
+};
+
+#endif /* defined (HAVE_LIBOPENCSD)  */
 
 /* Branch trace iteration state for "maintenance btrace packet-history".  */
 struct btrace_maint_packet_history
@@ -313,7 +330,7 @@ struct btrace_maint_info
     struct
     {
       /* A vector of decoded packets.  */
-      //std::vector<btrace_etm_packet> *packets;
+      std::vector<btrace_etm_packet> *packets;
 
       /* The packet history iterator.
       We are iterating over the above PACKETS vector.  */

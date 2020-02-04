@@ -1504,17 +1504,14 @@ btrace_compute_ftrace_pt (struct thread_info *tp,
 
 
 #if defined (HAVE_LIBOPENCSD)
-#define MIN(x, y) (((x) < (y)) ? (x) : (y))
+
 static void
 btrace_compute_ftrace_etm (struct thread_info *tp,
 			  const struct btrace_data_etm *btrace,
 			  std::vector<unsigned int> &gaps)
 {
-	DEBUG_FTRACE ("btrace_data_etm *btrace is 0x%p", (void*)(btrace));
-	DEBUG_FTRACE ("btrace->size is 0x%x", (unsigned int)(btrace->size));
-	for (int i=0;i<MIN(btrace->size,100); i++)
-		DEBUG_FTRACE ("btrace->data is 0x%x", (unsigned int)(btrace->data[i]));
-	DEBUG_FTRACE ("btrace_compute_ftrace_etm: thread_info *tp = %s", print_thread_id (tp));
+	DEBUG_FTRACE ("btrace->size is 0x%x for thread %s\n", (unsigned int)(btrace->size), print_thread_id (tp));
+
 }
 #else /*    defined (HAVE_LIBOPENCSD)    */
 
@@ -1627,6 +1624,10 @@ btrace_enable (struct thread_info *tp, const struct btrace_config *conf)
   if (conf->format == BTRACE_FORMAT_PT)
     error (_("Intel Processor Trace support was disabled at compile time."));
 #endif /* !defined (HAVE_LIBIPT) */
+#if !defined (HAVE_LIBOPENCSD)
+  if (conf->format == BTRACE_FORMAT_ETM)
+    error (_("arm CoreSight ETM Processor Trace support was disabled at compile time."));
+#endif /* !defined (HAVE_LIBOPENCSD) */
 
   DEBUG ("enable thread %s (%s)", print_thread_id (tp),
 	 target_pid_to_str (tp->ptid).c_str ());
@@ -3095,6 +3096,16 @@ btrace_maint_update_pt_packets (struct btrace_thread_info *btinfo)
 
 #endif /* !defined (HAVE_LIBIPT)  */
 
+#if defined (HAVE_LIBOPENCSD)
+static void
+btrace_maint_update_etm_packets (struct btrace_thread_info *btinfo)
+{
+	struct btrace_data_etm *etm;
+	etm = &btinfo->data.variant.etm;
+}
+#endif /* defined (HAVE_LIBIPT)  */
+
+
 /* Update the packet maintenance information for BTINFO and store the
    low and high bounds into BEGIN and END, respectively.
    Store the current iterator state into FROM and TO.  */
@@ -3135,6 +3146,20 @@ btrace_maint_update_packets (struct btrace_thread_info *btinfo,
       *to = btinfo->maint.variant.pt.packet_history.end;
       break;
 #endif /* defined (HAVE_LIBIPT)  */
+#if defined (HAVE_LIBOPENCSD)
+    case BTRACE_FORMAT_ETM:
+      if (btinfo->maint.variant.etm.packets == nullptr)
+    	btinfo->maint.variant.etm.packets = new std::vector<btrace_etm_packet>;
+
+      if (btinfo->maint.variant.etm.packets->empty ())
+    	btrace_maint_update_etm_packets (btinfo);
+
+      *begin = 0;
+      *end = btinfo->maint.variant.etm.packets->size ();
+      *from = btinfo->maint.variant.etm.packet_history.begin;
+      *to = btinfo->maint.variant.etm.packet_history.end;
+       break;
+#endif /* defined (HAVE_LIBOPENCSD)  */
     }
 }
 

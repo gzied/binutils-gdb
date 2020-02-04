@@ -129,7 +129,6 @@ struct btrace_config_pt
 struct btrace_config_etm
 {
   /* The size of the branch trace buffer in bytes.
-
      This is unsigned int and not size_t since it is registered as
      control variable for "set record btrace etm buffer-size".  */
   unsigned int size;
@@ -187,11 +186,58 @@ struct btrace_data_pt
   size_t size;
 };
 
+
+struct cs_etmv3_trace_params {
+	uint32_t reg_ctrl;
+	uint32_t reg_trc_id;
+	uint32_t reg_ccer;
+	uint32_t reg_idr;
+};
+
+struct cs_etmv4_trace_params {
+	uint32_t reg_idr0;
+	uint32_t reg_idr1;
+	uint32_t reg_idr2;
+	uint32_t reg_idr8;
+	uint32_t reg_configr;
+	uint32_t reg_traceidr;
+};
+
+/*
+ * The following enums are indexed starting with 1 to align with the
+ * open source coresight trace decoder library.
+ */
+enum {
+	CS_ETM_PROTO_ETMV3 = 1,
+	CS_ETM_PROTO_ETMV4i,
+	CS_ETM_PROTO_ETMV4d,
+	CS_ETM_PROTO_PTM,
+};
+
+struct cs_etm_trace_params {
+	int protocol;
+	union {
+		struct cs_etmv3_trace_params etmv3;
+		struct cs_etmv4_trace_params etmv4;
+	};
+};
+
+struct cs_etm_decoder_params {
+	uint8_t formatted    :1,
+	        fsyncs       :1,
+	        hsyncs       :1,
+	        frame_aligned:1,
+			__res        :4;
+};
+
+
 /* Configuration information to go with the etm trace data.  */
 struct btrace_data_etm_config
 {
-  /* The processor on which the trace has been collected.  */
-  struct btrace_cpu cpu;
+  /* The number of cpu (trace sources).  */
+  int    num_cpu;
+  struct cs_etm_trace_params *etm_trace_parmas;
+  struct cs_etm_decoder_params etm_decoder_params;
 };
 
 /* Branch trace in arm Processor Trace format.  */
@@ -244,7 +290,7 @@ struct btrace_data
 
     /* Format == BTRACE_FORMAT_PT.  */
     struct btrace_data_pt pt;
-    
+
     /* Format == BTRACE_FORMAT_ETM.  */
     struct btrace_data_etm etm;
   } variant;
