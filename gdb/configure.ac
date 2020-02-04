@@ -1204,7 +1204,7 @@ fi
 AC_SUBST(SRCHIGH_LIBS)
 AC_SUBST(SRCHIGH_CFLAGS)
 
-AC_ARG_WITH(intel_pt,
+AC_ARG_WITH(intel-pt,
   AS_HELP_STRING([--with-intel-pt], [include Intel Processor Trace support (auto/yes/no)]),
   [], [with_intel_pt=auto])
 AC_MSG_CHECKING([whether to use intel pt])
@@ -1247,7 +1247,7 @@ fi
 
 # arm coresight trace       #
 
-AC_ARG_WITH(arm_cs,
+AC_ARG_WITH(arm-cs,
   AS_HELP_STRING([--with-arm-cs], [include arm CoreSight Processor Trace support (auto/yes/no)]),
   [], [with_arm_cs=auto])
 AC_MSG_CHECKING([whether to use arm CoreSight Processor Trace ])
@@ -1257,35 +1257,13 @@ if test "${with_arm_cs}" = no; then
   AC_MSG_WARN([arm coresight Processor Trace support disabled; some features may be unavailable.])
   HAVE_LIBOPENCSD=no
 else
-  AC_PREPROC_IFELSE([AC_LANG_SOURCE([[
-#include <linux/perf_event.h>
-#ifndef PERF_ATTR_SIZE_VER5
-# error
-#endif
-  ]])], [perf_event=yes], [perf_event=no])
-  if test "$perf_event" != yes; then
-    if test "$with_arm_cs" = yes; then
-      AC_MSG_ERROR([linux/perf_event.h missing or too old])
-    else
-      AC_MSG_WARN([linux/perf_event.h missing or too old; some features may be unavailable.])
-    fi
-  fi
+  AC_DEFINE([HAVE_LIBOPENCSD], 1,
+                [Define to 1 if the libopenocsd library is available])
+  HAVE_LIBOPENCSD=yes
+  save_LIBS=$LIBS
+  LIBS="$LIBS $LIBOPENCSD"
+  LIBS=$save_LIBS
 
-  AC_LIB_HAVE_LINKFLAGS([opencsd], [], [#include "opencsd_c_api.h"], [ocsd_get_version ();])
-  if test "$HAVE_LIBOPENCSD" != yes; then
-    if test "$with_arm_cs" = yes; then
-      AC_MSG_ERROR([libopencsd is missing or unusable])
-    else
-      AC_MSG_WARN([libopencsd is missing or unusable; some features may be unavailable.])
-    fi
-  else
-    save_LIBS=$LIBS
-    LIBS="$LIBS $LIBOPENCSD"
-    AC_CHECK_FUNCS(pt_insn_event)
-    AC_CHECK_MEMBERS([typedef enum _ocsd_c_api_cb_types], [], [],
-                     [#include <opencsd_c_api.h>])
-    LIBS=$save_LIBS
-  fi
 fi
 # ------------------------- #
 # Checks for header files.  #

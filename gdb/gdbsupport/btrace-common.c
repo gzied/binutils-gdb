@@ -88,7 +88,8 @@ btrace_data::fini ()
 		return;
 
 	case BTRACE_FORMAT_ETM:
-		xfree (variant.etm.data);
+		if (variant.etm.data!=NULL) //variant.etm.data can be null if no new traces are collected
+		  xfree (variant.etm.data);
 		return;
 	}
 

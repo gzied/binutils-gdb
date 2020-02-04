@@ -3387,7 +3387,18 @@ The actual buffer size may differ from the requested size.  Use \"info record\" 
 to see the actual buffer size."), NULL, show_record_etm_buffer_size_value,
 			    &set_record_btrace_etm_cmdlist,
 			    &show_record_btrace_etm_cmdlist);
-
+  add_setshow_string_cmd ("sink", no_class,
+		  &record_btrace_conf.etm.sink,
+		  _("Set the record/replay etm sink device."),
+		  _("Show the record/replay etm sink device."),
+		  _("\
+		  sink device is the device that intercepts etm traces and collects or routes \
+		  them out of SoC.\n\
+		  list of available sinks on linux targets are enumerated in the folder \
+		  \"/sys/bus/event_source/devices/cs_etm/sinks/\"."),
+		  NULL, NULL,
+		  &set_record_btrace_etm_cmdlist,
+		  &show_record_btrace_etm_cmdlist);
   add_target (record_btrace_target_info, record_btrace_target_open);
 
   bfcache = htab_create_alloc (50, bfcache_hash, bfcache_eq, NULL,

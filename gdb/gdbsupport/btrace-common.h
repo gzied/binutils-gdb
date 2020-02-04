@@ -133,6 +133,7 @@ struct btrace_config_etm
      This is unsigned int and not size_t since it is registered as
      control variable for "set record btrace etm buffer-size".  */
   unsigned int size;
+  char *sink;
 };
 
 /* A branch tracing configuration.

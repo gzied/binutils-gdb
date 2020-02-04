@@ -1504,25 +1504,25 @@ btrace_compute_ftrace_pt (struct thread_info *tp,
 
 
 #if defined (HAVE_LIBOPENCSD)
-btrace_compute_ftrace_etm (struct thread_info *tp,
-			  const struct btrace_data_etm *btrace,
-			  std::vector<unsigned int> &gaps)
-{
-	DEBUG ("btrace_compute_ftrace_etm (\nthread_info *tp = %s\nbtrace_data_etm *btrace = %x", print_thread_id (tp),
-			btrace);
-}
-#else /*    defined (HAVE_LIBOPENCSD)    */
-
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
 static void
 btrace_compute_ftrace_etm (struct thread_info *tp,
 			  const struct btrace_data_etm *btrace,
 			  std::vector<unsigned int> &gaps)
 {
-  printf ("btrace_data_etm *btrace is 0x%p\n", (void*)(btrace));
-  printf ("btrace->size is 0x%x\n", (unsigned int)(btrace->size));
-  for (int i=0;i<MIN(btrace->size,100); i++)
-	  printf ("btrace->data is 0x%x\n", (unsigned int)(btrace->data[i]));
+	DEBUG_FTRACE ("btrace_data_etm *btrace is 0x%p", (void*)(btrace));
+	DEBUG_FTRACE ("btrace->size is 0x%x", (unsigned int)(btrace->size));
+	for (int i=0;i<MIN(btrace->size,100); i++)
+		DEBUG_FTRACE ("btrace->data is 0x%x", (unsigned int)(btrace->data[i]));
+	DEBUG_FTRACE ("btrace_compute_ftrace_etm: thread_info *tp = %s", print_thread_id (tp));
+}
+#else /*    defined (HAVE_LIBOPENCSD)    */
+
+static void
+btrace_compute_ftrace_etm (struct thread_info *tp,
+			  const struct btrace_data_etm *btrace,
+			  std::vector<unsigned int> &gaps)
+{
 
   internal_error (__FILE__, __LINE__, _("Unexpected branch trace format."));
 }

@@ -34,6 +34,10 @@
 #  include <intel-pt.h>
 #endif
 
+#if defined (HAVE_LIBOPENCSD)
+#  include <opencsd/ocsd_if_types.h>
+#endif
+
 #include <vector>
 
 struct thread_info;
@@ -309,7 +313,7 @@ struct btrace_maint_info
     struct
     {
       /* A vector of decoded packets.  */
-      std::vector<btrace_etm_packet> *packets;
+      //std::vector<btrace_etm_packet> *packets;
 
       /* The packet history iterator.
       We are iterating over the above PACKETS vector.  */
