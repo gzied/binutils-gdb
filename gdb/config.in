@@ -250,7 +250,7 @@
 #undef HAVE_LIBMPFR
 
 /* Define to 1 if the libopenocsd library is available */
-#undef HAVE_LIBOPENCSD
+#undef HAVE_LIBOPENCSD_C_API
 
 /* Define to 1 if you have the <libunwind-ia64.h> header file. */
 #undef HAVE_LIBUNWIND_IA64_H

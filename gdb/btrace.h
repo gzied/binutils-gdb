@@ -34,7 +34,7 @@
 #  include <intel-pt.h>
 #endif
 
-#if defined (HAVE_LIBOPENCSD)
+#if defined (HAVE_LIBOPENCSD_C_API)
 #  include <opencsd/c_api/opencsd_c_api.h>
 #  include <opencsd/etmv4/trc_pkt_types_etmv4.h>
 #  include <opencsd/ocsd_if_types.h>
@@ -271,7 +271,7 @@ struct btrace_pt_packet
 };
 
 #endif /* defined (HAVE_LIBIPT)  */
-#if defined (HAVE_LIBOPENCSD)
+#if defined (HAVE_LIBOPENCSD_C_API)
 /* A packet.  */
 struct btrace_etm_packet
 {
@@ -285,7 +285,7 @@ struct btrace_etm_packet
   //struct etm_packet packet;
 };
 
-#endif /* defined (HAVE_LIBOPENCSD)  */
+#endif /* defined (HAVE_LIBOPENCSD_C_API)  */
 
 /* Branch trace iteration state for "maintenance btrace packet-history".  */
 struct btrace_maint_packet_history
@@ -325,7 +325,7 @@ struct btrace_maint_info
       struct btrace_maint_packet_history packet_history;
     } pt;
 #endif /* defined (HAVE_LIBIPT)  */
-#if defined (HAVE_LIBOPENCSD)
+#if defined (HAVE_LIBOPENCSD_C_API)
     /* BTRACE.DATA.FORMAT == BTRACE_FORMAT_ETM  */
     struct
     {
@@ -336,7 +336,7 @@ struct btrace_maint_info
       We are iterating over the above PACKETS vector.  */
       struct btrace_maint_packet_history packet_history;
     } etm;
-#endif /* defined (HAVE_LIBOPENCSD)  */
+#endif /* defined (HAVE_LIBOPENCSD_C_API)  */
   } variant;
 };
 

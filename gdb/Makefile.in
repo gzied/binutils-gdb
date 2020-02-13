@@ -198,6 +198,9 @@ LIBXXHASH = @LIBXXHASH@
 # Where is libipt?  This will be empty if libipt was not available.
 LIBIPT = @LIBIPT@
 
+#where is libopencsd? this will be empty if libopencsd was not available
+LIBOPENCSD_C_API = @LIBOPENCSD_C_API@
+
 # Where is libmpfr?  This will be empty if libmpfr was not available.
 LIBMPFR = @LIBMPFR@
 
@@ -608,7 +611,7 @@ CLIBS = $(SIM) $(READLINE) $(OPCODES) $(BFD) $(LIBCTF) $(ZLIB) \
         $(INTL) $(LIBIBERTY) $(LIBDECNUMBER) \
 	$(XM_CLIBS) $(GDBTKLIBS) \
 	@LIBS@ @GUILE_LIBS@ @PYTHON_LIBS@ \
-	$(LIBEXPAT) $(LIBLZMA) $(LIBBABELTRACE) $(LIBIPT) \
+	$(LIBEXPAT) $(LIBLZMA) $(LIBBABELTRACE) $(LIBIPT) $(LIBOPENCSD_C_API) \
 	$(LIBIBERTY) $(WIN32LIBS) $(LIBGNU) $(LIBICONV) $(LIBMPFR) \
 	$(SRCHIGH_LIBS) $(LIBXXHASH) $(PTHREAD_LIBS)
 CDEPS = $(NAT_CDEPS) $(SIM) $(BFD) $(READLINE_DEPS) $(LIBCTF) \

@@ -1252,6 +1252,7 @@ linux_read_etm (struct btrace_data_etm *btrace,
 
       /* Fall through.  */
     case BTRACE_READ_ALL:
+      etm->last_head=0;
       perf_event_read_available (etm, &(btrace->data),&(btrace->size));
       return BTRACE_ERR_NONE;
     }

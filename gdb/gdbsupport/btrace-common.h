@@ -215,6 +215,7 @@ enum {
 };
 
 struct cs_etm_trace_params {
+	struct btrace_cpu cpu;
 	int protocol;
 	union {
 		struct cs_etmv3_trace_params etmv3;

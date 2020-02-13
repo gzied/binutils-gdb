@@ -1257,13 +1257,30 @@ if test "${with_arm_cs}" = no; then
   AC_MSG_WARN([arm coresight Processor Trace support disabled; some features may be unavailable.])
   HAVE_LIBOPENCSD=no
 else
-  AC_DEFINE([HAVE_LIBOPENCSD], 1,
-                [Define to 1 if the libopenocsd library is available])
-  HAVE_LIBOPENCSD=yes
-  save_LIBS=$LIBS
-  LIBS="$LIBS $LIBOPENCSD"
-  LIBS=$save_LIBS
+  AC_PREPROC_IFELSE([AC_LANG_SOURCE([[
+#include <linux/perf_event.h>
+#ifndef PERF_ATTR_SIZE_VER5
+# error
+#endif
+  ]])], [perf_event=yes], [perf_event=no])
+  if test "$perf_event" != yes; then
+    if test "$" = yes; then
+      AC_MSG_ERROR([linux/perf_event.h missing or too old])
+    else
+      AC_MSG_WARN([linux/perf_event.h missing or too old; some features may be unavailable.])
+    fi
+  fi
 
+  AC_LIB_HAVE_LINKFLAGS([opencsd_c_api], [], [#include "opencsd/c_api/opencsd_c_api.h"], [ocsd_get_version();])
+  if test "$HAVE_LIBOPENCSD_C_API" != yes; then
+    if test "$" = yes; then
+      AC_MSG_ERROR([libopencsd_c_api is missing or unusable])
+    else
+      AC_MSG_WARN([libopencsd_c_api is missing or unusable; some features may be unavailable.])
+    fi
+  else
+    LIBS="$LIBS $LIBOPENCSD_C_API"
+  fi
 fi
 # ------------------------- #
 # Checks for header files.  #

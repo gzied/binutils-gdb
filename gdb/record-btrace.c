@@ -3049,7 +3049,7 @@ cmd_set_record_btrace_cpu_auto (const char *args, int from_tty)
 }
 
 /* The "set record btrace cpu" command.  */
-/* todo: amend for coresight*/
+/* todo: amend for arm coresight*/
 static void
 cmd_set_record_btrace_cpu (const char *args, int from_tty)
 {
@@ -3124,16 +3124,11 @@ cmd_show_record_btrace_cpu (const char *args, int from_tty)
 			       record_btrace_cpu.model,
 			       record_btrace_cpu.stepping);
 	  return;
-        case CV_ARM:
-	  if (record_btrace_cpu.stepping == 0)
+    case CV_ARM:
 	    printf_unfiltered (_("btrace cpu is 'arm: %u/%u'.\n"),
 			       record_btrace_cpu.family,
 			       record_btrace_cpu.model);
-	  else
-	    printf_unfiltered (_("btrace cpu is 'arm: %u/%u/%u'.\n"),
-			       record_btrace_cpu.family,
-			       record_btrace_cpu.model,
-			       record_btrace_cpu.stepping);
+
 	  return;
 
 	}

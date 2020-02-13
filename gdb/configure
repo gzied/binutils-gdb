@@ -708,6 +708,9 @@ PTHREAD_CC
 ax_pthread_config
 SED
 ALLOCA
+LTLIBOPENCSD_C_API
+LIBOPENCSD_C_API
+HAVE_LIBOPENCSD_C_API
 LTLIBIPT
 LIBIPT
 HAVE_LIBIPT
@@ -893,6 +896,7 @@ enable_source_highlight
 with_intel_pt
 with_libipt_prefix
 with_arm_cs
+with_libopencsd_c_api_prefix
 with_included_regex
 with_sysroot
 with_system_gdbinit
@@ -1639,6 +1643,8 @@ Optional Packages:
   --without-libipt-prefix     don't search for libipt in includedir and libdir
   --with-arm-cs           include arm CoreSight Processor Trace support
                           (auto/yes/no)
+  --with-libopencsd_c_api-prefix[=DIR]  search for libopencsd_c_api in DIR/include and DIR/lib
+  --without-libopencsd_c_api-prefix     don't search for libopencsd_c_api in includedir and libdir
   --without-included-regex
                           don't use included regex; this is the default on
                           systems with version 2 of the GNU C library (use
@@ -11955,14 +11961,502 @@ if test "${with_arm_cs}" = no; then
 $as_echo "$as_me: WARNING: arm coresight Processor Trace support disabled; some features may be unavailable." >&2;}
   HAVE_LIBOPENCSD=no
 else
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
 
-$as_echo "#define HAVE_LIBOPENCSD 1" >>confdefs.h
+#include <linux/perf_event.h>
+#ifndef PERF_ATTR_SIZE_VER5
+# error
+#endif
 
-  HAVE_LIBOPENCSD=yes
-  save_LIBS=$LIBS
-  LIBS="$LIBS $LIBOPENCSD"
-  LIBS=$save_LIBS
+_ACEOF
+if ac_fn_c_try_cpp "$LINENO"; then :
+  perf_event=yes
+else
+  perf_event=no
+fi
+rm -f conftest.err conftest.i conftest.$ac_ext
+  if test "$perf_event" != yes; then
+    if test "$" = yes; then
+      as_fn_error $? "linux/perf_event.h missing or too old" "$LINENO" 5
+    else
+      { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: linux/perf_event.h missing or too old; some features may be unavailable." >&5
+$as_echo "$as_me: WARNING: linux/perf_event.h missing or too old; some features may be unavailable." >&2;}
+    fi
+  fi
 
+
+
+
+
+
+
+
+
+    use_additional=yes
+
+  acl_save_prefix="$prefix"
+  prefix="$acl_final_prefix"
+  acl_save_exec_prefix="$exec_prefix"
+  exec_prefix="$acl_final_exec_prefix"
+
+    eval additional_includedir=\"$includedir\"
+    eval additional_libdir=\"$libdir\"
+
+  exec_prefix="$acl_save_exec_prefix"
+  prefix="$acl_save_prefix"
+
+
+# Check whether --with-libopencsd_c_api-prefix was given.
+if test "${with_libopencsd_c_api_prefix+set}" = set; then :
+  withval=$with_libopencsd_c_api_prefix;
+    if test "X$withval" = "Xno"; then
+      use_additional=no
+    else
+      if test "X$withval" = "X"; then
+
+  acl_save_prefix="$prefix"
+  prefix="$acl_final_prefix"
+  acl_save_exec_prefix="$exec_prefix"
+  exec_prefix="$acl_final_exec_prefix"
+
+          eval additional_includedir=\"$includedir\"
+          eval additional_libdir=\"$libdir\"
+
+  exec_prefix="$acl_save_exec_prefix"
+  prefix="$acl_save_prefix"
+
+      else
+        additional_includedir="$withval/include"
+        additional_libdir="$withval/lib"
+      fi
+    fi
+
+fi
+
+      LIBOPENCSD_C_API=
+  LTLIBOPENCSD_C_API=
+  INCOPENCSD_C_API=
+  rpathdirs=
+  ltrpathdirs=
+  names_already_handled=
+  names_next_round='opencsd_c_api '
+  while test -n "$names_next_round"; do
+    names_this_round="$names_next_round"
+    names_next_round=
+    for name in $names_this_round; do
+      already_handled=
+      for n in $names_already_handled; do
+        if test "$n" = "$name"; then
+          already_handled=yes
+          break
+        fi
+      done
+      if test -z "$already_handled"; then
+        names_already_handled="$names_already_handled $name"
+                        uppername=`echo "$name" | sed -e 'y|abcdefghijklmnopqrstuvwxyz./-|ABCDEFGHIJKLMNOPQRSTUVWXYZ___|'`
+        eval value=\"\$HAVE_LIB$uppername\"
+        if test -n "$value"; then
+          if test "$value" = yes; then
+            eval value=\"\$LIB$uppername\"
+            test -z "$value" || LIBOPENCSD_C_API="${LIBOPENCSD_C_API}${LIBOPENCSD_C_API:+ }$value"
+            eval value=\"\$LTLIB$uppername\"
+            test -z "$value" || LTLIBOPENCSD_C_API="${LTLIBOPENCSD_C_API}${LTLIBOPENCSD_C_API:+ }$value"
+          else
+                                    :
+          fi
+        else
+                              found_dir=
+          found_la=
+          found_so=
+          found_a=
+          if test $use_additional = yes; then
+            if test -n "$shlibext" && test -f "$additional_libdir/lib$name.$shlibext"; then
+              found_dir="$additional_libdir"
+              found_so="$additional_libdir/lib$name.$shlibext"
+              if test -f "$additional_libdir/lib$name.la"; then
+                found_la="$additional_libdir/lib$name.la"
+              fi
+            else
+              if test -f "$additional_libdir/lib$name.$libext"; then
+                found_dir="$additional_libdir"
+                found_a="$additional_libdir/lib$name.$libext"
+                if test -f "$additional_libdir/lib$name.la"; then
+                  found_la="$additional_libdir/lib$name.la"
+                fi
+              fi
+            fi
+          fi
+          if test "X$found_dir" = "X"; then
+            for x in $LDFLAGS $LTLIBOPENCSD_C_API; do
+
+  acl_save_prefix="$prefix"
+  prefix="$acl_final_prefix"
+  acl_save_exec_prefix="$exec_prefix"
+  exec_prefix="$acl_final_exec_prefix"
+  eval x=\"$x\"
+  exec_prefix="$acl_save_exec_prefix"
+  prefix="$acl_save_prefix"
+
+              case "$x" in
+                -L*)
+                  dir=`echo "X$x" | sed -e 's/^X-L//'`
+                  if test -n "$shlibext" && test -f "$dir/lib$name.$shlibext"; then
+                    found_dir="$dir"
+                    found_so="$dir/lib$name.$shlibext"
+                    if test -f "$dir/lib$name.la"; then
+                      found_la="$dir/lib$name.la"
+                    fi
+                  else
+                    if test -f "$dir/lib$name.$libext"; then
+                      found_dir="$dir"
+                      found_a="$dir/lib$name.$libext"
+                      if test -f "$dir/lib$name.la"; then
+                        found_la="$dir/lib$name.la"
+                      fi
+                    fi
+                  fi
+                  ;;
+              esac
+              if test "X$found_dir" != "X"; then
+                break
+              fi
+            done
+          fi
+          if test "X$found_dir" != "X"; then
+                        LTLIBOPENCSD_C_API="${LTLIBOPENCSD_C_API}${LTLIBOPENCSD_C_API:+ }-L$found_dir -l$name"
+            if test "X$found_so" != "X"; then
+                                                        if test "$enable_rpath" = no || test "X$found_dir" = "X/usr/lib"; then
+                                LIBOPENCSD_C_API="${LIBOPENCSD_C_API}${LIBOPENCSD_C_API:+ }$found_so"
+              else
+                                                                                haveit=
+                for x in $ltrpathdirs; do
+                  if test "X$x" = "X$found_dir"; then
+                    haveit=yes
+                    break
+                  fi
+                done
+                if test -z "$haveit"; then
+                  ltrpathdirs="$ltrpathdirs $found_dir"
+                fi
+                                if test "$hardcode_direct" = yes; then
+                                                      LIBOPENCSD_C_API="${LIBOPENCSD_C_API}${LIBOPENCSD_C_API:+ }$found_so"
+                else
+                  if test -n "$hardcode_libdir_flag_spec" && test "$hardcode_minus_L" = no; then
+                                                            LIBOPENCSD_C_API="${LIBOPENCSD_C_API}${LIBOPENCSD_C_API:+ }$found_so"
+                                                            haveit=
+                    for x in $rpathdirs; do
+                      if test "X$x" = "X$found_dir"; then
+                        haveit=yes
+                        break
+                      fi
+                    done
+                    if test -z "$haveit"; then
+                      rpathdirs="$rpathdirs $found_dir"
+                    fi
+                  else
+                                                                                haveit=
+                    for x in $LDFLAGS $LIBOPENCSD_C_API; do
+
+  acl_save_prefix="$prefix"
+  prefix="$acl_final_prefix"
+  acl_save_exec_prefix="$exec_prefix"
+  exec_prefix="$acl_final_exec_prefix"
+  eval x=\"$x\"
+  exec_prefix="$acl_save_exec_prefix"
+  prefix="$acl_save_prefix"
+
+                      if test "X$x" = "X-L$found_dir"; then
+                        haveit=yes
+                        break
+                      fi
+                    done
+                    if test -z "$haveit"; then
+                      LIBOPENCSD_C_API="${LIBOPENCSD_C_API}${LIBOPENCSD_C_API:+ }-L$found_dir"
+                    fi
+                    if test "$hardcode_minus_L" != no; then
+                                                                                        LIBOPENCSD_C_API="${LIBOPENCSD_C_API}${LIBOPENCSD_C_API:+ }$found_so"
+                    else
+                                                                                                                                                                                LIBOPENCSD_C_API="${LIBOPENCSD_C_API}${LIBOPENCSD_C_API:+ }-l$name"
+                    fi
+                  fi
+                fi
+              fi
+            else
+              if test "X$found_a" != "X"; then
+                                LIBOPENCSD_C_API="${LIBOPENCSD_C_API}${LIBOPENCSD_C_API:+ }$found_a"
+              else
+                                                LIBOPENCSD_C_API="${LIBOPENCSD_C_API}${LIBOPENCSD_C_API:+ }-L$found_dir -l$name"
+              fi
+            fi
+                        additional_includedir=
+            case "$found_dir" in
+              */lib | */lib/)
+                basedir=`echo "X$found_dir" | sed -e 's,^X,,' -e 's,/lib/*$,,'`
+                additional_includedir="$basedir/include"
+                ;;
+            esac
+            if test "X$additional_includedir" != "X"; then
+                                                                                                                if test "X$additional_includedir" != "X/usr/include"; then
+                haveit=
+                if test "X$additional_includedir" = "X/usr/local/include"; then
+                  if test -n "$GCC"; then
+                    case $host_os in
+                      linux*) haveit=yes;;
+                    esac
+                  fi
+                fi
+                if test -z "$haveit"; then
+                  for x in $CPPFLAGS $INCOPENCSD_C_API; do
+
+  acl_save_prefix="$prefix"
+  prefix="$acl_final_prefix"
+  acl_save_exec_prefix="$exec_prefix"
+  exec_prefix="$acl_final_exec_prefix"
+  eval x=\"$x\"
+  exec_prefix="$acl_save_exec_prefix"
+  prefix="$acl_save_prefix"
+
+                    if test "X$x" = "X-I$additional_includedir"; then
+                      haveit=yes
+                      break
+                    fi
+                  done
+                  if test -z "$haveit"; then
+                    if test -d "$additional_includedir"; then
+                                            INCOPENCSD_C_API="${INCOPENCSD_C_API}${INCOPENCSD_C_API:+ }-I$additional_includedir"
+                    fi
+                  fi
+                fi
+              fi
+            fi
+                        if test -n "$found_la"; then
+                                                        save_libdir="$libdir"
+              case "$found_la" in
+                */* | *\\*) . "$found_la" ;;
+                *) . "./$found_la" ;;
+              esac
+              libdir="$save_libdir"
+                            for dep in $dependency_libs; do
+                case "$dep" in
+                  -L*)
+                    additional_libdir=`echo "X$dep" | sed -e 's/^X-L//'`
+                                                                                                                                                                if test "X$additional_libdir" != "X/usr/lib"; then
+                      haveit=
+                      if test "X$additional_libdir" = "X/usr/local/lib"; then
+                        if test -n "$GCC"; then
+                          case $host_os in
+                            linux*) haveit=yes;;
+                          esac
+                        fi
+                      fi
+                      if test -z "$haveit"; then
+                        haveit=
+                        for x in $LDFLAGS $LIBOPENCSD_C_API; do
+
+  acl_save_prefix="$prefix"
+  prefix="$acl_final_prefix"
+  acl_save_exec_prefix="$exec_prefix"
+  exec_prefix="$acl_final_exec_prefix"
+  eval x=\"$x\"
+  exec_prefix="$acl_save_exec_prefix"
+  prefix="$acl_save_prefix"
+
+                          if test "X$x" = "X-L$additional_libdir"; then
+                            haveit=yes
+                            break
+                          fi
+                        done
+                        if test -z "$haveit"; then
+                          if test -d "$additional_libdir"; then
+                                                        LIBOPENCSD_C_API="${LIBOPENCSD_C_API}${LIBOPENCSD_C_API:+ }-L$additional_libdir"
+                          fi
+                        fi
+                        haveit=
+                        for x in $LDFLAGS $LTLIBOPENCSD_C_API; do
+
+  acl_save_prefix="$prefix"
+  prefix="$acl_final_prefix"
+  acl_save_exec_prefix="$exec_prefix"
+  exec_prefix="$acl_final_exec_prefix"
+  eval x=\"$x\"
+  exec_prefix="$acl_save_exec_prefix"
+  prefix="$acl_save_prefix"
+
+                          if test "X$x" = "X-L$additional_libdir"; then
+                            haveit=yes
+                            break
+                          fi
+                        done
+                        if test -z "$haveit"; then
+                          if test -d "$additional_libdir"; then
+                                                        LTLIBOPENCSD_C_API="${LTLIBOPENCSD_C_API}${LTLIBOPENCSD_C_API:+ }-L$additional_libdir"
+                          fi
+                        fi
+                      fi
+                    fi
+                    ;;
+                  -R*)
+                    dir=`echo "X$dep" | sed -e 's/^X-R//'`
+                    if test "$enable_rpath" != no; then
+                                                                  haveit=
+                      for x in $rpathdirs; do
+                        if test "X$x" = "X$dir"; then
+                          haveit=yes
+                          break
+                        fi
+                      done
+                      if test -z "$haveit"; then
+                        rpathdirs="$rpathdirs $dir"
+                      fi
+                                                                  haveit=
+                      for x in $ltrpathdirs; do
+                        if test "X$x" = "X$dir"; then
+                          haveit=yes
+                          break
+                        fi
+                      done
+                      if test -z "$haveit"; then
+                        ltrpathdirs="$ltrpathdirs $dir"
+                      fi
+                    fi
+                    ;;
+                  -l*)
+                                        names_next_round="$names_next_round "`echo "X$dep" | sed -e 's/^X-l//'`
+                    ;;
+                  *.la)
+                                                                                names_next_round="$names_next_round "`echo "X$dep" | sed -e 's,^X.*/,,' -e 's,^lib,,' -e 's,\.la$,,'`
+                    ;;
+                  *)
+                                        LIBOPENCSD_C_API="${LIBOPENCSD_C_API}${LIBOPENCSD_C_API:+ }$dep"
+                    LTLIBOPENCSD_C_API="${LTLIBOPENCSD_C_API}${LTLIBOPENCSD_C_API:+ }$dep"
+                    ;;
+                esac
+              done
+            fi
+          else
+                                                            LIBOPENCSD_C_API="${LIBOPENCSD_C_API}${LIBOPENCSD_C_API:+ }-l$name"
+            LTLIBOPENCSD_C_API="${LTLIBOPENCSD_C_API}${LTLIBOPENCSD_C_API:+ }-l$name"
+          fi
+        fi
+      fi
+    done
+  done
+  if test "X$rpathdirs" != "X"; then
+    if test -n "$hardcode_libdir_separator"; then
+                        alldirs=
+      for found_dir in $rpathdirs; do
+        alldirs="${alldirs}${alldirs:+$hardcode_libdir_separator}$found_dir"
+      done
+            acl_save_libdir="$libdir"
+      libdir="$alldirs"
+      eval flag=\"$hardcode_libdir_flag_spec\"
+      libdir="$acl_save_libdir"
+      LIBOPENCSD_C_API="${LIBOPENCSD_C_API}${LIBOPENCSD_C_API:+ }$flag"
+    else
+            for found_dir in $rpathdirs; do
+        acl_save_libdir="$libdir"
+        libdir="$found_dir"
+        eval flag=\"$hardcode_libdir_flag_spec\"
+        libdir="$acl_save_libdir"
+        LIBOPENCSD_C_API="${LIBOPENCSD_C_API}${LIBOPENCSD_C_API:+ }$flag"
+      done
+    fi
+  fi
+  if test "X$ltrpathdirs" != "X"; then
+            for found_dir in $ltrpathdirs; do
+      LTLIBOPENCSD_C_API="${LTLIBOPENCSD_C_API}${LTLIBOPENCSD_C_API:+ }-R$found_dir"
+    done
+  fi
+
+
+        ac_save_CPPFLAGS="$CPPFLAGS"
+
+  for element in $INCOPENCSD_C_API; do
+    haveit=
+    for x in $CPPFLAGS; do
+
+  acl_save_prefix="$prefix"
+  prefix="$acl_final_prefix"
+  acl_save_exec_prefix="$exec_prefix"
+  exec_prefix="$acl_final_exec_prefix"
+  eval x=\"$x\"
+  exec_prefix="$acl_save_exec_prefix"
+  prefix="$acl_save_prefix"
+
+      if test "X$x" = "X$element"; then
+        haveit=yes
+        break
+      fi
+    done
+    if test -z "$haveit"; then
+      CPPFLAGS="${CPPFLAGS}${CPPFLAGS:+ }$element"
+    fi
+  done
+
+
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for libopencsd_c_api" >&5
+$as_echo_n "checking for libopencsd_c_api... " >&6; }
+if ${ac_cv_libopencsd_c_api+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+
+    ac_save_LIBS="$LIBS"
+    LIBS="$LIBS $LIBOPENCSD_C_API"
+    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+#include "opencsd/c_api/opencsd_c_api.h"
+int
+main ()
+{
+ocsd_get_version();
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_link "$LINENO"; then :
+  ac_cv_libopencsd_c_api=yes
+else
+  ac_cv_libopencsd_c_api=no
+fi
+rm -f core conftest.err conftest.$ac_objext \
+    conftest$ac_exeext conftest.$ac_ext
+    LIBS="$ac_save_LIBS"
+
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_libopencsd_c_api" >&5
+$as_echo "$ac_cv_libopencsd_c_api" >&6; }
+  if test "$ac_cv_libopencsd_c_api" = yes; then
+    HAVE_LIBOPENCSD_C_API=yes
+
+$as_echo "#define HAVE_LIBOPENCSD_C_API 1" >>confdefs.h
+
+    { $as_echo "$as_me:${as_lineno-$LINENO}: checking how to link with libopencsd_c_api" >&5
+$as_echo_n "checking how to link with libopencsd_c_api... " >&6; }
+    { $as_echo "$as_me:${as_lineno-$LINENO}: result: $LIBOPENCSD_C_API" >&5
+$as_echo "$LIBOPENCSD_C_API" >&6; }
+  else
+    HAVE_LIBOPENCSD_C_API=no
+            CPPFLAGS="$ac_save_CPPFLAGS"
+    LIBOPENCSD_C_API=
+    LTLIBOPENCSD_C_API=
+  fi
+
+
+
+
+
+
+  if test "$HAVE_LIBOPENCSD_C_API" != yes; then
+    if test "$" = yes; then
+      as_fn_error $? "libopencsd_c_api is missing or unusable" "$LINENO" 5
+    else
+      { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: libopencsd_c_api is missing or unusable; some features may be unavailable." >&5
+$as_echo "$as_me: WARNING: libopencsd_c_api is missing or unusable; some features may be unavailable." >&2;}
+    fi
+  else
+    LIBS="$LIBS $LIBOPENCSD_C_API"
+  fi
 fi
 # ------------------------- #
 # Checks for header files.  #

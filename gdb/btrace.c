@@ -1503,17 +1503,378 @@ btrace_compute_ftrace_pt (struct thread_info *tp,
 #endif /* defined (HAVE_LIBIPT)  */
 
 
-#if defined (HAVE_LIBOPENCSD)
+#if defined (HAVE_LIBOPENCSD_C_API)
+
+struct cs_etm_decoder {
+	dcd_tree_handle_t dcd_tree;
+	Fn_MemAcc_CB mem_access;
+	struct thread_info *t_info;
+	ocsd_datapath_resp_t prev_return;
+};
+static int cs_etm_get_etmv3_config(struct cs_etm_trace_params *params,
+					    ocsd_etmv3_cfg *config)
+{
+	config->reg_idr = params->etmv3.reg_idr;
+	config->reg_ctrl = params->etmv3.reg_ctrl;
+	config->reg_ccer = params->etmv3.reg_ccer;
+	config->reg_trc_id = params->etmv3.reg_trc_id;
+	config->arch_ver = ARCH_V7; // to be amended to use params->cpu settings
+	config->core_prof = profile_CortexA;// to be amended to use params->cpu settings
+
+	return 0;
+}
+
+static void cs_etm_get_etmv4_config(struct cs_etm_trace_params *params,
+					     ocsd_etmv4_cfg *config)
+{
+	config->reg_configr = params->etmv4.reg_configr;
+	config->reg_traceidr = params->etmv4.reg_traceidr;
+	config->reg_idr0 = params->etmv4.reg_idr0;
+	config->reg_idr1 = params->etmv4.reg_idr1;
+	config->reg_idr2 = params->etmv4.reg_idr2;
+	config->reg_idr8 = params->etmv4.reg_idr8;
+	config->reg_idr9 = 0;
+	config->reg_idr10 = 0;
+	config->reg_idr11 = 0;
+	config->reg_idr12 = 0;
+	config->reg_idr13 = 0;
+	config->arch_ver = ARCH_V8;// to be amended to use params->cpu settings
+	config->core_prof = profile_CortexA;// to be amended to use params->cpu settings
+}
+
+static void print_trc_elem_instr_range(const uint8_t trace_chan_id, const ocsd_generic_trace_elem *elem)
+{
+	printf ("trace_chan_id: %d\n", trace_chan_id);
+	switch(elem->isa){
+		case ocsd_isa_aarch64:
+			printf ("isa: CS_ETM_ISA_A64\n");
+			break;
+		case ocsd_isa_arm:
+			printf ("isa: CS_ETM_ISA_A32\n");
+			break;
+		case ocsd_isa_thumb2:
+			printf ("isa: CS_ETM_ISA_T32\n");
+			break;
+		case ocsd_isa_tee:
+		case ocsd_isa_jazelle:
+		case ocsd_isa_custom:
+		case ocsd_isa_unknown:
+		default:
+			printf ("isa: CS_ETM_ISA_UNKNOWN\n");
+	}
+
+	printf("start addr = 0x%llx\n",elem->st_addr);
+	printf("end addr   = 0x%llx\n",elem->en_addr);
+	printf("instructions count = %d\n",elem->num_instr_range);
+	switch (elem->last_i_type) {
+		case OCSD_INSTR_BR:
+			printf("last_i_type: OCSD_INSTR_BR\n");
+			break;
+		case OCSD_INSTR_BR_INDIRECT:
+			printf("last_i_type: OCSD_INSTR_BR_INDIRECT\n");
+			break;
+		case OCSD_INSTR_ISB:
+			printf("last_i_type: OCSD_INSTR_ISB\n");
+			break;
+		case OCSD_INSTR_DSB_DMB:
+			printf("last_i_type: OCSD_INSTR_DSB_DMB\n");
+			break;
+		case OCSD_INSTR_WFI_WFE:
+			printf("last_i_type: OCSD_INSTR_WFI_WFE\n");
+			break;
+		case OCSD_INSTR_OTHER:
+			printf("last_i_type: OCSD_INSTR_OTHER\n");
+			break;
+		default:
+			printf("last_i_type: %d\n",elem->last_i_type);
+			break;
+		}
+
+}
+static ocsd_datapath_resp_t cs_etm_trace_element_callback(
+				const void *context,
+				const ocsd_trc_index_t indx,
+				const uint8_t trace_chan_id,
+				const ocsd_generic_trace_elem *elem)
+{
+	ocsd_datapath_resp_t resp = OCSD_RESP_CONT;
+	switch (elem->elem_type) {
+		case OCSD_GEN_TRC_ELEM_UNKNOWN:
+			printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_UNKNOWN\n");
+			break;
+		case OCSD_GEN_TRC_ELEM_EO_TRACE:
+			printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_EO_TRACE\n");
+			break;
+		case OCSD_GEN_TRC_ELEM_NO_SYNC:
+			printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_NO_SYNC\n");
+			break;
+		case OCSD_GEN_TRC_ELEM_TRACE_ON:
+			printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_TRACE_ON\n");
+			break;
+		case OCSD_GEN_TRC_ELEM_INSTR_RANGE:
+			printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_INSTR_RANGE\n");
+			print_trc_elem_instr_range(trace_chan_id, elem);
+			break;
+		case OCSD_GEN_TRC_ELEM_EXCEPTION:
+			printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_EXCEPTION\n");
+			break;
+		case OCSD_GEN_TRC_ELEM_EXCEPTION_RET:
+			printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_EXCEPTION_RET\n");
+			break;
+		case OCSD_GEN_TRC_ELEM_TIMESTAMP:
+			printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_TIMESTAMP\n");
+			break;
+		case OCSD_GEN_TRC_ELEM_PE_CONTEXT:
+			printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_PE_CONTEXT\n");
+			break;
+		case OCSD_GEN_TRC_ELEM_ADDR_NACC:
+			printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_ADDR_NACC\n");
+			break;
+		case OCSD_GEN_TRC_ELEM_CYCLE_COUNT:
+			printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_CYCLE_COUNT\n");
+			break;
+		case OCSD_GEN_TRC_ELEM_ADDR_UNKNOWN:
+			printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_ADDR_UNKNOWN\n");
+			break;
+		case OCSD_GEN_TRC_ELEM_EVENT:
+			printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_EVENT\n");
+			break;
+		case OCSD_GEN_TRC_ELEM_SWTRACE:
+			printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_SWTRACE\n");
+			break;
+		case OCSD_GEN_TRC_ELEM_CUSTOM:
+			printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_CUSTOM\n");
+			break;
+		default:
+			printf("cs_etm_decoder_trace_element_callback: elem->elem_type %d not handledM\n",elem->elem_type);
+			break;
+		}
+	return (resp);
+}
+
+static int cs_etm_create_decoder(
+					struct cs_etm_trace_params *t_params,
+					struct cs_etm_decoder *decoder)
+{
+	const char *decoder_name;
+	ocsd_etmv3_cfg config_etmv3;
+	ocsd_etmv4_cfg trace_config_etmv4;
+	void *trace_config;
+	uint8_t csid;
+
+	switch (t_params->protocol) {
+	case CS_ETM_PROTO_ETMV3:
+	case CS_ETM_PROTO_PTM:
+		cs_etm_get_etmv3_config(t_params, &config_etmv3);
+		decoder_name = (t_params->protocol == CS_ETM_PROTO_ETMV3) ?
+							OCSD_BUILTIN_DCD_ETMV3 :
+							OCSD_BUILTIN_DCD_PTM;
+		trace_config = &config_etmv3;
+		break;
+	case CS_ETM_PROTO_ETMV4i:
+		cs_etm_get_etmv4_config(t_params, &trace_config_etmv4);
+		decoder_name = OCSD_BUILTIN_DCD_ETMV4I;
+		trace_config = &trace_config_etmv4;
+		break;
+	default:
+		return -1;
+	}
+
+	if (ocsd_dt_create_decoder(decoder->dcd_tree,
+				     decoder_name,
+				     OCSD_CREATE_FLG_FULL_DECODER,
+				     trace_config, &csid))
+		return -1;
+	if (ocsd_dt_set_gen_elem_outfn(decoder->dcd_tree,
+			cs_etm_trace_element_callback,
+			decoder))
+			return -1;
+	return 0;
+}
+
+struct cs_etm_decoder *
+cs_etm_alloc_decoder(struct thread_info *tp, int num_cpu,
+		    struct cs_etm_decoder_params d_params,
+		    struct cs_etm_trace_params t_params[])
+{
+
+	dcd_tree_handle_t dcdtree_handle;
+	ocsd_dcd_tree_src_t src_type =OCSD_TRC_SRC_SINGLE;
+	uint32_t deformatterCfgFlags =0;
+	struct cs_etm_decoder *decoder;
+	int ret, i;
+
+	if (d_params.formatted)
+		src_type = OCSD_TRC_SRC_FRAME_FORMATTED;
+	if (d_params.frame_aligned)
+		deformatterCfgFlags |= OCSD_DFRMTR_FRAME_MEM_ALIGN;
+	if (d_params.fsyncs)
+		deformatterCfgFlags |= OCSD_DFRMTR_HAS_FSYNCS;
+	if (d_params.hsyncs)
+		deformatterCfgFlags |= OCSD_DFRMTR_HAS_HSYNCS;
+
+	deformatterCfgFlags |= OCSD_DFRMTR_RESET_ON_4X_FSYNC; //todo: this shall be a configuration flag
+
+	dcdtree_handle = ocsd_create_dcd_tree(src_type,
+			deformatterCfgFlags);
+
+	if (dcdtree_handle == C_API_INVALID_TREE_HANDLE)
+		return(NULL);
+	decoder=(struct cs_etm_decoder*)xmalloc (sizeof(struct cs_etm_decoder));
+	decoder->dcd_tree = dcdtree_handle;
+
+	for (i = 0; i < num_cpu; i++) {
+		ret = cs_etm_create_decoder(&t_params[i],
+				 decoder);
+		if (ret != 0)
+		{
+			ocsd_destroy_dcd_tree(decoder->dcd_tree);
+			free(decoder);
+			return(NULL);
+		}
+
+	}
+	decoder->t_info =tp;
+	return (decoder);
+}
+
+void cs_etm_free_decoder(struct cs_etm_decoder *decoder)
+{
+	if (!decoder)
+		return;
+
+	ocsd_destroy_dcd_tree(decoder->dcd_tree);
+	decoder->dcd_tree = NULL;
+	decoder->t_info = NULL;
+	free(decoder);
+}
+
+/* A callback function to allow the trace decoder to read the inferior's
+   memory.  */
+static uint32_t
+btrace_etm_readmem_callback (const void *p_context, const ocsd_vaddr_t address,
+		const ocsd_mem_space_acc_t mem_space, const uint32_t reqBytes,
+		uint8_t *byteBuffer)
+{
+  int result, errcode;
+
+  result = (int) reqBytes;
+  try
+    {
+      errcode = target_read_code ((CORE_ADDR) address, byteBuffer, reqBytes);
+      if (errcode != 0)
+	    result = 0;
+    }
+  catch (const gdb_exception_error &error)
+    {
+      result = 0;
+    }
+
+  return result;
+}
+
+static ocsd_err_t
+cs_etm_add_mem_access_callback(struct cs_etm_decoder *decoder,
+				      uint64_t start, uint64_t end,
+					  Fn_MemAcc_CB p_cb_func)
+{
+	ocsd_err_t error;
+	error = ocsd_dt_add_callback_mem_acc(decoder->dcd_tree,
+			(ocsd_vaddr_t) start, (ocsd_vaddr_t) end,
+			OCSD_MEM_SPACE_ANY, p_cb_func, decoder);
+	if (error != OCSD_OK)
+		decoder->mem_access = p_cb_func;
+	return (error);
+
+}
+
+static int
+cs_etm_process_data_block(struct cs_etm_decoder *decoder,
+		uint64_t index, const uint8_t *buf,
+        size_t len, size_t *consumed)
+{
+	int ret = 0;
+	ocsd_datapath_resp_t cur = OCSD_RESP_CONT;
+	ocsd_datapath_resp_t prev_return = decoder->prev_return;
+	size_t processed = 0;
+	uint32_t count;
+
+	while (processed < len) {
+		if (OCSD_DATA_RESP_IS_WAIT(prev_return)) {
+			cur = ocsd_dt_process_data(decoder->dcd_tree,
+						   OCSD_OP_FLUSH,
+						   0,
+						   0,
+						   NULL,
+						   NULL);
+		} else if (OCSD_DATA_RESP_IS_CONT(prev_return)) {
+			cur = ocsd_dt_process_data(decoder->dcd_tree,
+						   OCSD_OP_DATA,
+						   index + processed,
+						   len - processed,
+						   &buf[processed],
+						   &count);
+			processed += count;
+		} else {
+			ret = -EINVAL;
+			break;
+		}
+
+		/*
+		 * Return to the input code if the packet buffer is full.
+		 * Flushing will get done once the packet buffer has been
+		 * processed.
+		 */
+		if (OCSD_DATA_RESP_IS_WAIT(cur))
+			break;
+
+		prev_return = cur;
+	}
+
+	decoder->prev_return = cur;
+	*consumed = processed;
+
+	return ret;
+}
+
 
 static void
 btrace_compute_ftrace_etm (struct thread_info *tp,
 			  const struct btrace_data_etm *btrace,
 			  std::vector<unsigned int> &gaps)
 {
-	DEBUG_FTRACE ("btrace->size is 0x%x for thread %s\n", (unsigned int)(btrace->size), print_thread_id (tp));
+  struct cs_etm_decoder *decoder;
+  int errcode;
+  ocsd_err_t ocsd_error;
+  size_t consumed;
+
+
+  DEBUG_FTRACE ("btrace->size is 0x%x for thread %s\n", (unsigned int)(btrace->size), print_thread_id (tp));
+  if (btrace->size == 0)
+    return;
+
+  decoder = cs_etm_alloc_decoder(tp,btrace->config.num_cpu,
+		  btrace->config.etm_decoder_params,
+		  btrace->config.etm_trace_parmas);
+  if (decoder == NULL)
+      error (_("Failed to allocate ARM CoreSight ETM Trace decoder."));
+
+  ocsd_error = cs_etm_add_mem_access_callback(decoder,
+		  0x0L, ((uint64_t) -1L),
+		  btrace_etm_readmem_callback);
+  if (ocsd_error!= OCSD_OK)
+	  error (_("Failed to add ARM CoreSight ETM Trace decoder memory access callback."));
+
+  errcode = cs_etm_process_data_block(decoder,
+  		0, btrace->data,
+		btrace->size, &consumed);
+  if (errcode!=0)
+	  error (_("Failed to decode ARM CoreSight ETM Trace."));
+
+  cs_etm_free_decoder(decoder);
 
 }
-#else /*    defined (HAVE_LIBOPENCSD)    */
+#else /*    defined (HAVE_LIBOPENCSD_C_API)    */
 
 static void
 btrace_compute_ftrace_etm (struct thread_info *tp,
@@ -1523,7 +1884,7 @@ btrace_compute_ftrace_etm (struct thread_info *tp,
 
   internal_error (__FILE__, __LINE__, _("Unexpected branch trace format."));
 }
-#endif /*    defined (HAVE_LIBOPENCSD)    */
+#endif /*    defined (HAVE_LIBOPENCSD_C_API)    */
 /* Compute the function branch trace from a block branch trace BTRACE for
    a thread given by BTINFO.  If CPU is not NULL, overwrite the cpu in the
    branch trace configuration.  This is currently only used for the PT
@@ -1624,10 +1985,10 @@ btrace_enable (struct thread_info *tp, const struct btrace_config *conf)
   if (conf->format == BTRACE_FORMAT_PT)
     error (_("Intel Processor Trace support was disabled at compile time."));
 #endif /* !defined (HAVE_LIBIPT) */
-#if !defined (HAVE_LIBOPENCSD)
+#if !defined (HAVE_LIBOPENCSD_C_API)
   if (conf->format == BTRACE_FORMAT_ETM)
     error (_("arm CoreSight ETM Processor Trace support was disabled at compile time."));
-#endif /* !defined (HAVE_LIBOPENCSD) */
+#endif /* !defined (HAVE_LIBOPENCSD_C_API) */
 
   DEBUG ("enable thread %s (%s)", print_thread_id (tp),
 	 target_pid_to_str (tp->ptid).c_str ());
@@ -1862,6 +2223,15 @@ btrace_maint_clear (struct btrace_thread_info *btinfo)
       btinfo->maint.variant.pt.packet_history.end = 0;
       break;
 #endif /* defined (HAVE_LIBIPT)  */
+#if defined (HAVE_LIBOPENCSD_C_API)
+    case BTRACE_FORMAT_PT:
+      delete btinfo->maint.variant.etm.packets;
+
+      btinfo->maint.variant.etm.packets = NULL;
+      btinfo->maint.variant.etm.packet_history.begin = 0;
+      btinfo->maint.variant.etm.packet_history.end = 0;
+      break;
+#endif /* defined (HAVE_LIBOPENCSD_C_API) */
     }
 }
 
@@ -3096,12 +3466,12 @@ btrace_maint_update_pt_packets (struct btrace_thread_info *btinfo)
 
 #endif /* !defined (HAVE_LIBIPT)  */
 
-#if defined (HAVE_LIBOPENCSD)
+#if defined (HAVE_LIBOPENCSD_C_API)
 static void
 btrace_maint_update_etm_packets (struct btrace_thread_info *btinfo)
 {
-	struct btrace_data_etm *etm;
-	etm = &btinfo->data.variant.etm;
+	//struct btrace_data_etm *etm;
+	//etm = &btinfo->data.variant.etm;
 }
 #endif /* defined (HAVE_LIBIPT)  */
 
@@ -3146,7 +3516,7 @@ btrace_maint_update_packets (struct btrace_thread_info *btinfo,
       *to = btinfo->maint.variant.pt.packet_history.end;
       break;
 #endif /* defined (HAVE_LIBIPT)  */
-#if defined (HAVE_LIBOPENCSD)
+#if defined (HAVE_LIBOPENCSD_C_API)
     case BTRACE_FORMAT_ETM:
       if (btinfo->maint.variant.etm.packets == nullptr)
     	btinfo->maint.variant.etm.packets = new std::vector<btrace_etm_packet>;
@@ -3159,7 +3529,7 @@ btrace_maint_update_packets (struct btrace_thread_info *btinfo,
       *from = btinfo->maint.variant.etm.packet_history.begin;
       *to = btinfo->maint.variant.etm.packet_history.end;
        break;
-#endif /* defined (HAVE_LIBOPENCSD)  */
+#endif /* defined (HAVE_LIBOPENCSD_C_API)  */
     }
 }
 
