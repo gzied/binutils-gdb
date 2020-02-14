@@ -1,8 +1,9 @@
 /* Branch trace support for GDB, the GNU debugger.
 
-   Copyright (C) 2013-2019 Free Software Foundation, Inc.
+   Copyright (C) 2013-2020 Free Software Foundation, Inc.
 
    Contributed by Intel Corp. <markus.t.metzger@intel.com>
+   Contributed by Trande      <zied.guermazi@trande.de>
 
    This file is part of GDB.
 
@@ -1542,7 +1543,7 @@ static void cs_etm_get_etmv4_config(struct cs_etm_trace_params *params,
 	config->core_prof = profile_CortexA;// to be amended to use params->cpu settings
 }
 
-static void print_trc_elem_instr_range(const uint8_t trace_chan_id, const ocsd_generic_trace_elem *elem)
+/*static void print_trc_elem_instr_range(const uint8_t trace_chan_id, const ocsd_generic_trace_elem *elem)
 {
 	printf ("trace_chan_id: %d\n", trace_chan_id);
 	switch(elem->isa){
@@ -1567,28 +1568,100 @@ static void print_trc_elem_instr_range(const uint8_t trace_chan_id, const ocsd_g
 	printf("end addr   = 0x%llx\n",elem->en_addr);
 	printf("instructions count = %d\n",elem->num_instr_range);
 	switch (elem->last_i_type) {
+	case OCSD_INSTR_BR:
+		printf("last_i_type: OCSD_INSTR_BR\n");
+		break;
+	case OCSD_INSTR_BR_INDIRECT:
+		printf("last_i_type: OCSD_INSTR_BR_INDIRECT\n");
+		break;
+	case OCSD_INSTR_ISB:
+		printf("last_i_type: OCSD_INSTR_ISB\n");
+		break;
+	case OCSD_INSTR_DSB_DMB:
+		printf("last_i_type: OCSD_INSTR_DSB_DMB\n");
+		break;
+	case OCSD_INSTR_WFI_WFE:
+		printf("last_i_type: OCSD_INSTR_WFI_WFE\n");
+		break;
+	case OCSD_INSTR_OTHER:
+		printf("last_i_type: OCSD_INSTR_OTHER\n");
+		break;
+	default:
+		printf("last_i_type: %d\n",elem->last_i_type);
+		break;
+	}
+	switch (elem->last_i_subtype ) {
+	case OCSD_S_INSTR_NONE:
+		printf("last_i_subtype: OCSD_S_INSTR_NONE\n");
+		break;
+	case OCSD_S_INSTR_BR_LINK:
+		printf("last_i_subtype: OCSD_S_INSTR_BR_LINK\n");
+		break;
+	case OCSD_S_INSTR_V8_RET:
+		printf("last_i_subtype: OCSD_S_INSTR_V8_RET\n");
+		break;
+	case OCSD_S_INSTR_V8_ERET:
+		printf("last_i_subtype: OCSD_S_INSTR_V8_ERET\n");
+		break;
+	case OCSD_S_INSTR_V7_IMPLIED_RET:
+		printf("last_i_subtype: OCSD_S_INSTR_V7_IMPLIED_RET\n");
+		break;
+	default:
+		printf("last_i_subtype: %d\n",elem->last_i_subtype);
+		break;
+
+	}
+	printf("last instruction was%s executed\n",elem->last_instr_exec?"":" not" );
+	printf("last instruction size: %d\n", elem->last_instr_sz );
+
+
+}*/
+static void
+cs_etm_update_branch_trace(const void *context, const ocsd_generic_trace_elem *elem)
+{
+	struct cs_etm_decoder *etm_decoder;
+	struct thread_info *tp;
+	struct btrace_thread_info *btinfo;
+	struct btrace_function *bfun;
+	struct btrace_insn insn;
+
+	etm_decoder = (struct cs_etm_decoder *)context;
+	if (!etm_decoder->t_info )
+		return;
+	tp = etm_decoder->t_info;
+	btinfo = &tp->btrace;
+	if (elem->last_instr_exec)
+	{
+		bfun = ftrace_update_function (btinfo, elem->st_addr );
+		insn.pc = elem->st_addr;
+		insn.size = elem->last_instr_sz;
+		switch (elem->last_i_type) {
 		case OCSD_INSTR_BR:
-			printf("last_i_type: OCSD_INSTR_BR\n");
-			break;
 		case OCSD_INSTR_BR_INDIRECT:
-			printf("last_i_type: OCSD_INSTR_BR_INDIRECT\n");
+			switch (elem->last_i_subtype ){
+			case OCSD_S_INSTR_V8_RET:
+		    case OCSD_S_INSTR_V8_ERET:
+		    case OCSD_S_INSTR_V7_IMPLIED_RET:
+		    	insn.iclass=BTRACE_INSN_RETURN;
+		    	break;
+		    case OCSD_S_INSTR_BR_LINK:
+		    	insn.iclass=BTRACE_INSN_CALL;
+		    	break;
+		    case OCSD_S_INSTR_NONE:
+		    	insn.iclass=BTRACE_INSN_JUMP;
+			}
 			break;
 		case OCSD_INSTR_ISB:
-			printf("last_i_type: OCSD_INSTR_ISB\n");
-			break;
 		case OCSD_INSTR_DSB_DMB:
-			printf("last_i_type: OCSD_INSTR_DSB_DMB\n");
-			break;
 		case OCSD_INSTR_WFI_WFE:
-			printf("last_i_type: OCSD_INSTR_WFI_WFE\n");
-			break;
 		case OCSD_INSTR_OTHER:
-			printf("last_i_type: OCSD_INSTR_OTHER\n");
+			insn.iclass=BTRACE_INSN_OTHER;
 			break;
 		default:
-			printf("last_i_type: %d\n",elem->last_i_type);
 			break;
 		}
+		ftrace_update_insns (bfun, insn);
+	}
 
 }
 static ocsd_datapath_resp_t cs_etm_trace_element_callback(
@@ -1600,50 +1673,51 @@ static ocsd_datapath_resp_t cs_etm_trace_element_callback(
 	ocsd_datapath_resp_t resp = OCSD_RESP_CONT;
 	switch (elem->elem_type) {
 		case OCSD_GEN_TRC_ELEM_UNKNOWN:
-			printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_UNKNOWN\n");
+			//printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_UNKNOWN\n");
 			break;
 		case OCSD_GEN_TRC_ELEM_EO_TRACE:
-			printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_EO_TRACE\n");
+			//printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_EO_TRACE\n");
 			break;
 		case OCSD_GEN_TRC_ELEM_NO_SYNC:
-			printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_NO_SYNC\n");
+			//printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_NO_SYNC\n");
 			break;
 		case OCSD_GEN_TRC_ELEM_TRACE_ON:
-			printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_TRACE_ON\n");
+			//printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_TRACE_ON\n");
 			break;
 		case OCSD_GEN_TRC_ELEM_INSTR_RANGE:
-			printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_INSTR_RANGE\n");
-			print_trc_elem_instr_range(trace_chan_id, elem);
+			//printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_INSTR_RANGE\n");
+			//print_trc_elem_instr_range(trace_chan_id, elem);
+			cs_etm_update_branch_trace(context, elem);
 			break;
 		case OCSD_GEN_TRC_ELEM_EXCEPTION:
-			printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_EXCEPTION\n");
+			//printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_EXCEPTION\n");
 			break;
 		case OCSD_GEN_TRC_ELEM_EXCEPTION_RET:
-			printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_EXCEPTION_RET\n");
+			//printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_EXCEPTION_RET\n");
 			break;
 		case OCSD_GEN_TRC_ELEM_TIMESTAMP:
-			printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_TIMESTAMP\n");
+			//printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_TIMESTAMP\n");
 			break;
 		case OCSD_GEN_TRC_ELEM_PE_CONTEXT:
-			printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_PE_CONTEXT\n");
+			//printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_PE_CONTEXT\n");
 			break;
 		case OCSD_GEN_TRC_ELEM_ADDR_NACC:
-			printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_ADDR_NACC\n");
+			//printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_ADDR_NACC\n");
 			break;
 		case OCSD_GEN_TRC_ELEM_CYCLE_COUNT:
-			printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_CYCLE_COUNT\n");
+			//printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_CYCLE_COUNT\n");
 			break;
 		case OCSD_GEN_TRC_ELEM_ADDR_UNKNOWN:
-			printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_ADDR_UNKNOWN\n");
+			//printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_ADDR_UNKNOWN\n");
 			break;
 		case OCSD_GEN_TRC_ELEM_EVENT:
-			printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_EVENT\n");
+			//printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_EVENT\n");
 			break;
 		case OCSD_GEN_TRC_ELEM_SWTRACE:
-			printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_SWTRACE\n");
+			//printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_SWTRACE\n");
 			break;
 		case OCSD_GEN_TRC_ELEM_CUSTOM:
-			printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_CUSTOM\n");
+			//printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_CUSTOM\n");
 			break;
 		default:
 			printf("cs_etm_decoder_trace_element_callback: elem->elem_type %d not handledM\n",elem->elem_type);

@@ -3,6 +3,7 @@
    Copyright (C) 2013-2019 Free Software Foundation, Inc.
 
    Contributed by Intel Corp. <markus.t.metzger@intel.com>
+   Contributed by Trande      <zied.guermazi@trande.de>
 
    This file is part of GDB.
 
