@@ -817,7 +817,8 @@ linux_enable_etm (ptid_t ptid, const struct btrace_config_etm *conf)
   etm->attr.exclude_kernel = 1;
   etm->attr.exclude_hv = 1;
   etm->attr.exclude_idle = 1;
-  etm->attr.config2 = perf_event_etm_event_sink(conf);
+  if (conf->sink != nullptr)
+	  etm->attr.config2 = perf_event_etm_event_sink(conf);
 
   errno = 0;
   scoped_fd fd (syscall (SYS_perf_event_open, &etm->attr, pid, -1, -1, 0));
