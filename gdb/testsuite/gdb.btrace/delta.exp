@@ -58,8 +58,14 @@ proc check_trace {} {
     "Recording format: .*" \
     "Recorded 1 instructions in 1 functions \\\(0 gaps\\\) for .*" \
     ]
-  gdb_test "record instruction-history /f 1" \
-    "1\t   0x\[0-9a-f\]+ <\\+\[0-9\]+>:\tmov *\\\$0x0,%eax\r"
+  if { [istarget "i?86-*-*"] || [istarget "x86_64-*-*"] } {
+    gdb_test "record instruction-history /f 1" \
+      "1\t   0x\[0-9a-f\]+ <\\+\[0-9\]+>:\tmov *\\\$0x0,%eax\r"
+  }
+  if { [istarget "arm*-*-*"] } {
+    gdb_test "record instruction-history /f 1" \
+      "1\t   0x\[0-9a-f\]+ <\\+\[0-9\]+>:\tmovs\tr3, #0\r"
+  }
   gdb_test "record function-call-history /c 1" "1\tmain"
 }
 

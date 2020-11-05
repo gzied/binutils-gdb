@@ -1511,6 +1511,7 @@ struct cs_etm_decoder {
 	Fn_MemAcc_CB mem_access;
 	struct thread_info *t_info;
 	ocsd_datapath_resp_t prev_return;
+	ocsd_gen_trc_elem_t prev_trc_elem;
 };
 static int cs_etm_get_etmv3_config(struct cs_etm_trace_params *params,
 					    ocsd_etmv3_cfg *config)
@@ -1542,10 +1543,11 @@ static void cs_etm_get_etmv4_config(struct cs_etm_trace_params *params,
 	config->arch_ver = ARCH_V8;// to be amended to use params->cpu settings
 	config->core_prof = profile_CortexA;// to be amended to use params->cpu settings
 }
-
-/*static void print_trc_elem_instr_range(const uint8_t trace_chan_id, const ocsd_generic_trace_elem *elem)
+/*
+static void print_trc_elem_common(const uint8_t trace_chan_id, const ocsd_generic_trace_elem *elem)
 {
 	printf ("trace_chan_id: %d\n", trace_chan_id);
+
 	switch(elem->isa){
 		case ocsd_isa_aarch64:
 			printf ("isa: CS_ETM_ISA_A64\n");
@@ -1557,8 +1559,14 @@ static void cs_etm_get_etmv4_config(struct cs_etm_trace_params *params,
 			printf ("isa: CS_ETM_ISA_T32\n");
 			break;
 		case ocsd_isa_tee:
+			printf ("isa: CS_ETM_ISA_TEE\n");
+			break;
 		case ocsd_isa_jazelle:
+			printf ("isa: CS_ETM_ISA_JAZELLE\n");
+			break;
 		case ocsd_isa_custom:
+			printf ("isa: CS_ETM_ISA_CUSTOM\n");
+			break;
 		case ocsd_isa_unknown:
 		default:
 			printf ("isa: CS_ETM_ISA_UNKNOWN\n");
@@ -1566,56 +1574,73 @@ static void cs_etm_get_etmv4_config(struct cs_etm_trace_params *params,
 
 	printf("start addr = 0x%llx\n",elem->st_addr);
 	printf("end addr   = 0x%llx\n",elem->en_addr);
+
+
+
+}
+
+static void print_trc_elem_instr_range(const uint8_t trace_chan_id, const ocsd_generic_trace_elem *elem)
+{
+	print_trc_elem_common(trace_chan_id, elem);
 	printf("instructions count = %d\n",elem->num_instr_range);
 	switch (elem->last_i_type) {
-	case OCSD_INSTR_BR:
-		printf("last_i_type: OCSD_INSTR_BR\n");
-		break;
-	case OCSD_INSTR_BR_INDIRECT:
-		printf("last_i_type: OCSD_INSTR_BR_INDIRECT\n");
-		break;
-	case OCSD_INSTR_ISB:
-		printf("last_i_type: OCSD_INSTR_ISB\n");
-		break;
-	case OCSD_INSTR_DSB_DMB:
-		printf("last_i_type: OCSD_INSTR_DSB_DMB\n");
-		break;
-	case OCSD_INSTR_WFI_WFE:
-		printf("last_i_type: OCSD_INSTR_WFI_WFE\n");
-		break;
-	case OCSD_INSTR_OTHER:
-		printf("last_i_type: OCSD_INSTR_OTHER\n");
-		break;
-	default:
-		printf("last_i_type: %d\n",elem->last_i_type);
-		break;
-	}
-	switch (elem->last_i_subtype ) {
-	case OCSD_S_INSTR_NONE:
-		printf("last_i_subtype: OCSD_S_INSTR_NONE\n");
-		break;
-	case OCSD_S_INSTR_BR_LINK:
-		printf("last_i_subtype: OCSD_S_INSTR_BR_LINK\n");
-		break;
-	case OCSD_S_INSTR_V8_RET:
-		printf("last_i_subtype: OCSD_S_INSTR_V8_RET\n");
-		break;
-	case OCSD_S_INSTR_V8_ERET:
-		printf("last_i_subtype: OCSD_S_INSTR_V8_ERET\n");
-		break;
-	case OCSD_S_INSTR_V7_IMPLIED_RET:
-		printf("last_i_subtype: OCSD_S_INSTR_V7_IMPLIED_RET\n");
-		break;
-	default:
-		printf("last_i_subtype: %d\n",elem->last_i_subtype);
-		break;
+		case OCSD_INSTR_BR:
+			printf("last_i_type: OCSD_INSTR_BR\n");
+			break;
+		case OCSD_INSTR_BR_INDIRECT:
+			printf("last_i_type: OCSD_INSTR_BR_INDIRECT\n");
+			break;
+		case OCSD_INSTR_ISB:
+			printf("last_i_type: OCSD_INSTR_ISB\n");
+			break;
+		case OCSD_INSTR_DSB_DMB:
+			printf("last_i_type: OCSD_INSTR_DSB_DMB\n");
+			break;
+		case OCSD_INSTR_WFI_WFE:
+			printf("last_i_type: OCSD_INSTR_WFI_WFE\n");
+			break;
+		case OCSD_INSTR_OTHER:
+			printf("last_i_type: OCSD_INSTR_OTHER\n");
+			break;
+		default:
+			printf("last_i_type: %d\n",elem->last_i_type);
+			break;
+		}
+		switch (elem->last_i_subtype ) {
+		case OCSD_S_INSTR_NONE:
+			printf("last_i_subtype: OCSD_S_INSTR_NONE\n");
+			break;
+		case OCSD_S_INSTR_BR_LINK:
+			printf("last_i_subtype: OCSD_S_INSTR_BR_LINK\n");
+			break;
+		case OCSD_S_INSTR_V8_RET:
+			printf("last_i_subtype: OCSD_S_INSTR_V8_RET\n");
+			break;
+		case OCSD_S_INSTR_V8_ERET:
+			printf("last_i_subtype: OCSD_S_INSTR_V8_ERET\n");
+			break;
+		case OCSD_S_INSTR_V7_IMPLIED_RET:
+			printf("last_i_subtype: OCSD_S_INSTR_V7_IMPLIED_RET\n");
+			break;
+		default:
+			printf("last_i_subtype: %d\n",elem->last_i_subtype);
+			break;
 
-	}
+		}
+		printf("last instruction was%s executed\n",elem->last_instr_exec?"":" not" );
+		printf("last instruction size: %d\n", elem->last_instr_sz );
+
+}
+static void print_trc_elem_exception(const uint8_t trace_chan_id, const ocsd_generic_trace_elem *elem)
+{
+	print_trc_elem_common(trace_chan_id, elem);
+	printf ("exception number: %d\n",elem-> exception_number);
 	printf("last instruction was%s executed\n",elem->last_instr_exec?"":" not" );
 	printf("last instruction size: %d\n", elem->last_instr_sz );
+}
 
+*/
 
-}*/
 static void
 cs_etm_update_branch_trace(const void *context, const ocsd_generic_trace_elem *elem)
 {
@@ -1630,35 +1655,44 @@ cs_etm_update_branch_trace(const void *context, const ocsd_generic_trace_elem *e
 		return;
 	tp = etm_decoder->t_info;
 	btinfo = &tp->btrace;
-	if (elem->last_instr_exec)
+	if (etm_decoder->prev_trc_elem == OCSD_GEN_TRC_ELEM_EXCEPTION)
+	{
+		if (elem->elem_type==OCSD_GEN_TRC_ELEM_INSTR_RANGE)
+		{
+			etm_decoder->prev_trc_elem = OCSD_GEN_TRC_ELEM_INSTR_RANGE;
+			return;
+		}
+	}
+	etm_decoder->prev_trc_elem = elem->elem_type;
+	if (elem->elem_type==OCSD_GEN_TRC_ELEM_INSTR_RANGE)
 	{
 		bfun = ftrace_update_function (btinfo, elem->st_addr );
 		insn.pc = elem->st_addr;
 		insn.size = elem->last_instr_sz;
 		switch (elem->last_i_type) {
-		case OCSD_INSTR_BR:
-		case OCSD_INSTR_BR_INDIRECT:
-			switch (elem->last_i_subtype ){
-			case OCSD_S_INSTR_V8_RET:
-		    case OCSD_S_INSTR_V8_ERET:
-		    case OCSD_S_INSTR_V7_IMPLIED_RET:
-		    	insn.iclass=BTRACE_INSN_RETURN;
-		    	break;
-		    case OCSD_S_INSTR_BR_LINK:
-		    	insn.iclass=BTRACE_INSN_CALL;
-		    	break;
-		    case OCSD_S_INSTR_NONE:
-		    	insn.iclass=BTRACE_INSN_JUMP;
-			}
-			break;
-		case OCSD_INSTR_ISB:
-		case OCSD_INSTR_DSB_DMB:
-		case OCSD_INSTR_WFI_WFE:
-		case OCSD_INSTR_OTHER:
-			insn.iclass=BTRACE_INSN_OTHER;
-			break;
-		default:
-			break;
+		    case OCSD_INSTR_BR:
+		    case OCSD_INSTR_BR_INDIRECT:
+			    switch (elem->last_i_subtype ){
+			        case OCSD_S_INSTR_V8_RET:
+		            case OCSD_S_INSTR_V8_ERET:
+		            case OCSD_S_INSTR_V7_IMPLIED_RET:
+                        insn.iclass=BTRACE_INSN_RETURN;
+		                break;
+		            case OCSD_S_INSTR_BR_LINK:
+		                insn.iclass=BTRACE_INSN_CALL;
+		                break;
+		            case OCSD_S_INSTR_NONE:
+		                insn.iclass=BTRACE_INSN_JUMP;
+			    }
+			    break;
+		    case OCSD_INSTR_ISB:
+		    case OCSD_INSTR_DSB_DMB:
+		    case OCSD_INSTR_WFI_WFE:
+		    case OCSD_INSTR_OTHER:
+			    insn.iclass=BTRACE_INSN_OTHER;
+			    break;
+		    default:
+			    break;
 		}
 		ftrace_update_insns (bfun, insn);
 	}
@@ -1690,7 +1724,9 @@ static ocsd_datapath_resp_t cs_etm_trace_element_callback(
 			cs_etm_update_branch_trace(context, elem);
 			break;
 		case OCSD_GEN_TRC_ELEM_EXCEPTION:
+			cs_etm_update_branch_trace(context, elem);
 			//printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_EXCEPTION\n");
+			//print_trc_elem_exception(trace_chan_id, elem);
 			break;
 		case OCSD_GEN_TRC_ELEM_EXCEPTION_RET:
 			//printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_EXCEPTION_RET\n");
@@ -1720,7 +1756,7 @@ static ocsd_datapath_resp_t cs_etm_trace_element_callback(
 			//printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_CUSTOM\n");
 			break;
 		default:
-			printf("cs_etm_decoder_trace_element_callback: elem->elem_type %d not handledM\n",elem->elem_type);
+			//printf("cs_etm_decoder_trace_element_callback: elem->elem_type %d not handledM\n",elem->elem_type);
 			break;
 		}
 	return (resp);
@@ -1809,6 +1845,7 @@ cs_etm_alloc_decoder(struct thread_info *tp, int num_cpu,
 
 	}
 	decoder->t_info =tp;
+	decoder->prev_trc_elem = OCSD_GEN_TRC_ELEM_UNKNOWN;
 	return (decoder);
 }
 
@@ -1917,15 +1954,20 @@ btrace_compute_ftrace_etm (struct thread_info *tp,
 			  const struct btrace_data_etm *btrace,
 			  std::vector<unsigned int> &gaps)
 {
-  struct cs_etm_decoder *decoder;
-  int errcode;
-  ocsd_err_t ocsd_error;
-  size_t consumed;
+    struct btrace_thread_info *btinfo;
+    struct cs_etm_decoder *decoder;
+    int errcode;
+    ocsd_err_t ocsd_error;
+    size_t consumed;
 
 
-  DEBUG_FTRACE ("btrace->size is 0x%x for thread %s\n", (unsigned int)(btrace->size), print_thread_id (tp));
-  if (btrace->size == 0)
-    return;
+    DEBUG_FTRACE ("btrace->size is 0x%x for thread %s\n", (unsigned int)(btrace->size), print_thread_id (tp));
+    if (btrace->size == 0)
+      return;
+
+    btinfo = &tp->btrace;
+    if (btinfo->functions.empty ())
+        btinfo->level = 0;
 
   decoder = cs_etm_alloc_decoder(tp,btrace->config.num_cpu,
 		  btrace->config.etm_decoder_params,
@@ -1944,7 +1986,7 @@ btrace_compute_ftrace_etm (struct thread_info *tp,
 		btrace->size, &consumed);
   if (errcode!=0)
 	  error (_("Failed to decode ARM CoreSight ETM Trace."));
-
+  ftrace_compute_global_level_offset (btinfo);
   cs_etm_free_decoder(decoder);
 
 }
@@ -2252,6 +2294,9 @@ btrace_stitch_trace (struct btrace_data *btrace, struct thread_info *tp)
       return btrace_stitch_bts (&btrace->variant.bts, tp);
 
     case BTRACE_FORMAT_PT:
+      /* Delta reads are not supported.  */
+      return -1;
+    case BTRACE_FORMAT_ETM:
       /* Delta reads are not supported.  */
       return -1;
     }

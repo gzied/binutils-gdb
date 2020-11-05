@@ -527,7 +527,7 @@ record_btrace_print_pt_conf (const struct btrace_config_pt *conf)
 /* Print an arm Processor Trace configuration.  */
 
 static void
-record_btrace_print_etm_conf (const struct btrace_config_pt *conf)
+record_btrace_print_etm_conf (const struct btrace_config_etm *conf)
 {
   const char *suffix;
   unsigned int size;
@@ -562,7 +562,7 @@ record_btrace_print_conf (const struct btrace_config *conf)
       return;
 
     case BTRACE_FORMAT_ETM:
-      record_btrace_print_etm_conf (&conf->pt);
+      record_btrace_print_etm_conf (&conf->etm);
       return;
     }
 

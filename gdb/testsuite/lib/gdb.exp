@@ -2934,7 +2934,7 @@ gdb_caching_proc skip_btrace_tests {
     global srcdir subdir gdb_prompt inferior_exited_re
 
     set me "skip_btrace_tests"
-    if { ![istarget "i?86-*-*"] && ![istarget "x86_64-*-*"] } {
+    if { ![istarget "i?86-*-*"] && ![istarget "x86_64-*-*"] && ![istarget "arm*-*-*"]} {
         verbose "$me:  target does not support btrace, returning 1" 2
         return 1
     }
