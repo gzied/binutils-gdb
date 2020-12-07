@@ -1318,6 +1318,9 @@ set_step_over_info (const address_space *aspace, CORE_ADDR address,
 		    int nonsteppable_watchpoint_p,
 		    int thread)
 {
+  if (debug_infrun)
+    fprintf_unfiltered (gdb_stdlog,
+                        "infrun: set_step_over_info\n");
   step_over_info.aspace = aspace;
   step_over_info.address = address;
   step_over_info.nonsteppable_watchpoint_p = nonsteppable_watchpoint_p;
@@ -5146,7 +5149,7 @@ Cannot fill $_exitsignal with the correct signal number.\n"));
       delete_just_stopped_threads_single_step_breakpoints ();
       ecs->event_thread->suspend.stop_pc
 	= regcache_read_pc (get_thread_regcache (inferior_thread ()));
-
+      clear_step_over_info ();
       if (handle_stop_requested (ecs))
 	return;
 

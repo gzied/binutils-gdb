@@ -1540,7 +1540,6 @@ record_btrace_target::remove_breakpoint (struct gdbarch *gdbarch,
 }
 
 /* The fetch_registers method of target record-btrace.  */
-
 void
 record_btrace_target::fetch_registers (struct regcache *regcache, int regno)
 {
@@ -1555,19 +1554,29 @@ record_btrace_target::fetch_registers (struct regcache *regcache, int regno)
     {
       const struct btrace_insn *insn;
       struct gdbarch *gdbarch;
+      //struct record_btrace_reg_entry reg;
       int pcreg;
-
-      gdbarch = regcache->arch ();
-      pcreg = gdbarch_pc_regnum (gdbarch);
-      if (pcreg < 0)
-	return;
-
-      /* We can only provide the PC register.  */
-      if (regno >= 0 && regno != pcreg)
-	return;
 
       insn = btrace_insn_get (replay);
       gdb_assert (insn != NULL);
+      if (!insn->registers.empty())
+	{
+	  for(int i = 0; i < insn->registers.size(); i++)
+	    {
+	      if (insn->registers.operator[](i).num==regno)
+		{
+		  regcache->raw_supply (regno, insn->registers.operator[](i).buffer);
+		  return;
+		}
+	    }
+	}
+      gdbarch = regcache->arch ();
+      pcreg = gdbarch_pc_regnum (gdbarch);
+      if (pcreg < 0)
+        return;
+      /* We can only provide the PC register here.  */
+      if (regno >= 0 && regno != pcreg)
+        return;
 
       regcache->raw_supply (regno, &insn->pc);
     }

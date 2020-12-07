@@ -162,60 +162,60 @@ perf_event_read (const struct perf_event_buffer *pev, __u64 data_head,
    The caller is responsible for freeing the data memory.  */
 static void
 perf_event_read_available (struct perf_event_buffer *pev, gdb_byte **data,
-		     size_t *psize)
+			   size_t *psize)
 {
-	  const gdb_byte *begin, *end, *start, *stop;
-	  gdb_byte *buffer;
-	  size_t buffer_size;
-	  __u64 data_tail, data_head;
+  const gdb_byte *begin, *end, *start, *stop;
+  gdb_byte *buffer;
+  size_t buffer_size;
+  __u64 data_tail, data_head;
 
-	  if (psize == NULL)
-	  {
-		  *data = NULL;
-	      return ;
-	  }
+  if (psize == NULL)
+    {
+      *data = NULL;
+      return ;
+    }
 
-	  buffer_size = *(pev->data_head) - pev->last_head;
+  buffer_size = *(pev->data_head) - pev->last_head;
 
-	  if (buffer_size >pev->size)
-		  buffer_size = pev->size;
+  if (buffer_size >pev->size)
+    buffer_size = pev->size;
 
-	  data_head = *(pev->data_head);
-	  data_tail = *(pev->data_head) - buffer_size;
+  data_head = *(pev->data_head);
+  data_tail = *(pev->data_head) - buffer_size;
 
-	  /* If we ask for more data than we seem to have, we wrap around and read
-	     data from the end of the buffer.  This is already handled by the %
-	     BUFFER_SIZE operation, below.  Here, we just need to make sure that we
-	     don't underflow.
+  /* If we ask for more data than we seem to have, we wrap around and read
+     data from the end of the buffer.  This is already handled by the %
+     BUFFER_SIZE operation, below.  Here, we just need to make sure that we
+     don't underflow.
 
-	     Note that this is perfectly OK for perf event buffers where data_head
-	     doesn'grow indefinitely and instead wraps around to remain within the
-	     buffer's boundaries.  */
+     Note that this is perfectly OK for perf event buffers where data_head
+     doesn'grow indefinitely and instead wraps around to remain within the
+     buffer's boundaries.  */
 
-	  gdb_assert (buffer_size <= data_head);
+  gdb_assert (buffer_size <= data_head);
 
 
-	  begin = pev->mem;
-	  start = begin + data_tail % pev->size;
-	  stop = begin + data_head % pev->size;
+  begin = pev->mem;
+  start = begin + data_tail % pev->size;
+  stop = begin + data_head % pev->size;
 
-	  buffer = (gdb_byte *) xmalloc (buffer_size);
+  buffer = (gdb_byte *) xmalloc (buffer_size);
 
-	  if (start < stop)
-	  {
-	    memcpy (buffer, start, stop - start);
-	  }
-	  else
-	    {
-	      end = begin + pev->size;
+  if (start < stop)
+    {
+      memcpy (buffer, start, stop - start);
+    }
+  else
+    {
+      end = begin + pev->size;
 
-	      memcpy (buffer, start, end - start);
-	      memcpy (buffer + (end - start), begin, stop - begin);
-	    }
-	  pev->last_head = *(pev->data_head);
-	  *psize = buffer_size;
-	  *data = buffer;
-	  return ;
+      memcpy (buffer, start, end - start);
+      memcpy (buffer + (end - start), begin, stop - begin);
+    }
+  pev->last_head = *(pev->data_head);
+  *psize = buffer_size;
+  *data = buffer;
+  return ;
 }
 
 /* Copy the perf event buffer data from PEV.

@@ -39,6 +39,8 @@ if [info exists COMPILE] {
 	} else {
 		standard_testfile i686-record_goto.S
 	}
+} elseif {[istarget "arm*-*-*"]} {
+	standard_testfile arm-record_goto.S
 } else {
     unsupported "target architecture not supported"
     return -1

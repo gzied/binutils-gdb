@@ -228,6 +228,19 @@ ftrace_function_switched (const struct btrace_function *bfun,
   return 0;
 }
 
+/* set a record_btrace_reg_entry.  */
+
+static void
+btrace_reg_set (struct record_btrace_reg_entry *reg, struct regcache *regcache, gdb_regnum regnum, gdb_byte *value)
+{
+  struct gdbarch *gdbarch = regcache->arch ();
+
+  reg->num = regnum;
+  reg->len = register_size (gdbarch, regnum);
+  memcpy(reg->buffer, value, reg->len);
+}
+
+
 /* Allocate and initialize a new branch trace function segment at the end of
    the trace.
    BTINFO is the branch trace information for the current thread.
@@ -1194,7 +1207,7 @@ pt_btrace_insn_flags (const struct pt_insn &insn)
 static btrace_insn
 pt_btrace_insn (const struct pt_insn &insn)
 {
-  return {(CORE_ADDR) insn.ip, (gdb_byte) insn.size,
+  return {(CORE_ADDR) insn.ip, (gdb_byte) insn.size,{},
 	  pt_reclassify_insn (insn.iclass),
 	  pt_btrace_insn_flags (insn)};
 }
@@ -1543,10 +1556,10 @@ static void cs_etm_get_etmv4_config(struct cs_etm_trace_params *params,
 	config->arch_ver = ARCH_V8;// to be amended to use params->cpu settings
 	config->core_prof = profile_CortexA;// to be amended to use params->cpu settings
 }
-/*
-static void print_trc_elem_common(const uint8_t trace_chan_id, const ocsd_generic_trace_elem *elem)
+
+/*static void print_trc_elem_common(const uint8_t trace_chan_id, const ocsd_generic_trace_elem *elem)
 {
-	printf ("trace_chan_id: %d\n", trace_chan_id);
+	printf ("trace_chan_id: %d; ", trace_chan_id);
 
 	switch(elem->isa){
 		case ocsd_isa_aarch64:
@@ -1572,71 +1585,97 @@ static void print_trc_elem_common(const uint8_t trace_chan_id, const ocsd_generi
 			printf ("isa: CS_ETM_ISA_UNKNOWN\n");
 	}
 
-	printf("start addr = 0x%llx\n",elem->st_addr);
+	printf("start addr = 0x%llx; ",elem->st_addr);
 	printf("end addr   = 0x%llx\n",elem->en_addr);
 
 
 
 }
 
+
 static void print_trc_elem_instr_range(const uint8_t trace_chan_id, const ocsd_generic_trace_elem *elem)
 {
-	print_trc_elem_common(trace_chan_id, elem);
-	printf("instructions count = %d\n",elem->num_instr_range);
-	switch (elem->last_i_type) {
-		case OCSD_INSTR_BR:
-			printf("last_i_type: OCSD_INSTR_BR\n");
-			break;
-		case OCSD_INSTR_BR_INDIRECT:
-			printf("last_i_type: OCSD_INSTR_BR_INDIRECT\n");
-			break;
-		case OCSD_INSTR_ISB:
-			printf("last_i_type: OCSD_INSTR_ISB\n");
-			break;
-		case OCSD_INSTR_DSB_DMB:
-			printf("last_i_type: OCSD_INSTR_DSB_DMB\n");
-			break;
-		case OCSD_INSTR_WFI_WFE:
-			printf("last_i_type: OCSD_INSTR_WFI_WFE\n");
-			break;
-		case OCSD_INSTR_OTHER:
-			printf("last_i_type: OCSD_INSTR_OTHER\n");
-			break;
-		default:
-			printf("last_i_type: %d\n",elem->last_i_type);
-			break;
-		}
-		switch (elem->last_i_subtype ) {
-		case OCSD_S_INSTR_NONE:
-			printf("last_i_subtype: OCSD_S_INSTR_NONE\n");
-			break;
-		case OCSD_S_INSTR_BR_LINK:
-			printf("last_i_subtype: OCSD_S_INSTR_BR_LINK\n");
-			break;
-		case OCSD_S_INSTR_V8_RET:
-			printf("last_i_subtype: OCSD_S_INSTR_V8_RET\n");
-			break;
-		case OCSD_S_INSTR_V8_ERET:
-			printf("last_i_subtype: OCSD_S_INSTR_V8_ERET\n");
-			break;
-		case OCSD_S_INSTR_V7_IMPLIED_RET:
-			printf("last_i_subtype: OCSD_S_INSTR_V7_IMPLIED_RET\n");
-			break;
-		default:
-			printf("last_i_subtype: %d\n",elem->last_i_subtype);
-			break;
+  printf ("trace_chan_id: %d; ", trace_chan_id);
+  switch(elem->isa){
+    case ocsd_isa_aarch64:
+      printf ("isa: CS_ETM_ISA_A64\n");
+      break;
+    case ocsd_isa_arm:
+      printf ("isa: CS_ETM_ISA_A32\n");
+      break;
+    case ocsd_isa_thumb2:
+      printf ("isa: CS_ETM_ISA_T32\n");
+      break;
+    case ocsd_isa_tee:
+      printf ("isa: CS_ETM_ISA_TEE\n");
+      break;
+    case ocsd_isa_jazelle:
+      printf ("isa: CS_ETM_ISA_JAZELLE\n");
+      break;
+    case ocsd_isa_custom:
+      printf ("isa: CS_ETM_ISA_CUSTOM\n");
+      break;
+    case ocsd_isa_unknown:
+    default:
+      printf ("isa: CS_ETM_ISA_UNKNOWN\n");
+  }
+  printf("start addr = 0x%lx; ",elem->st_addr);
+  printf("end addr   = 0x%lx; ",elem->en_addr);
+  printf("instructions count = %d;",elem->num_instr_range);
+  switch (elem->last_i_type) {
+    case OCSD_INSTR_BR:
+      printf("last_i_type: OCSD_INSTR_BR; ");
+      break;
+    case OCSD_INSTR_BR_INDIRECT:
+      printf("last_i_type: OCSD_INSTR_BR_INDIRECT; ");
+      break;
+    case OCSD_INSTR_ISB:
+      printf("last_i_type: OCSD_INSTR_ISB; ");
+      break;
+    case OCSD_INSTR_DSB_DMB:
+      printf("last_i_type: OCSD_INSTR_DSB_DMB; ");
+      break;
+    case OCSD_INSTR_WFI_WFE:
+      printf("last_i_type: OCSD_INSTR_WFI_WFE; ");
+      break;
+    case OCSD_INSTR_OTHER:
+      printf("last_i_type: OCSD_INSTR_OTHER; ");
+      break;
+    default:
+      printf("last_i_type: %d; ",elem->last_i_type);
+      break;
+  }
+  switch (elem->last_i_subtype ) {
+    case OCSD_S_INSTR_NONE:
+      printf("last_i_subtype: OCSD_S_INSTR_NONE\n");
+      break;
+    case OCSD_S_INSTR_BR_LINK:
+      printf("last_i_subtype: OCSD_S_INSTR_BR_LINK\n");
+      break;
+    case OCSD_S_INSTR_V8_RET:
+      printf("last_i_subtype: OCSD_S_INSTR_V8_RET\n");
+      break;
+    case OCSD_S_INSTR_V8_ERET:
+      printf("last_i_subtype: OCSD_S_INSTR_V8_ERET\n");
+      break;
+    case OCSD_S_INSTR_V7_IMPLIED_RET:
+      printf("last_i_subtype: OCSD_S_INSTR_V7_IMPLIED_RET\n");
+      break;
+    default:
+      printf("last_i_subtype: %d\n",elem->last_i_subtype);
+      break;
 
-		}
-		printf("last instruction was%s executed\n",elem->last_instr_exec?"":" not" );
-		printf("last instruction size: %d\n", elem->last_instr_sz );
+  }
+  printf("last instruction was%s executed; ",elem->last_instr_exec?"":" not" );
+  printf("last instruction size: %d\n", elem->last_instr_sz );
 
 }
 static void print_trc_elem_exception(const uint8_t trace_chan_id, const ocsd_generic_trace_elem *elem)
 {
-	print_trc_elem_common(trace_chan_id, elem);
-	printf ("exception number: %d\n",elem-> exception_number);
-	printf("last instruction was%s executed\n",elem->last_instr_exec?"":" not" );
-	printf("last instruction size: %d\n", elem->last_instr_sz );
+  printf ("trace_chan_id: %d; \n", trace_chan_id);
+  printf ("exception number: %d\n",elem-> exception_number);
+  printf("last instruction was%s executed; ",elem->last_instr_exec?"":" not" );
+  printf("last instruction size: %d\n", elem->last_instr_sz );
 }
 
 */
@@ -1644,58 +1683,79 @@ static void print_trc_elem_exception(const uint8_t trace_chan_id, const ocsd_gen
 static void
 cs_etm_update_branch_trace(const void *context, const ocsd_generic_trace_elem *elem)
 {
-	struct cs_etm_decoder *etm_decoder;
-	struct thread_info *tp;
-	struct btrace_thread_info *btinfo;
-	struct btrace_function *bfun;
-	struct btrace_insn insn;
+  struct cs_etm_decoder *etm_decoder;
+  struct thread_info *tp;
+  struct btrace_thread_info *btinfo;
+  struct btrace_function *bfun;
+  struct btrace_insn insn;
+  unsigned int cspr;
+  struct record_btrace_reg_entry reg;
 
-	etm_decoder = (struct cs_etm_decoder *)context;
-	if (!etm_decoder->t_info )
-		return;
-	tp = etm_decoder->t_info;
-	btinfo = &tp->btrace;
-	if (etm_decoder->prev_trc_elem == OCSD_GEN_TRC_ELEM_EXCEPTION)
+  etm_decoder = (struct cs_etm_decoder *)context;
+  if (!etm_decoder->t_info )
+    return;
+  tp = etm_decoder->t_info;
+  btinfo = &tp->btrace;
+  if (etm_decoder->prev_trc_elem == OCSD_GEN_TRC_ELEM_EXCEPTION)
+    {
+      if (elem->elem_type==OCSD_GEN_TRC_ELEM_INSTR_RANGE)
 	{
-		if (elem->elem_type==OCSD_GEN_TRC_ELEM_INSTR_RANGE)
-		{
-			etm_decoder->prev_trc_elem = OCSD_GEN_TRC_ELEM_INSTR_RANGE;
-			return;
-		}
+	  etm_decoder->prev_trc_elem = OCSD_GEN_TRC_ELEM_INSTR_RANGE;
+	  return;
 	}
-	etm_decoder->prev_trc_elem = elem->elem_type;
-	if (elem->elem_type==OCSD_GEN_TRC_ELEM_INSTR_RANGE)
-	{
-		bfun = ftrace_update_function (btinfo, elem->st_addr );
-		insn.pc = elem->st_addr;
-		insn.size = elem->last_instr_sz;
-		switch (elem->last_i_type) {
-		    case OCSD_INSTR_BR:
-		    case OCSD_INSTR_BR_INDIRECT:
-			    switch (elem->last_i_subtype ){
-			        case OCSD_S_INSTR_V8_RET:
-		            case OCSD_S_INSTR_V8_ERET:
-		            case OCSD_S_INSTR_V7_IMPLIED_RET:
-                        insn.iclass=BTRACE_INSN_RETURN;
-		                break;
-		            case OCSD_S_INSTR_BR_LINK:
-		                insn.iclass=BTRACE_INSN_CALL;
-		                break;
-		            case OCSD_S_INSTR_NONE:
-		                insn.iclass=BTRACE_INSN_JUMP;
-			    }
-			    break;
-		    case OCSD_INSTR_ISB:
-		    case OCSD_INSTR_DSB_DMB:
-		    case OCSD_INSTR_WFI_WFE:
-		    case OCSD_INSTR_OTHER:
-			    insn.iclass=BTRACE_INSN_OTHER;
-			    break;
-		    default:
-			    break;
-		}
-		ftrace_update_insns (bfun, insn);
-	}
+    }
+  etm_decoder->prev_trc_elem = elem->elem_type;
+  if (elem->elem_type==OCSD_GEN_TRC_ELEM_INSTR_RANGE)
+    {
+      bfun = ftrace_update_function (btinfo, elem->st_addr );
+      insn.pc = elem->st_addr;
+      insn.size = elem->last_instr_sz;
+      switch (elem->last_i_type) {
+	case OCSD_INSTR_BR:
+	case OCSD_INSTR_BR_INDIRECT:
+	  switch (elem->last_i_subtype ){
+	    case OCSD_S_INSTR_V8_RET:
+	    case OCSD_S_INSTR_V8_ERET:
+	    case OCSD_S_INSTR_V7_IMPLIED_RET:
+	      insn.iclass=BTRACE_INSN_RETURN;
+	      break;
+	    case OCSD_S_INSTR_BR_LINK:
+	      insn.iclass=BTRACE_INSN_CALL;
+	      break;
+	    case OCSD_S_INSTR_NONE:
+	      insn.iclass=BTRACE_INSN_JUMP;
+	  }
+	  break;
+	    case OCSD_INSTR_ISB:
+	    case OCSD_INSTR_DSB_DMB:
+	    case OCSD_INSTR_WFI_WFE:
+	    case OCSD_INSTR_OTHER:
+	      insn.iclass=BTRACE_INSN_OTHER;
+	      break;
+	    default:
+	      break;
+      }
+      switch(elem->isa)
+      {
+	case ocsd_isa_arm:
+	  cspr =0;
+	  break;
+	case ocsd_isa_thumb2:
+	  cspr =0x40;
+	  break;
+	case ocsd_isa_tee:
+	  cspr =0x1000040;
+	  break;
+	case ocsd_isa_jazelle:
+	  cspr =0x1000000;
+	  break;
+	default:
+	  cspr =0;
+      }
+      btrace_reg_set (&reg, get_thread_regcache(tp), ARM_PS_REGNUM, (gdb_byte *)&cspr);
+      insn.registers.push_back (reg);
+      ftrace_update_insns (bfun, insn);
+    }
 
 }
 static ocsd_datapath_resp_t cs_etm_trace_element_callback(
@@ -1719,14 +1779,14 @@ static ocsd_datapath_resp_t cs_etm_trace_element_callback(
 			//printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_TRACE_ON\n");
 			break;
 		case OCSD_GEN_TRC_ELEM_INSTR_RANGE:
-			//printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_INSTR_RANGE\n");
+			//printf("--->cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_INSTR_RANGE\n");
 			//print_trc_elem_instr_range(trace_chan_id, elem);
 			cs_etm_update_branch_trace(context, elem);
 			break;
 		case OCSD_GEN_TRC_ELEM_EXCEPTION:
-			cs_etm_update_branch_trace(context, elem);
-			//printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_EXCEPTION\n");
+			//printf("--->cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_EXCEPTION\n");
 			//print_trc_elem_exception(trace_chan_id, elem);
+			cs_etm_update_branch_trace(context, elem);
 			break;
 		case OCSD_GEN_TRC_ELEM_EXCEPTION_RET:
 			//printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_EXCEPTION_RET\n");
@@ -1799,6 +1859,7 @@ static int cs_etm_create_decoder(
 			cs_etm_trace_element_callback,
 			decoder))
 			return -1;
+	decoder->prev_return = OCSD_RESP_CONT;
 	return 0;
 }
 
@@ -1927,6 +1988,7 @@ cs_etm_process_data_block(struct cs_etm_decoder *decoder,
 						   &count);
 			processed += count;
 		} else {
+			DEBUG_FTRACE ("ocsd_dt_process_data returned with %d.\n", cur);
 			ret = -EINVAL;
 			break;
 		}
@@ -2343,7 +2405,7 @@ btrace_maint_clear (struct btrace_thread_info *btinfo)
       break;
 #endif /* defined (HAVE_LIBIPT)  */
 #if defined (HAVE_LIBOPENCSD_C_API)
-    case BTRACE_FORMAT_PT:
+    case BTRACE_FORMAT_ETM:
       delete btinfo->maint.variant.etm.packets;
 
       btinfo->maint.variant.etm.packets = NULL;
@@ -3589,6 +3651,7 @@ btrace_maint_update_pt_packets (struct btrace_thread_info *btinfo)
 static void
 btrace_maint_update_etm_packets (struct btrace_thread_info *btinfo)
 {
+	//todo:implement it
 	//struct btrace_data_etm *etm;
 	//etm = &btinfo->data.variant.etm;
 }
@@ -3998,6 +4061,19 @@ maint_info_btrace_cmd (const char *args, int from_tty)
       }
       break;
 #endif /* defined (HAVE_LIBIPT)  */
+#if defined (HAVE_LIBOPENCSD_C_API)
+    case BTRACE_FORMAT_ETM:
+      {
+        printf_unfiltered (_("Version: %u.%u.%u.\n"), OCSD_VER_MAJOR,
+                 OCSD_VER_MINOR, OCSD_VER_PATCH);
+
+        btrace_maint_update_etm_packets (btinfo);
+        printf_unfiltered (_("Number of packets: %zu.\n"),
+                   ((btinfo->maint.variant.etm.packets == nullptr)
+                    ? 0 : btinfo->maint.variant.etm.packets->size ()));
+      }
+      break;
+#endif /* defined (HAVE_LIBOPENCSD_C_API) */
     }
 }
 

@@ -113,13 +113,15 @@ record_start (const char *method, const char *format, int from_tty)
   else if (strcmp (method, "btrace") == 0)
     {
       if (format == NULL)
-	execute_command_to_string ("record btrace", from_tty, false);
+        execute_command_to_string ("record btrace", from_tty, false);
       else if (strcmp (format, "bts") == 0)
-	execute_command_to_string ("record btrace bts", from_tty, false);
+        execute_command_to_string ("record btrace bts", from_tty, false);
       else if (strcmp (format, "pt") == 0)
-	execute_command_to_string ("record btrace pt", from_tty, false);
+        execute_command_to_string ("record btrace pt", from_tty, false);
+      else if (strcmp (format, "etm") == 0)
+        execute_command_to_string ("record btrace etm", from_tty, false);
       else
-	error (_("Invalid format."));
+        error (_("Invalid format."));
     }
   else
     error (_("Invalid method."));

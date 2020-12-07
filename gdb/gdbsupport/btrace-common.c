@@ -133,105 +133,105 @@ btrace_data::clear ()
 
 int
 btrace_data_append (struct btrace_data *dst,
-		const struct btrace_data *src)
+		    const struct btrace_data *src)
 {
-	switch (src->format)
-	{
-	case BTRACE_FORMAT_NONE:
-		return 0;
+  switch (src->format)
+  {
+    case BTRACE_FORMAT_NONE:
+      return 0;
 
+    case BTRACE_FORMAT_BTS:
+      switch (dst->format)
+      {
+	default:
+	  return -1;
+
+	case BTRACE_FORMAT_NONE:
+	  dst->format = BTRACE_FORMAT_BTS;
+	  dst->variant.bts.blocks = new std::vector<btrace_block>;
+
+	  /* Fall-through.  */
 	case BTRACE_FORMAT_BTS:
-		switch (dst->format)
-		{
+	  {
+	    unsigned int blk;
+
+	    /* We copy blocks in reverse order to have the oldest block at
+	       index zero.  */
+	    blk = src->variant.bts.blocks->size ();
+	    while (blk != 0)
+	      {
+		const btrace_block &block
+		= src->variant.bts.blocks->at (--blk);
+		dst->variant.bts.blocks->push_back (block);
+	      }
+	  }
+      }
+      return 0;
+
+	case BTRACE_FORMAT_PT:
+	  switch (dst->format)
+	  {
+	    default:
+	      return -1;
+
+	    case BTRACE_FORMAT_NONE:
+	      dst->format = BTRACE_FORMAT_PT;
+	      dst->variant.pt.data = NULL;
+	      dst->variant.pt.size = 0;
+
+	      /* fall-through.  */
+	    case BTRACE_FORMAT_PT:
+	      {
+		gdb_byte *data;
+		size_t size;
+
+		size = src->variant.pt.size + dst->variant.pt.size;
+		data = (gdb_byte *) xmalloc (size);
+
+		memcpy (data, dst->variant.pt.data, dst->variant.pt.size);
+		memcpy (data + dst->variant.pt.size, src->variant.pt.data,
+			src->variant.pt.size);
+
+		xfree (dst->variant.pt.data);
+
+		dst->variant.pt.data = data;
+		dst->variant.pt.size = size;
+	      }
+	  }
+	  return 0;
+
+	    case BTRACE_FORMAT_ETM:
+	      switch (dst->format)
+	      {
 		default:
-			return -1;
+		  return -1;
 
 		case BTRACE_FORMAT_NONE:
-			dst->format = BTRACE_FORMAT_BTS;
-			dst->variant.bts.blocks = new std::vector<btrace_block>;
+		  dst->format = BTRACE_FORMAT_ETM;
+		  dst->variant.etm.data = NULL;
+		  dst->variant.etm.size = 0;
 
-			/* Fall-through.  */
-		case BTRACE_FORMAT_BTS:
-		{
-			unsigned int blk;
+		  /* fall-through.  */
+		case BTRACE_FORMAT_ETM:
+		  {
+		    gdb_byte *data;
+		    size_t size;
 
-			/* We copy blocks in reverse order to have the oldest block at
-	       index zero.  */
-			blk = src->variant.bts.blocks->size ();
-			while (blk != 0)
-			{
-				const btrace_block &block
-				= src->variant.bts.blocks->at (--blk);
-				dst->variant.bts.blocks->push_back (block);
-			}
-		}
-		}
-		return 0;
+		    size = src->variant.etm.size + dst->variant.etm.size;
+		    data = (gdb_byte *) xmalloc (size);
 
-		case BTRACE_FORMAT_PT:
-			switch (dst->format)
-			{
-			default:
-				return -1;
+		    memcpy (data, dst->variant.etm.data, dst->variant.etm.size);
+		    memcpy (data + dst->variant.etm.size, src->variant.etm.data,
+			    src->variant.etm.size);
 
-			case BTRACE_FORMAT_NONE:
-				dst->format = BTRACE_FORMAT_PT;
-				dst->variant.pt.data = NULL;
-				dst->variant.pt.size = 0;
+		    xfree (dst->variant.etm.data);
 
-				/* fall-through.  */
-			case BTRACE_FORMAT_PT:
-			{
-				gdb_byte *data;
-				size_t size;
+		    dst->variant.etm.data = data;
+		    dst->variant.etm.size = size;
+		  }
+	      }
+	      return 0;
+  }
 
-				size = src->variant.pt.size + dst->variant.pt.size;
-				data = (gdb_byte *) xmalloc (size);
-
-				memcpy (data, dst->variant.pt.data, dst->variant.pt.size);
-				memcpy (data + dst->variant.pt.size, src->variant.pt.data,
-						src->variant.pt.size);
-
-				xfree (dst->variant.pt.data);
-
-				dst->variant.pt.data = data;
-				dst->variant.pt.size = size;
-			}
-			}
-			return 0;
-
-			case BTRACE_FORMAT_ETM:
-				switch (dst->format)
-				{
-				default:
-					return -1;
-
-				case BTRACE_FORMAT_NONE:
-					dst->format = BTRACE_FORMAT_ETM;
-					dst->variant.etm.data = NULL;
-					dst->variant.etm.size = 0;
-
-					/* fall-through.  */
-				case BTRACE_FORMAT_ETM:
-				{
-					gdb_byte *data;
-					size_t size;
-
-					size = src->variant.etm.size + dst->variant.etm.size;
-					data = (gdb_byte *) xmalloc (size);
-
-					memcpy (data, dst->variant.etm.data, dst->variant.etm.size);
-					memcpy (data + dst->variant.etm.size, src->variant.etm.data,
-							src->variant.etm.size);
-
-					xfree (dst->variant.etm.data);
-
-					dst->variant.etm.data = data;
-					dst->variant.etm.size = size;
-				}
-				}
-				return 0;
-	}
-
-	internal_error (__FILE__, __LINE__, _("Unkown branch trace format."));
+  internal_error (__FILE__, __LINE__, _("Unkown branch trace format."));
 }
