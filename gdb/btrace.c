@@ -3660,7 +3660,7 @@ btrace_maint_update_etm_packets (struct btrace_thread_info *btinfo)
 	//struct btrace_data_etm *etm;
 	//etm = &btinfo->data.variant.etm;
 }
-#endif /* defined (HAVE_LIBIPT)  */
+#endif /* defined (HAVE_LIBOPENCSD_C_API)  */
 
 
 /* Update the packet maintenance information for BTINFO and store the
