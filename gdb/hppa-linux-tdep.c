@@ -1,6 +1,6 @@
 /* Target-dependent code for GNU/Linux running on PA-RISC, for GDB.
 
-   Copyright (C) 2004-2019 Free Software Foundation, Inc.
+   Copyright (C) 2004-2020 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -26,7 +26,7 @@
 #include "glibc-tdep.h"
 #include "frame-unwind.h"
 #include "trad-frame.h"
-#include "dwarf2-frame.h"
+#include "dwarf2/frame.h"
 #include "value.h"
 #include "regset.h"
 #include "regcache.h"
@@ -88,8 +88,8 @@ static struct insn_pattern hppa_sigtramp[] = {
    matched.  */
 static int
 insns_match_pattern (struct gdbarch *gdbarch, CORE_ADDR pc,
-                     struct insn_pattern *pattern,
-                     unsigned int *insn)
+		     struct insn_pattern *pattern,
+		     unsigned int *insn)
 {
   enum bfd_endian byte_order = gdbarch_byte_order (gdbarch);
   int i;
@@ -102,9 +102,9 @@ insns_match_pattern (struct gdbarch *gdbarch, CORE_ADDR pc,
       target_read_memory (npc, buf, 4);
       insn[i] = extract_unsigned_integer (buf, 4, byte_order);
       if ((insn[i] & pattern[i].mask) == pattern[i].data)
-        npc += 4;
+	npc += 4;
       else
-        return 0;
+	return 0;
     }
   return 1;
 }
@@ -158,7 +158,7 @@ hppa_linux_sigtramp_find_sigcontext (struct gdbarch *gdbarch, CORE_ADDR pc)
       if (insns_match_pattern (gdbarch, sp + pcoffs[attempt],
 			       hppa_sigtramp, dummy))
 	{
-          offs = sfoffs[attempt];
+	  offs = sfoffs[attempt];
 	  break;
 	}
     }
@@ -175,7 +175,7 @@ hppa_linux_sigtramp_find_sigcontext (struct gdbarch *gdbarch, CORE_ADDR pc)
 	}
       else
       {
-        return 0;
+	return 0;
       }
     }
 
@@ -489,7 +489,7 @@ hppa_linux_init_abi (struct gdbarch_info info, struct gdbarch *gdbarch)
 {
   struct gdbarch_tdep *tdep = gdbarch_tdep (gdbarch);
 
-  linux_init_abi (info, gdbarch);
+  linux_init_abi (info, gdbarch, 0);
 
   /* GNU/Linux is always ELF.  */
   tdep->is_elf = 1;
@@ -523,11 +523,12 @@ hppa_linux_init_abi (struct gdbarch_info info, struct gdbarch *gdbarch)
 
   /* Enable TLS support.  */
   set_gdbarch_fetch_tls_load_module_address (gdbarch,
-                                             svr4_fetch_objfile_link_map);
+					     svr4_fetch_objfile_link_map);
 }
 
+void _initialize_hppa_linux_tdep ();
 void
-_initialize_hppa_linux_tdep (void)
+_initialize_hppa_linux_tdep ()
 {
   gdbarch_register_osabi (bfd_arch_hppa, 0, GDB_OSABI_LINUX,
 			  hppa_linux_init_abi);

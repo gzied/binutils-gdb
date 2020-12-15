@@ -1,4 +1,4 @@
-/* Copyright (C) 1986-2019 Free Software Foundation, Inc.
+/* Copyright (C) 1986-2020 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -236,7 +236,7 @@ regcache_print (const char *args, enum regcache_dump_what what_to_dump)
   std::unique_ptr<regcache> regs;
   gdbarch *gdbarch;
 
-  if (target_has_registers)
+  if (target_has_registers ())
     gdbarch = get_current_regcache ()->arch ();
   else
     gdbarch = target_gdbarch ();
@@ -257,7 +257,7 @@ regcache_print (const char *args, enum regcache_dump_what what_to_dump)
       {
 	auto dump_pseudo = (what_to_dump == regcache_dump_cooked);
 
-	if (target_has_registers)
+	if (target_has_registers ())
 	  dump.reset (new register_dump_regcache (get_current_regcache (),
 						  dump_pseudo));
 	else
@@ -305,8 +305,9 @@ maintenance_print_remote_registers (const char *args, int from_tty)
   regcache_print (args, regcache_dump_remote);
 }
 
+void _initialize_regcache_dump ();
 void
-_initialize_regcache_dump (void)
+_initialize_regcache_dump ()
 {
   add_cmd ("registers", class_maintenance, maintenance_print_registers,
 	   _("Print the internal register configuration.\n"

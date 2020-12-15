@@ -1,6 +1,6 @@
 /* Support for printing Fortran values for GDB, the GNU debugger.
 
-   Copyright (C) 1993-2019 Free Software Foundation, Inc.
+   Copyright (C) 1993-2020 Free Software Foundation, Inc.
 
    Contributed by Motorola.  Adapted from the C definitions by Farooq Butt
    (fmbutt@engage.sps.mot.com), additionally worked over by Stan Shebs.
@@ -34,6 +34,8 @@
 #include "block.h"
 #include "dictionary.h"
 #include "cli/cli-style.h"
+#include "gdbarch.h"
+#include "f-array-walker.h"
 
 static void f77_get_dynamic_length_of_aggregate (struct type *);
 
@@ -45,16 +47,16 @@ int f77_array_offset_tbl[MAX_FORTRAN_DIMS + 1][2];
 LONGEST
 f77_get_lowerbound (struct type *type)
 {
-  if (TYPE_ARRAY_LOWER_BOUND_IS_UNDEFINED (type))
+  if (type->bounds ()->low.kind () == PROP_UNDEFINED)
     error (_("Lower bound may not be '*' in F77"));
 
-  return TYPE_ARRAY_LOWER_BOUND_VALUE (type);
+  return type->bounds ()->low.const_val ();
 }
 
 LONGEST
 f77_get_upperbound (struct type *type)
 {
-  if (TYPE_ARRAY_UPPER_BOUND_IS_UNDEFINED (type))
+  if (type->bounds ()->high.kind () == PROP_UNDEFINED)
     {
       /* We have an assumed size array on our hands.  Assume that
 	 upper_bound == lower_bound so that we show at least 1 element.
@@ -64,7 +66,7 @@ f77_get_upperbound (struct type *type)
       return f77_get_lowerbound (type);
     }
 
-  return TYPE_ARRAY_UPPER_BOUND_VALUE (type);
+  return type->bounds ()->high.const_val ();
 }
 
 /* Obtain F77 adjustable array dimensions.  */
@@ -84,8 +86,8 @@ f77_get_dynamic_length_of_aggregate (struct type *type)
      This function also works for strings which behave very 
      similarly to arrays.  */
 
-  if (TYPE_CODE (TYPE_TARGET_TYPE (type)) == TYPE_CODE_ARRAY
-      || TYPE_CODE (TYPE_TARGET_TYPE (type)) == TYPE_CODE_STRING)
+  if (TYPE_TARGET_TYPE (type)->code () == TYPE_CODE_ARRAY
+      || TYPE_TARGET_TYPE (type)->code () == TYPE_CODE_STRING)
     f77_get_dynamic_length_of_aggregate (TYPE_TARGET_TYPE (type));
 
   /* Recursion ends here, start setting up lengths.  */
@@ -99,95 +101,103 @@ f77_get_dynamic_length_of_aggregate (struct type *type)
     * TYPE_LENGTH (check_typedef (TYPE_TARGET_TYPE (type)));
 }
 
-/* Actual function which prints out F77 arrays, Valaddr == address in 
-   the superior.  Address == the address in the inferior.  */
+/* A class used by FORTRAN_PRINT_ARRAY as a specialisation of the array
+   walking template.  This specialisation prints Fortran arrays.  */
+
+class fortran_array_printer_impl : public fortran_array_walker_base_impl
+{
+public:
+  /* Constructor.  TYPE is the array type being printed, ADDRESS is the
+     address in target memory for the object of TYPE being printed.  VAL is
+     the GDB value (of TYPE) being printed.  STREAM is where to print to,
+     RECOURSE is passed through (and prevents infinite recursion), and
+     OPTIONS are the printing control options.  */
+  explicit fortran_array_printer_impl (struct type *type,
+				       CORE_ADDR address,
+				       struct value *val,
+				       struct ui_file *stream,
+				       int recurse,
+				       const struct value_print_options *options)
+    : m_elts (0),
+      m_val (val),
+      m_stream (stream),
+      m_recurse (recurse),
+      m_options (options)
+  { /* Nothing.  */ }
+
+  /* Called while iterating over the array bounds.  When SHOULD_CONTINUE is
+     false then we must return false, as we have reached the end of the
+     array bounds for this dimension.  However, we also return false if we
+     have printed too many elements (after printing '...').  In all other
+     cases, return true.  */
+  bool continue_walking (bool should_continue)
+  {
+    bool cont = should_continue && (m_elts < m_options->print_max);
+    if (!cont && should_continue)
+      fputs_filtered ("...", m_stream);
+    return cont;
+  }
+
+  /* Called when we start iterating over a dimension.  If it's not the
+     inner most dimension then print an opening '(' character.  */
+  void start_dimension (bool inner_p)
+  {
+    fputs_filtered ("(", m_stream);
+  }
+
+  /* Called when we finish processing a batch of items within a dimension
+     of the array.  Depending on whether this is the inner most dimension
+     or not we print different things, but this is all about adding
+     separators between elements, and dimensions of the array.  */
+  void finish_dimension (bool inner_p, bool last_p)
+  {
+    fputs_filtered (")", m_stream);
+    if (!last_p)
+      fputs_filtered (" ", m_stream);
+  }
+
+  /* Called to process an element of ELT_TYPE at offset ELT_OFF from the
+     start of the parent object.  */
+  void process_element (struct type *elt_type, LONGEST elt_off, bool last_p)
+  {
+    /* Extract the element value from the parent value.  */
+    struct value *e_val
+      = value_from_component (m_val, elt_type, elt_off);
+    common_val_print (e_val, m_stream, m_recurse, m_options, current_language);
+    if (!last_p)
+      fputs_filtered (", ", m_stream);
+    ++m_elts;
+  }
+
+private:
+  /* The number of elements printed so far.  */
+  int m_elts;
+
+  /* The value from which we are printing elements.  */
+  struct value *m_val;
+
+  /* The stream we should print too.  */
+  struct ui_file *m_stream;
+
+  /* The recursion counter, passed through when we print each element.  */
+  int m_recurse;
+
+  /* The print control options.  Gives us the maximum number of elements to
+     print, and is passed through to each element that we print.  */
+  const struct value_print_options *m_options = nullptr;
+};
+
+/* This function gets called to print a Fortran array.  */
 
 static void
-f77_print_array_1 (int nss, int ndimensions, struct type *type,
-		   const gdb_byte *valaddr,
-		   int embedded_offset, CORE_ADDR address,
-		   struct ui_file *stream, int recurse,
-		   const struct value *val,
-		   const struct value_print_options *options,
-		   int *elts)
+fortran_print_array (struct type *type, CORE_ADDR address,
+		     struct ui_file *stream, int recurse,
+		     const struct value *val,
+		     const struct value_print_options *options)
 {
-  struct type *range_type = TYPE_INDEX_TYPE (check_typedef (type));
-  CORE_ADDR addr = address + embedded_offset;
-  LONGEST lowerbound, upperbound;
-  int i;
-
-  get_discrete_bounds (range_type, &lowerbound, &upperbound);
-
-  if (nss != ndimensions)
-    {
-      size_t dim_size = TYPE_LENGTH (TYPE_TARGET_TYPE (type));
-      size_t offs = 0;
-
-      for (i = lowerbound;
-	   (i < upperbound + 1 && (*elts) < options->print_max);
-	   i++)
-	{
-	  struct value *subarray = value_from_contents_and_address
-	    (TYPE_TARGET_TYPE (type), value_contents_for_printing_const (val)
-	     + offs, addr + offs);
-
-	  fprintf_filtered (stream, "( ");
-	  f77_print_array_1 (nss + 1, ndimensions, value_type (subarray),
-			     value_contents_for_printing (subarray),
-			     value_embedded_offset (subarray),
-			     value_address (subarray),
-			     stream, recurse, subarray, options, elts);
-	  offs += dim_size;
-	  fprintf_filtered (stream, ") ");
-	}
-      if (*elts >= options->print_max && i < upperbound)
-	fprintf_filtered (stream, "...");
-    }
-  else
-    {
-      for (i = lowerbound; i < upperbound + 1 && (*elts) < options->print_max;
-	   i++, (*elts)++)
-	{
-	  struct value *elt = value_subscript ((struct value *)val, i);
-
-	  val_print (value_type (elt),
-		     value_embedded_offset (elt),
-		     value_address (elt), stream, recurse,
-		     elt, options, current_language);
-
-	  if (i != upperbound)
-	    fprintf_filtered (stream, ", ");
-
-	  if ((*elts == options->print_max - 1)
-	      && (i != upperbound))
-	    fprintf_filtered (stream, "...");
-	}
-    }
-}
-
-/* This function gets called to print an F77 array, we set up some 
-   stuff and then immediately call f77_print_array_1().  */
-
-static void
-f77_print_array (struct type *type, const gdb_byte *valaddr,
-		 int embedded_offset,
-		 CORE_ADDR address, struct ui_file *stream,
-		 int recurse,
-		 const struct value *val,
-		 const struct value_print_options *options)
-{
-  int ndimensions;
-  int elts = 0;
-
-  ndimensions = calc_f77_array_dims (type);
-
-  if (ndimensions > MAX_FORTRAN_DIMS || ndimensions < 0)
-    error (_("\
-Type node corrupt! F77 arrays cannot have %d subscripts (%d Max)"),
-	   ndimensions, MAX_FORTRAN_DIMS);
-
-  f77_print_array_1 (1, ndimensions, type, valaddr, embedded_offset,
-		     address, stream, recurse, val, options, &elts);
+  fortran_array_walker<fortran_array_printer_impl> p
+    (type, address, (struct value *) val, stream, recurse, options);
+  p.walk ();
 }
 
 
@@ -205,47 +215,39 @@ static const struct generic_val_print_decorations f_decorations =
   "}"
 };
 
-/* See val_print for a description of the various parameters of this
-   function; they are identical.  */
+/* See f-lang.h.  */
 
 void
-f_val_print (struct type *type, int embedded_offset,
-	     CORE_ADDR address, struct ui_file *stream, int recurse,
-	     struct value *original_value,
-	     const struct value_print_options *options)
+f_language::value_print_inner (struct value *val, struct ui_file *stream,
+			       int recurse,
+			       const struct value_print_options *options) const
 {
+  struct type *type = check_typedef (value_type (val));
   struct gdbarch *gdbarch = get_type_arch (type);
   int printed_field = 0; /* Number of fields printed.  */
   struct type *elttype;
   CORE_ADDR addr;
   int index;
-  const gdb_byte *valaddr =value_contents_for_printing (original_value);
+  const gdb_byte *valaddr = value_contents_for_printing (val);
+  const CORE_ADDR address = value_address (val);
 
-  type = check_typedef (type);
-  switch (TYPE_CODE (type))
+  switch (type->code ())
     {
     case TYPE_CODE_STRING:
       f77_get_dynamic_length_of_aggregate (type);
       LA_PRINT_STRING (stream, builtin_type (gdbarch)->builtin_char,
-		       valaddr + embedded_offset,
-		       TYPE_LENGTH (type), NULL, 0, options);
+		       valaddr, TYPE_LENGTH (type), NULL, 0, options);
       break;
 
     case TYPE_CODE_ARRAY:
-      if (TYPE_CODE (TYPE_TARGET_TYPE (type)) != TYPE_CODE_CHAR)
-	{
-	  fprintf_filtered (stream, "(");
-	  f77_print_array (type, valaddr, embedded_offset,
-			   address, stream, recurse, original_value, options);
-	  fprintf_filtered (stream, ")");
-	}
+      if (TYPE_TARGET_TYPE (type)->code () != TYPE_CODE_CHAR)
+	fortran_print_array (type, address, stream, recurse, val, options);
       else
 	{
 	  struct type *ch_type = TYPE_TARGET_TYPE (type);
 
 	  f77_get_dynamic_length_of_aggregate (type);
-	  LA_PRINT_STRING (stream, ch_type,
-			   valaddr + embedded_offset,
+	  LA_PRINT_STRING (stream, ch_type, valaddr,
 			   TYPE_LENGTH (type) / TYPE_LENGTH (ch_type),
 			   NULL, 0, options);
 	}
@@ -254,18 +256,17 @@ f_val_print (struct type *type, int embedded_offset,
     case TYPE_CODE_PTR:
       if (options->format && options->format != 's')
 	{
-	  val_print_scalar_formatted (type, embedded_offset,
-				      original_value, options, 0, stream);
+	  value_print_scalar_formatted (val, options, 0, stream);
 	  break;
 	}
       else
 	{
 	  int want_space = 0;
 
-	  addr = unpack_pointer (type, valaddr + embedded_offset);
+	  addr = unpack_pointer (type, valaddr);
 	  elttype = check_typedef (TYPE_TARGET_TYPE (type));
 
-	  if (TYPE_CODE (elttype) == TYPE_CODE_FUNC)
+	  if (elttype->code () == TYPE_CODE_FUNC)
 	    {
 	      /* Try to print what function it points to.  */
 	      print_function_pointer_address (options, gdbarch, addr, stream);
@@ -284,7 +285,7 @@ f_val_print (struct type *type, int embedded_offset,
 	  /* For a pointer to char or unsigned char, also print the string
 	     pointed to, unless pointer is null.  */
 	  if (TYPE_LENGTH (elttype) == 1
-	      && TYPE_CODE (elttype) == TYPE_CODE_INT
+	      && elttype->code () == TYPE_CODE_INT
 	      && (options->format == 0 || options->format == 's')
 	      && addr != 0)
 	    {
@@ -297,35 +298,19 @@ f_val_print (struct type *type, int embedded_offset,
 	}
       break;
 
-    case TYPE_CODE_INT:
-      if (options->format || options->output_format)
-	{
-	  struct value_print_options opts = *options;
-
-	  opts.format = (options->format ? options->format
-			 : options->output_format);
-	  val_print_scalar_formatted (type, embedded_offset,
-				      original_value, &opts, 0, stream);
-	}
-      else
-	val_print_scalar_formatted (type, embedded_offset,
-				    original_value, options, 0, stream);
-      break;
-
     case TYPE_CODE_STRUCT:
     case TYPE_CODE_UNION:
       /* Starting from the Fortran 90 standard, Fortran supports derived
-         types.  */
+	 types.  */
       fprintf_filtered (stream, "( ");
-      for (index = 0; index < TYPE_NFIELDS (type); index++)
-        {
-	  struct value *field = value_field
-	    ((struct value *)original_value, index);
+      for (index = 0; index < type->num_fields (); index++)
+	{
+	  struct value *field = value_field (val, index);
 
-	  struct type *field_type = check_typedef (TYPE_FIELD_TYPE (type, index));
+	  struct type *field_type = check_typedef (type->field (index).type ());
 
 
-	  if (TYPE_CODE (field_type) != TYPE_CODE_FUNC)
+	  if (field_type->code () != TYPE_CODE_FUNC)
 	    {
 	      const char *field_name;
 
@@ -335,14 +320,13 @@ f_val_print (struct type *type, int embedded_offset,
 	      field_name = TYPE_FIELD_NAME (type, index);
 	      if (field_name != NULL)
 		{
-		  fputs_filtered (field_name, stream);
+		  fputs_styled (field_name, variable_name_style.style (),
+				stream);
 		  fputs_filtered (" = ", stream);
 		}
 
-	      val_print (value_type (field),
-			 value_embedded_offset (field),
-			 value_address (field), stream, recurse + 1,
-			 field, options, current_language);
+	      common_val_print (field, stream, recurse + 1,
+				options, current_language);
 
 	      ++printed_field;
 	    }
@@ -350,6 +334,28 @@ f_val_print (struct type *type, int embedded_offset,
       fprintf_filtered (stream, " )");
       break;     
 
+    case TYPE_CODE_BOOL:
+      if (options->format || options->output_format)
+	{
+	  struct value_print_options opts = *options;
+	  opts.format = (options->format ? options->format
+			 : options->output_format);
+	  value_print_scalar_formatted (val, &opts, 0, stream);
+	}
+      else
+	{
+	  LONGEST longval = value_as_long (val);
+	  /* The Fortran standard doesn't specify how logical types are
+	     represented.  Different compilers use different non zero
+	     values to represent logical true.  */
+	  if (longval == 0)
+	    fputs_filtered (f_decorations.false_name, stream);
+	  else
+	    fputs_filtered (f_decorations.true_name, stream);
+	}
+      break;
+
+    case TYPE_CODE_INT:
     case TYPE_CODE_REF:
     case TYPE_CODE_FUNC:
     case TYPE_CODE_FLAGS:
@@ -359,12 +365,9 @@ f_val_print (struct type *type, int embedded_offset,
     case TYPE_CODE_RANGE:
     case TYPE_CODE_UNDEF:
     case TYPE_CODE_COMPLEX:
-    case TYPE_CODE_BOOL:
     case TYPE_CODE_CHAR:
     default:
-      generic_val_print (type, embedded_offset, address,
-			 stream, recurse, original_value, options,
-			 &f_decorations);
+      generic_value_print (val, stream, recurse, options, &f_decorations);
       break;
     }
 }
@@ -388,7 +391,7 @@ info_common_command_for_block (const struct block *block, const char *comname,
 	gdb_assert (SYMBOL_CLASS (sym) == LOC_COMMON_BLOCK);
 
 	if (comname && (!sym->linkage_name ()
-	                || strcmp (comname, sym->linkage_name ()) != 0))
+			|| strcmp (comname, sym->linkage_name ()) != 0))
 	  continue;
 
 	if (*any_printed)
@@ -458,7 +461,7 @@ info_common_command (const char *comname, int from_tty)
     {
       info_common_command_for_block (block, comname, &values_printed);
       /* After handling the function's top-level block, stop.  Don't
-         continue to its superblock, the block of per-file symbols.  */
+	 continue to its superblock, the block of per-file symbols.  */
       if (BLOCK_FUNCTION (block))
 	break;
       block = BLOCK_SUPERBLOCK (block);
@@ -473,8 +476,9 @@ info_common_command (const char *comname, int from_tty)
     }
 }
 
+void _initialize_f_valprint ();
 void
-_initialize_f_valprint (void)
+_initialize_f_valprint ()
 {
   add_info ("common", info_common_command,
 	    _("Print out the values contained in a Fortran COMMON block."));

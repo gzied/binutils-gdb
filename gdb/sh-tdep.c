@@ -1,6 +1,6 @@
 /* Target-dependent code for Renesas Super-H, for GDB.
 
-   Copyright (C) 1993-2019 Free Software Foundation, Inc.
+   Copyright (C) 1993-2020 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -24,7 +24,7 @@
 #include "frame.h"
 #include "frame-base.h"
 #include "frame-unwind.h"
-#include "dwarf2-frame.h"
+#include "dwarf2/frame.h"
 #include "symtab.h"
 #include "gdbtypes.h"
 #include "gdbcmd.h"
@@ -92,12 +92,12 @@ sh_is_renesas_calling_convention (struct type *func_type)
     {
       func_type = check_typedef (func_type);
 
-      if (TYPE_CODE (func_type) == TYPE_CODE_PTR)
-        func_type = check_typedef (TYPE_TARGET_TYPE (func_type));
+      if (func_type->code () == TYPE_CODE_PTR)
+	func_type = check_typedef (TYPE_TARGET_TYPE (func_type));
 
-      if (TYPE_CODE (func_type) == TYPE_CODE_FUNC
-          && TYPE_CALLING_CONVENTION (func_type) == DW_CC_GNU_renesas_sh)
-        val = 1;
+      if (func_type->code () == TYPE_CODE_FUNC
+	  && TYPE_CALLING_CONVENTION (func_type) == DW_CC_GNU_renesas_sh)
+	val = 1;
     }
 
   if (sh_active_calling_convention == sh_cc_renesas)
@@ -618,12 +618,12 @@ sh_analyze_prologue (struct gdbarch *gdbarch,
 	}
       else if (IS_MOVI20 (inst)
 	       && (pc + 2 < limit_pc))
-        {
+	{
 	  if (sav_reg < 0)
 	    {
 	      reg = GET_TARGET_REG (inst);
 	      if (reg < 14)
-	        {
+		{
 		  sav_reg = reg;
 		  sav_offset = GET_SOURCE_REG (inst) << 16;
 		  /* MOVI20 is a 32 bit instruction!  */
@@ -735,7 +735,7 @@ sh_skip_prologue (struct gdbarch *gdbarch, CORE_ADDR pc)
     {
       post_prologue_pc = skip_prologue_using_sal (gdbarch, func_addr);
       if (post_prologue_pc != 0)
-        return std::max (pc, post_prologue_pc);
+	return std::max (pc, post_prologue_pc);
     }
 
   /* Can't determine prologue from the symbol table, need to examine
@@ -813,11 +813,11 @@ static int
 sh_use_struct_convention (int renesas_abi, struct type *type)
 {
   int len = TYPE_LENGTH (type);
-  int nelem = TYPE_NFIELDS (type);
+  int nelem = type->num_fields ();
 
   /* The Renesas ABI returns aggregate types always on stack.  */
-  if (renesas_abi && (TYPE_CODE (type) == TYPE_CODE_STRUCT
-		      || TYPE_CODE (type) == TYPE_CODE_UNION))
+  if (renesas_abi && (type->code () == TYPE_CODE_STRUCT
+		      || type->code () == TYPE_CODE_UNION))
     return 1;
 
   /* Non-power of 2 length types and types bigger than 8 bytes (which don't
@@ -832,13 +832,13 @@ sh_use_struct_convention (int renesas_abi, struct type *type)
 
   /* If the first field in the aggregate has the same length as the entire
      aggregate type, the type is returned in registers.  */
-  if (TYPE_LENGTH (TYPE_FIELD_TYPE (type, 0)) == len)
+  if (TYPE_LENGTH (type->field (0).type ()) == len)
     return 0;
 
   /* If the size of the aggregate is 8 bytes and the first field is
      of size 4 bytes its alignment is equal to long long's alignment,
      so it's returned in registers.  */
-  if (len == 8 && TYPE_LENGTH (TYPE_FIELD_TYPE (type, 0)) == 4)
+  if (len == 8 && TYPE_LENGTH (type->field (0).type ()) == 4)
     return 0;
 
   /* Otherwise use struct convention.  */
@@ -849,7 +849,7 @@ static int
 sh_use_struct_convention_nofpu (int renesas_abi, struct type *type)
 {
   /* The Renesas ABI returns long longs/doubles etc. always on stack.  */
-  if (renesas_abi && TYPE_NFIELDS (type) == 0 && TYPE_LENGTH (type) >= 8)
+  if (renesas_abi && type->num_fields () == 0 && TYPE_LENGTH (type) >= 8)
     return 1;
   return sh_use_struct_convention (renesas_abi, type);
 }
@@ -1040,17 +1040,17 @@ static int
 sh_treat_as_flt_p (struct type *type)
 {
   /* Ordinary float types are obviously treated as float.  */
-  if (TYPE_CODE (type) == TYPE_CODE_FLT)
+  if (type->code () == TYPE_CODE_FLT)
     return 1;
   /* Otherwise non-struct types are not treated as float.  */
-  if (TYPE_CODE (type) != TYPE_CODE_STRUCT)
+  if (type->code () != TYPE_CODE_STRUCT)
     return 0;
   /* Otherwise structs with more than one member are not treated as float.  */
-  if (TYPE_NFIELDS (type) != 1)
+  if (type->num_fields () != 1)
     return 0;
   /* Otherwise if the type of that member is float, the whole type is
      treated as float.  */
-  if (TYPE_CODE (TYPE_FIELD_TYPE (type, 0)) == TYPE_CODE_FLT)
+  if (type->field (0).type ()->code () == TYPE_CODE_FLT)
     return 1;
   /* Otherwise it's not treated as float.  */
   return 0;
@@ -1083,8 +1083,8 @@ sh_push_dummy_call_fpu (struct gdbarch *gdbarch,
      non-vararg argument to be on the stack, no matter how many
      registers have been used so far.  */
   if (sh_is_renesas_calling_convention (func_type)
-      && TYPE_VARARGS (func_type))
-    last_reg_arg = TYPE_NFIELDS (func_type) - 2;
+      && func_type->has_varargs ())
+    last_reg_arg = func_type->num_fields () - 2;
 
   /* First force sp to a 4-byte alignment.  */
   sp = sh_frame_align (gdbarch, sp);
@@ -1105,7 +1105,7 @@ sh_push_dummy_call_fpu (struct gdbarch *gdbarch,
       val = sh_justify_value_in_reg (gdbarch, args[argnum], len);
 
       /* Some decisions have to be made how various types are handled.
-         This also differs in different ABIs.  */
+	 This also differs in different ABIs.  */
       pass_on_stack = 0;
 
       /* Find out the next register to use for a floating point value.  */
@@ -1115,9 +1115,9 @@ sh_push_dummy_call_fpu (struct gdbarch *gdbarch,
       /* In Renesas ABI, long longs and aggregate types are always passed
 	 on stack.  */
       else if (sh_is_renesas_calling_convention (func_type)
-	       && ((TYPE_CODE (type) == TYPE_CODE_INT && len == 8)
-		   || TYPE_CODE (type) == TYPE_CODE_STRUCT
-		   || TYPE_CODE (type) == TYPE_CODE_UNION))
+	       && ((type->code () == TYPE_CODE_INT && len == 8)
+		   || type->code () == TYPE_CODE_STRUCT
+		   || type->code () == TYPE_CODE_UNION))
 	pass_on_stack = 1;
       /* In contrast to non-FPU CPUs, arguments are never split between
 	 registers and stack.  If an argument doesn't fit in the remaining
@@ -1129,7 +1129,7 @@ sh_push_dummy_call_fpu (struct gdbarch *gdbarch,
 	{
 	  if ((treat_as_flt && flt_argreg > FLOAT_ARGLAST_REGNUM)
 	      || (!treat_as_flt && (argreg > ARGLAST_REGNUM
-	                            || pass_on_stack))
+				    || pass_on_stack))
 	      || argnum > last_reg_arg)
 	    {
 	      /* The data goes entirely on the stack, 4-byte aligned.  */
@@ -1143,15 +1143,15 @@ sh_push_dummy_call_fpu (struct gdbarch *gdbarch,
 	      reg_size = register_size (gdbarch, flt_argreg);
 	      regval = extract_unsigned_integer (val, reg_size, byte_order);
 	      /* In little endian mode, float types taking two registers
-	         (doubles on sh4, long doubles on sh2e, sh3e and sh4) must
+		 (doubles on sh4, long doubles on sh2e, sh3e and sh4) must
 		 be stored swapped in the argument registers.  The below
 		 code first writes the first 32 bits in the next but one
 		 register, increments the val and len values accordingly
 		 and then proceeds as normal by writing the second 32 bits
 		 into the next register.  */
 	      if (gdbarch_byte_order (gdbarch) == BFD_ENDIAN_LITTLE
-	          && TYPE_LENGTH (type) == 2 * reg_size)
-	        {
+		  && TYPE_LENGTH (type) == 2 * reg_size)
+		{
 		  regcache_cooked_write_unsigned (regcache, flt_argreg + 1,
 						  regval);
 		  val += reg_size;
@@ -1224,8 +1224,8 @@ sh_push_dummy_call_nofpu (struct gdbarch *gdbarch,
      non-vararg argument to be on the stack, no matter how many
      registers have been used so far.  */
   if (sh_is_renesas_calling_convention (func_type)
-      && TYPE_VARARGS (func_type))
-    last_reg_arg = TYPE_NFIELDS (func_type) - 2;
+      && func_type->has_varargs ())
+    last_reg_arg = func_type->num_fields () - 2;
 
   /* First force sp to a 4-byte alignment.  */
   sp = sh_frame_align (gdbarch, sp);
@@ -1248,10 +1248,10 @@ sh_push_dummy_call_nofpu (struct gdbarch *gdbarch,
       /* Renesas ABI pushes doubles and long longs entirely on stack.
 	 Same goes for aggregate types.  */
       if (sh_is_renesas_calling_convention (func_type)
-	  && ((TYPE_CODE (type) == TYPE_CODE_INT && len >= 8)
-	      || (TYPE_CODE (type) == TYPE_CODE_FLT && len >= 8)
-	      || TYPE_CODE (type) == TYPE_CODE_STRUCT
-	      || TYPE_CODE (type) == TYPE_CODE_UNION))
+	  && ((type->code () == TYPE_CODE_INT && len >= 8)
+	      || (type->code () == TYPE_CODE_FLT && len >= 8)
+	      || type->code () == TYPE_CODE_STRUCT
+	      || type->code () == TYPE_CODE_UNION))
 	pass_on_stack = 1;
       while (len > 0)
 	{
@@ -1259,7 +1259,7 @@ sh_push_dummy_call_nofpu (struct gdbarch *gdbarch,
 	      || argnum > last_reg_arg)
 	    {
 	      /* The remainder of the data goes entirely on the stack,
-	         4-byte aligned.  */
+		 4-byte aligned.  */
 	      reg_size = (len + 3) & ~3;
 	      write_memory (sp + stack_offset, val, reg_size);
 	      stack_offset += reg_size;
@@ -1559,7 +1559,7 @@ sh_littlebyte_bigword_type (struct gdbarch *gdbarch)
   if (tdep->sh_littlebyte_bigword_type == NULL)
     tdep->sh_littlebyte_bigword_type
       = arch_float_type (gdbarch, -1, "builtin_type_sh_littlebyte_bigword",
-                         floatformats_ieee_double_littlebyte_bigword);
+			 floatformats_ieee_double_littlebyte_bigword);
 
   return tdep->sh_littlebyte_bigword_type;
 }
@@ -1697,14 +1697,14 @@ sh_pseudo_register_write (struct gdbarch *gdbarch, struct regcache *regcache,
   if (reg_nr == PSEUDO_BANK_REGNUM)
     {
       /* When the bank register is written to, the whole register bank
-         is switched and all values in the bank registers must be read
+	 is switched and all values in the bank registers must be read
 	 from the target/sim again.  We're just invalidating the regcache
 	 so that a re-read happens next time it's necessary.  */
       int bregnum;
 
       regcache->raw_write (BANK_REGNUM, buffer);
       for (bregnum = R0_BANK0_REGNUM; bregnum < MACLB_REGNUM; ++bregnum)
-        regcache->invalidate (bregnum);
+	regcache->invalidate (bregnum);
     }
   else if (reg_nr >= DR0_REGNUM && reg_nr <= DR_LAST_REGNUM)
     {
@@ -1760,25 +1760,25 @@ sh_sh2a_register_sim_regno (struct gdbarch *gdbarch, int nr)
   switch (nr)
     {
       case TBR_REGNUM:
-        return SIM_SH_TBR_REGNUM;
+	return SIM_SH_TBR_REGNUM;
       case IBNR_REGNUM:
-        return SIM_SH_IBNR_REGNUM;
+	return SIM_SH_IBNR_REGNUM;
       case IBCR_REGNUM:
-        return SIM_SH_IBCR_REGNUM;
+	return SIM_SH_IBCR_REGNUM;
       case BANK_REGNUM:
-        return SIM_SH_BANK_REGNUM;
+	return SIM_SH_BANK_REGNUM;
       case MACLB_REGNUM:
-        return SIM_SH_BANK_MACL_REGNUM;
+	return SIM_SH_BANK_MACL_REGNUM;
       case GBRB_REGNUM:
-        return SIM_SH_BANK_GBR_REGNUM;
+	return SIM_SH_BANK_GBR_REGNUM;
       case PRB_REGNUM:
-        return SIM_SH_BANK_PR_REGNUM;
+	return SIM_SH_BANK_PR_REGNUM;
       case IVNB_REGNUM:
-        return SIM_SH_BANK_IVN_REGNUM;
+	return SIM_SH_BANK_IVN_REGNUM;
       case MACHB_REGNUM:
-        return SIM_SH_BANK_MACH_REGNUM;
+	return SIM_SH_BANK_MACH_REGNUM;
       default:
-        break;
+	break;
     }
   return legacy_register_sim_regno (gdbarch, nr);
 }
@@ -1792,7 +1792,7 @@ sh_sh2a_register_sim_regno (struct gdbarch *gdbarch, int nr)
 
 static void
 sh_dwarf2_frame_init_reg (struct gdbarch *gdbarch, int regnum,
-                          struct dwarf2_frame_state_reg *reg,
+			  struct dwarf2_frame_state_reg *reg,
 			  struct frame_info *this_frame)
 {
   /* Mark the PC as the destination for the return address.  */
@@ -1906,12 +1906,12 @@ sh_frame_cache (struct frame_info *this_frame, void **this_cache)
   if (!cache->uses_fp)
     {
       /* We didn't find a valid frame, which means that CACHE->base
-         currently holds the frame pointer for our calling frame.  If
-         we're at the start of a function, or somewhere half-way its
-         prologue, the function's frame probably hasn't been fully
-         setup yet.  Try to reconstruct the base address for the stack
-         frame by looking at the stack pointer.  For truly "frameless"
-         functions this might work too.  */
+	 currently holds the frame pointer for our calling frame.  If
+	 we're at the start of a function, or somewhere half-way its
+	 prologue, the function's frame probably hasn't been fully
+	 setup yet.  Try to reconstruct the base address for the stack
+	 frame by looking at the stack pointer.  For truly "frameless"
+	 functions this might work too.  */
       cache->base = get_frame_register_unsigned
 		     (this_frame, gdbarch_sp_regnum (gdbarch));
     }
@@ -1949,7 +1949,7 @@ sh_frame_prev_register (struct frame_info *this_frame,
 
   if (regnum < SH_NUM_REGS && cache->saved_regs[regnum] != -1)
     return frame_unwind_got_memory (this_frame, regnum,
-                                    cache->saved_regs[regnum]);
+				    cache->saved_regs[regnum]);
 
   return frame_unwind_got_register (this_frame, regnum, regnum);
 }
@@ -2007,7 +2007,7 @@ sh_make_stub_cache (struct frame_info *this_frame)
 
 static void
 sh_stub_this_id (struct frame_info *this_frame, void **this_cache,
-                 struct frame_id *this_id)
+		 struct frame_id *this_id)
 {
   struct sh_frame_cache *cache;
 
@@ -2020,8 +2020,8 @@ sh_stub_this_id (struct frame_info *this_frame, void **this_cache,
 
 static int
 sh_stub_unwind_sniffer (const struct frame_unwind *self,
-                        struct frame_info *this_frame,
-                        void **this_prologue_cache)
+			struct frame_info *this_frame,
+			void **this_prologue_cache)
 {
   CORE_ADDR addr_in_block;
 
@@ -2058,9 +2058,9 @@ sh_stack_frame_destroyed_p (struct gdbarch *gdbarch, CORE_ADDR pc)
     {
       ULONGEST inst;
       /* The sh epilogue is max. 14 bytes long.  Give another 14 bytes
-         for a nop and some fixed data (e.g. big offsets) which are
-         unfortunately also treated as part of the function (which
-         means, they are below func_end.  */
+	 for a nop and some fixed data (e.g. big offsets) which are
+	 unfortunately also treated as part of the function (which
+	 means, they are below func_end.  */
       CORE_ADDR addr = func_end - 28;
       if (addr < func_addr + 4)
 	addr = func_addr + 4;
@@ -2075,8 +2075,8 @@ sh_stack_frame_destroyed_p (struct gdbarch *gdbarch, CORE_ADDR pc)
 	return 0;
 
       /* At this point we should find a mov.l @r15+,r14 instruction,
-         either before or after the rts.  If not, then the function has
-         probably no "normal" epilogue and we bail out here.  */
+	 either before or after the rts.  If not, then the function has
+	 probably no "normal" epilogue and we bail out here.  */
       inst = read_memory_unsigned_integer (addr - 2, 2, byte_order);
       if (IS_RESTORE_FP (read_memory_unsigned_integer (addr - 2, 2,
 						       byte_order)))
@@ -2109,7 +2109,7 @@ sh_stack_frame_destroyed_p (struct gdbarch *gdbarch, CORE_ADDR pc)
 	}
 
       /* Now check for FP adjustments, using add #imm,r14 or add rX, r14
-         instructions.  */
+	 instructions.  */
       while (addr > func_addr + 4
 	     && (IS_ADD_REG_TO_FP (inst) || IS_ADD_IMM_FP (inst)))
 	{
@@ -2118,10 +2118,10 @@ sh_stack_frame_destroyed_p (struct gdbarch *gdbarch, CORE_ADDR pc)
 	}
 
       /* On SH2a check if the previous instruction was perhaps a MOVI20.
-         That's allowed for the epilogue.  */
+	 That's allowed for the epilogue.  */
       if ((gdbarch_bfd_arch_info (gdbarch)->mach == bfd_mach_sh2a
-           || gdbarch_bfd_arch_info (gdbarch)->mach == bfd_mach_sh2a_nofpu)
-          && addr > func_addr + 6
+	   || gdbarch_bfd_arch_info (gdbarch)->mach == bfd_mach_sh2a_nofpu)
+	  && addr > func_addr + 6
 	  && IS_MOVI20 (read_memory_unsigned_integer (addr - 4, 2,
 						      byte_order)))
 	addr -= 4;
@@ -2408,29 +2408,16 @@ sh_gdbarch_init (struct gdbarch_info info, struct gdbarch_list *arches)
   return gdbarch;
 }
 
-static void
-show_sh_command (const char *args, int from_tty)
-{
-  help_list (showshcmdlist, "show sh ", all_commands, gdb_stdout);
-}
-
-static void
-set_sh_command (const char *args, int from_tty)
-{
-  printf_unfiltered
-    ("\"set sh\" must be followed by an appropriate subcommand.\n");
-  help_list (setshcmdlist, "set sh ", all_commands, gdb_stdout);
-}
-
+void _initialize_sh_tdep ();
 void
-_initialize_sh_tdep (void)
+_initialize_sh_tdep ()
 {
   gdbarch_register (bfd_arch_sh, sh_gdbarch_init, NULL);
 
-  add_prefix_cmd ("sh", no_class, set_sh_command, "SH specific commands.",
-                  &setshcmdlist, "set sh ", 0, &setlist);
-  add_prefix_cmd ("sh", no_class, show_sh_command, "SH specific commands.",
-                  &showshcmdlist, "show sh ", 0, &showlist);
+  add_basic_prefix_cmd ("sh", no_class, "SH specific commands.",
+			&setshcmdlist, "set sh ", 0, &setlist);
+  add_show_prefix_cmd ("sh", no_class, "SH specific commands.",
+		       &showshcmdlist, "show sh ", 0, &showlist);
   
   add_setshow_enum_cmd ("calling-convention", class_vars, sh_cc_enum,
 			&sh_active_calling_convention,

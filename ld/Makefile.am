@@ -1,6 +1,6 @@
 ## Process this file with automake to generate Makefile.in
 #
-#   Copyright (C) 2012-2019 Free Software Foundation, Inc.
+#   Copyright (C) 2012-2020 Free Software Foundation, Inc.
 #
 # This file is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -46,19 +46,6 @@ ELF_CLFAGS=-DELF_LIST_OPTIONS=@elf_list_options@ \
 WARN_CFLAGS = @WARN_CFLAGS@
 NO_WERROR = @NO_WERROR@
 AM_CFLAGS = $(WARN_CFLAGS) $(ELF_CLFAGS)
-
-# Conditionally enable the plugin interface.
-if ENABLE_PLUGINS
-PLUGIN_C = plugin.c
-PLUGIN_H = plugin.h
-PLUGIN_OBJECT = plugin.@OBJEXT@
-PLUGIN_CFLAGS = -DENABLE_PLUGINS
-else
-PLUGIN_C =
-PLUGIN_H =
-PLUGIN_OBJECT =
-PLUGIN_CFLAGS =
-endif
 
 # We put the scripts in the directory $(scriptdir)/ldscripts.
 # We can't put the scripts in $(datadir) because the SEARCH_DIR
@@ -152,12 +139,16 @@ TEXI2DVI = texi2dvi -I $(srcdir) -I $(BFDDIR)/doc -I ../bfd/doc \
 		    -I $(top_srcdir)/../libiberty
 
 AM_CPPFLAGS = -I. -I$(srcdir) -I../bfd -I$(BFDDIR) -I$(INCDIR) @zlibinc@ \
-	@INCINTL@ $(HDEFINES) $(CFLAGS) $(PLUGIN_CFLAGS) \
+	@INCINTL@ $(HDEFINES) $(CFLAGS) @LARGEFILE_CPPFLAGS@ \
 	-DLOCALEDIR="\"$(datadir)/locale\""
 
 BFDLIB = ../bfd/libbfd.la
 LIBIBERTY = ../libiberty/libiberty.a
+if ENABLE_LIBCTF
 LIBCTF = ../libctf/libctf.la
+else
+LIBCTF =
+endif
 
 # These all start with e so 'make clean' can find them.
 ALL_EMULATION_SOURCES = \
@@ -170,10 +161,8 @@ ALL_EMULATION_SOURCES = \
 	earcv2elf.c \
 	earcv2elfx.c \
 	earcelf.c \
-	earcelf_prof.c \
 	earclinux.c \
 	earclinux_nps.c \
-	earclinux_prof.c \
 	earm_wince_pe.c \
 	earmelf.c \
 	earmelf_fbsd.c \
@@ -279,6 +268,7 @@ ALL_EMULATION_SOURCES = \
 	eelf32lriscv_ilp32.c \
 	eelf32rl78.c \
 	eelf32rx.c \
+	eelf32rx_linux.c \
 	eelf32tilegx.c \
 	eelf32tilegx_be.c \
 	eelf32tilepro.c \
@@ -289,11 +279,11 @@ ALL_EMULATION_SOURCES = \
 	eelf32xc16xs.c \
 	eelf32xstormy16.c \
 	eelf32xtensa.c \
+	eelf32z80.c \
 	eelf_i386.c \
 	eelf_i386_be.c \
 	eelf_i386_fbsd.c \
 	eelf_i386_ldso.c \
-	eelf_i386_nacl.c \
 	eelf_i386_sol2.c \
 	eelf_i386_vxworks.c \
 	eelf_iamcu.c \
@@ -313,6 +303,7 @@ ALL_EMULATION_SOURCES = \
 	ehppalinux.c \
 	ehppanbsd.c \
 	ehppaobsd.c \
+	ei386aout.c \
 	ei386beos.c \
 	ei386bsd.c \
 	ei386go32.c \
@@ -351,9 +342,7 @@ ALL_EMULATION_SOURCES = \
 	epdp11.c \
 	epjelf.c \
 	epjlelf.c \
-	eppclynx.c \
 	eppcmacos.c \
-	eppcpe.c \
 	epruelf.c \
 	escore3_elf.c \
 	escore7_elf.c \
@@ -373,13 +362,11 @@ ALL_EMULATION_SOURCES = \
 	eshlelf_nto.c \
 	eshlelf_vxworks.c \
 	eshpe.c \
-	etic30aout.c \
 	etic30coff.c \
 	etic3xcoff.c \
 	etic3xcoff_onchip.c \
 	etic4xcoff.c \
 	etic54xcoff.c \
-	etic80coff.c \
 	ev850.c \
 	ev850_rh850.c \
 	evanilla.c \
@@ -405,7 +392,6 @@ ALL_64_EMULATION_SOURCES = \
 	eaarch64linux32.c \
 	eaarch64linux32b.c \
 	eelf32_x86_64.c \
-	eelf32_x86_64_nacl.c \
 	eelf32b4300.c \
 	eelf32bmip.c \
 	eelf32bmipn32.c \
@@ -445,6 +431,7 @@ ALL_64_EMULATION_SOURCES = \
 	eelf64btsmip_fbsd.c \
 	eelf64hppa.c \
 	eelf64lppc.c \
+	eelf64lppc_fbsd.c \
 	eelf64lriscv.c \
 	eelf64lriscv_lp64f.c \
 	eelf64lriscv_lp64.c \
@@ -463,7 +450,6 @@ ALL_64_EMULATION_SOURCES = \
 	eelf_x86_64.c \
 	eelf_x86_64_cloudabi.c \
 	eelf_x86_64_fbsd.c \
-	eelf_x86_64_nacl.c \
 	eelf_x86_64_sol2.c \
 	ehppa64linux.c \
 	ei386pep.c \
@@ -483,12 +469,12 @@ ALL_64_EMUL_EXTRA_OFILES = \
 CFILES = ldctor.c ldemul.c ldexp.c ldfile.c ldlang.c \
 	ldmain.c ldmisc.c ldver.c ldwrite.c lexsup.c \
 	mri.c ldcref.c pe-dll.c pep-dll.c ldlex-wrapper.c \
-	$(PLUGIN_C) ldbuildid.c ldelf.c ldelfgen.c
+	plugin.c ldbuildid.c ldelf.c ldelfgen.c
 
 HFILES = ld.h ldctor.h ldemul.h ldexp.h ldfile.h \
 	ldlang.h ldlex.h ldmain.h ldmisc.h ldver.h \
 	ldwrite.h mri.h deffile.h pe-dll.h pep-dll.h \
-	elf-hints-local.h $(PLUGIN_H) ldbuildid.h ldelf.h ldelfgen.h
+	elf-hints-local.h plugin.h ldbuildid.h ldelf.h ldelfgen.h
 
 GENERATED_CFILES = ldgram.c ldlex.c deffilep.c
 GENERATED_HFILES = ldgram.h ldemul-list.h deffilep.h
@@ -498,7 +484,7 @@ GENERATED_HFILES = ldgram.h ldemul-list.h deffilep.h
 BUILT_SOURCES = $(GENERATED_HFILES)
 
 OFILES = ldgram.@OBJEXT@ ldlex-wrapper.@OBJEXT@ lexsup.@OBJEXT@ ldlang.@OBJEXT@ \
-	mri.@OBJEXT@ ldctor.@OBJEXT@ ldmain.@OBJEXT@ $(PLUGIN_OBJECT) \
+	mri.@OBJEXT@ ldctor.@OBJEXT@ ldmain.@OBJEXT@ plugin.@OBJEXT@ \
 	ldwrite.@OBJEXT@ ldexp.@OBJEXT@  ldemul.@OBJEXT@ ldver.@OBJEXT@ ldmisc.@OBJEXT@ \
 	ldfile.@OBJEXT@ ldcref.@OBJEXT@ ${EMULATION_OFILES} ${EMUL_EXTRA_OFILES} \
 	ldbuildid.@OBJEXT@
@@ -660,10 +646,8 @@ $(ALL_EMULATION_SOURCES) $(ALL_64_EMULATION_SOURCES): $(GEN_DEPENDS)
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/earcv2elf.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/earcv2elfx.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/earcelf.Pc@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/earcelf_prof.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/earclinux.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/earclinux_nps.Pc@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/earclinux_prof.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/earm_wince_pe.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/earmelf.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/earmelf_fbsd.Pc@am__quote@
@@ -769,6 +753,7 @@ $(ALL_EMULATION_SOURCES) $(ALL_64_EMULATION_SOURCES): $(GEN_DEPENDS)
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf32lriscv_ilp32.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf32rl78.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf32rx.Pc@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf32rx_linux.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf32tilegx.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf32tilegx_be.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf32tilepro.Pc@am__quote@
@@ -779,11 +764,11 @@ $(ALL_EMULATION_SOURCES) $(ALL_64_EMULATION_SOURCES): $(GEN_DEPENDS)
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf32xc16xs.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf32xstormy16.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf32xtensa.Pc@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf32z80.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_i386.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_i386_be.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_i386_fbsd.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_i386_ldso.Pc@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_i386_nacl.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_i386_sol2.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_i386_vxworks.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_iamcu.Pc@am__quote@
@@ -803,6 +788,7 @@ $(ALL_EMULATION_SOURCES) $(ALL_64_EMULATION_SOURCES): $(GEN_DEPENDS)
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ehppalinux.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ehppanbsd.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ehppaobsd.Pc@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ei386aout.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ei386beos.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ei386bsd.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ei386go32.Pc@am__quote@
@@ -841,9 +827,7 @@ $(ALL_EMULATION_SOURCES) $(ALL_64_EMULATION_SOURCES): $(GEN_DEPENDS)
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/epdp11.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/epjelf.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/epjlelf.Pc@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eppclynx.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eppcmacos.Pc@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eppcpe.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/epruelf.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/escore3_elf.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/escore7_elf.Pc@am__quote@
@@ -863,13 +847,11 @@ $(ALL_EMULATION_SOURCES) $(ALL_64_EMULATION_SOURCES): $(GEN_DEPENDS)
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eshlelf_nto.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eshlelf_vxworks.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eshpe.Pc@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/etic30aout.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/etic30coff.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/etic3xcoff.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/etic3xcoff_onchip.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/etic4xcoff.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/etic54xcoff.Pc@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/etic80coff.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ev850.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ev850_rh850.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/evanilla.Pc@am__quote@
@@ -891,7 +873,6 @@ $(ALL_EMULATION_SOURCES) $(ALL_64_EMULATION_SOURCES): $(GEN_DEPENDS)
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eaarch64linux32.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eaarch64linux32b.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf32_x86_64.Pc@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf32_x86_64_nacl.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf32b4300.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf32bmip.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf32bmipn32.Pc@am__quote@
@@ -931,6 +912,7 @@ $(ALL_EMULATION_SOURCES) $(ALL_64_EMULATION_SOURCES): $(GEN_DEPENDS)
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf64btsmip_fbsd.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf64hppa.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf64lppc.Pc@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf64lppc_fbsd.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf64lriscv.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf64lriscv_lp64f.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf64lriscv_lp64.Pc@am__quote@
@@ -949,7 +931,6 @@ $(ALL_EMULATION_SOURCES) $(ALL_64_EMULATION_SOURCES): $(GEN_DEPENDS)
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_x86_64.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_x86_64_cloudabi.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_x86_64_fbsd.Pc@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_x86_64_nacl.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_x86_64_sol2.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ehppa64linux.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ei386pep.Pc@am__quote@
@@ -961,7 +942,7 @@ EXTRA_ld_new_SOURCES = deffilep.y ldlex.l
 EXTRA_ld_new_SOURCES += pep-dll.c pe-dll.c ldelf.c ldelfgen.c
 
 ld_new_SOURCES = ldgram.y ldlex-wrapper.c lexsup.c ldlang.c mri.c ldctor.c ldmain.c \
-	ldwrite.c ldexp.c ldemul.c ldver.c ldmisc.c ldfile.c ldcref.c $(PLUGIN_C) \
+	ldwrite.c ldexp.c ldemul.c ldver.c ldmisc.c ldfile.c ldcref.c plugin.c \
 	ldbuildid.c
 ld_new_DEPENDENCIES = $(EMULATION_OFILES) $(EMUL_EXTRA_OFILES) \
 		      $(BFDLIB) $(LIBCTF) $(LIBIBERTY) $(LIBINTL_DEP)
@@ -993,13 +974,15 @@ check-DEJAGNU: site.exp
 	fi
 
 development.exp: $(BFDDIR)/development.sh
-	$(EGREP) "[development|experimental]=" $(BFDDIR)/development.sh  \
+	$(EGREP) "(development|experimental)=" $(BFDDIR)/development.sh  \
 	  | $(AWK) -F= '{ print "set " $$1 " " $$2 }' > $@
+
+enablings.exp:
+	echo "set enable_libctf ${enable_libctf}" >> $@
 #
 #
 # Build a dummy plugin using libtool.
 #
-if ENABLE_PLUGINS
 noinst_LTLIBRARIES = libldtestplug.la libldtestplug2.la \
 		     libldtestplug3.la libldtestplug4.la
 libldtestplug_la_SOURCES = testplug.c
@@ -1014,7 +997,6 @@ libldtestplug3_la_LDFLAGS = -no-undefined -rpath /nowhere
 libldtestplug4_la_SOURCES = testplug4.c
 libldtestplug4_la_CFLAGS= -g -O2
 libldtestplug4_la_LDFLAGS = -no-undefined -rpath /nowhere
-endif
 
 # DOCUMENTATION TARGETS
 # Manual configuration file; not usually attached to normal configuration,
@@ -1043,7 +1025,7 @@ MAINTAINERCLEANFILES = configdoc.texi ld.1
 CONFIG_STATUS_DEPENDENCIES = $(srcdir)/configure.host $(srcdir)/configure.tgt \
 	$(BFDDIR)/development.sh
 
-EXTRA_DEJAGNU_SITE_CONFIG = development.exp
+EXTRA_DEJAGNU_SITE_CONFIG = development.exp enablings.exp
 
 MOSTLYCLEANFILES = $(STAGESTUFF) ld1$(EXEEXT) ld2$(EXEEXT) ld3$(EXEEXT) \
 	ldemul-list.h crtbegin.@OBJEXT@ crtend.@OBJEXT@ ld.log ld.sum
@@ -1090,7 +1072,7 @@ diststuff: info $(EXTRA_DIST)
 # ld.1 to support parallel build.
 info-recursive: ld.1
 
-DISTCLEANFILES = site.exp development.exp site.bak stringify.sed
+DISTCLEANFILES = site.exp development.exp enablings.exp site.bak stringify.sed
 distclean-local:
 	rm -rf ldscripts
 

@@ -1,6 +1,6 @@
 /* Target-dependent code for GNU/Linux i386.
 
-   Copyright (C) 2000-2019 Free Software Foundation, Inc.
+   Copyright (C) 2000-2020 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -26,7 +26,7 @@
 #include "inferior.h"
 #include "osabi.h"
 #include "reggroups.h"
-#include "dwarf2-frame.h"
+#include "dwarf2/frame.h"
 #include "i386-tdep.h"
 #include "i386-linux-tdep.h"
 #include "linux-tdep.h"
@@ -36,6 +36,7 @@
 #include "symtab.h"
 #include "arch-utils.h"
 #include "xml-syscall.h"
+#include "infrun.h"
 
 #include "i387-tdep.h"
 #include "gdbsupport/x86-xstate.h"
@@ -387,19 +388,19 @@ i386_canonicalize_syscall (int syscall)
 
 #define SIG_CODE_BONDARY_FAULT 3
 
-/* i386 GNU/Linux implementation of the handle_segmentation_fault
+/* i386 GNU/Linux implementation of the report_signal_info
    gdbarch hook.  Displays information related to MPX bound
    violations.  */
 void
-i386_linux_handle_segmentation_fault (struct gdbarch *gdbarch,
-				      struct ui_out *uiout)
+i386_linux_report_signal_info (struct gdbarch *gdbarch, struct ui_out *uiout,
+			       enum gdb_signal siggnal)
 {
   /* -Wmaybe-uninitialized  */
   CORE_ADDR lower_bound = 0, upper_bound = 0, access = 0;
   int is_upper;
   long sig_code = 0;
 
-  if (!i386_mpx_enabled ())
+  if (!i386_mpx_enabled () || siggnal != GDB_SIGNAL_SEGV)
     return;
 
   try
@@ -408,11 +409,11 @@ i386_linux_handle_segmentation_fault (struct gdbarch *gdbarch,
       sig_code = parse_and_eval_long ("$_siginfo.si_code\n");
 
       lower_bound
-        = parse_and_eval_long ("$_siginfo._sifields._sigfault._addr_bnd._lower");
+	= parse_and_eval_long ("$_siginfo._sifields._sigfault._addr_bnd._lower");
       upper_bound
-        = parse_and_eval_long ("$_siginfo._sifields._sigfault._addr_bnd._upper");
+	= parse_and_eval_long ("$_siginfo._sifields._sigfault._addr_bnd._upper");
       access
-        = parse_and_eval_long ("$_siginfo._sifields._sigfault.si_addr");
+	= parse_and_eval_long ("$_siginfo._sifields._sigfault.si_addr");
     }
   catch (const gdb_exception &exception)
     {
@@ -466,7 +467,7 @@ i386_linux_intx80_sysenter_syscall_record (struct regcache *regcache)
   if (syscall_gdb < 0)
     {
       printf_unfiltered (_("Process record and replay target doesn't "
-                           "support syscall number %s\n"), 
+			   "support syscall number %s\n"), 
 			 plongest (syscall_native));
       return -1;
     }
@@ -496,8 +497,8 @@ i386_linux_intx80_sysenter_syscall_record (struct regcache *regcache)
 
 static int
 i386_linux_record_signal (struct gdbarch *gdbarch,
-                          struct regcache *regcache,
-                          enum gdb_signal signal)
+			  struct regcache *regcache,
+			  enum gdb_signal signal)
 {
   ULONGEST esp;
 
@@ -788,29 +789,30 @@ i386_linux_iterate_over_regset_sections (struct gdbarch *gdbarch,
    PC should get relocated back to its vDSO address.  Hide the 'ret'
    instruction by 'nop' so that i386_displaced_step_fixup is not confused.
    
-   It is not fully correct as the bytes in struct displaced_step_closure will
-   not match the inferior code.  But we would need some new flag in
-   displaced_step_closure otherwise to keep the state that syscall is finishing
-   for the later i386_displaced_step_fixup execution as the syscall execution
-   is already no longer detectable there.  The new flag field would mean
-   i386-linux-tdep.c needs to wrap all the displacement methods of i386-tdep.c
-   which does not seem worth it.  The same effect is achieved by patching that
-   'nop' instruction there instead.  */
+   It is not fully correct as the bytes in struct
+   displaced_step_copy_insn_closure will not match the inferior code.  But we
+   would need some new flag in displaced_step_copy_insn_closure otherwise to
+   keep the state that syscall is finishing for the later
+   i386_displaced_step_fixup execution as the syscall execution is already no
+   longer detectable there.  The new flag field would mean i386-linux-tdep.c
+   needs to wrap all the displacement methods of i386-tdep.c which does not seem
+   worth it.  The same effect is achieved by patching that 'nop' instruction
+   there instead.  */
 
-static struct displaced_step_closure *
+static displaced_step_copy_insn_closure_up
 i386_linux_displaced_step_copy_insn (struct gdbarch *gdbarch,
 				     CORE_ADDR from, CORE_ADDR to,
 				     struct regcache *regs)
 {
-  displaced_step_closure *closure_
+  displaced_step_copy_insn_closure_up closure_
     =  i386_displaced_step_copy_insn (gdbarch, from, to, regs);
 
   if (i386_linux_get_syscall_number_from_regcache (regs) != -1)
     {
       /* The closure returned by i386_displaced_step_copy_insn is simply a
 	 buffer with a copy of the instruction. */
-      i386_displaced_step_closure *closure
-	= (i386_displaced_step_closure *) closure_;
+      i386_displaced_step_copy_insn_closure *closure
+	= (i386_displaced_step_copy_insn_closure *) closure_.get ();
 
       /* Fake nop.  */
       closure->buf[0] = 0x90;
@@ -830,7 +832,7 @@ i386_linux_init_abi (struct gdbarch_info info, struct gdbarch *gdbarch)
 
   gdb_assert (tdesc_data);
 
-  linux_init_abi (info, gdbarch);
+  linux_init_abi (info, gdbarch, 1);
 
   /* GNU/Linux uses ELF.  */
   i386_elf_init_abi (info, gdbarch);
@@ -1051,7 +1053,7 @@ i386_linux_init_abi (struct gdbarch_info info, struct gdbarch *gdbarch)
 
   /* Enable TLS support.  */
   set_gdbarch_fetch_tls_load_module_address (gdbarch,
-                                             svr4_fetch_objfile_link_map);
+					     svr4_fetch_objfile_link_map);
 
   /* Core file support.  */
   set_gdbarch_iterate_over_regset_sections
@@ -1061,23 +1063,21 @@ i386_linux_init_abi (struct gdbarch_info info, struct gdbarch *gdbarch)
 
   /* Displaced stepping.  */
   set_gdbarch_displaced_step_copy_insn (gdbarch,
-                                        i386_linux_displaced_step_copy_insn);
+					i386_linux_displaced_step_copy_insn);
   set_gdbarch_displaced_step_fixup (gdbarch, i386_displaced_step_fixup);
-  set_gdbarch_displaced_step_location (gdbarch,
-                                       linux_displaced_step_location);
 
   /* Functions for 'catch syscall'.  */
   set_xml_syscall_file_name (gdbarch, XML_SYSCALL_FILENAME_I386);
   set_gdbarch_get_syscall_number (gdbarch,
-                                  i386_linux_get_syscall_number);
+				  i386_linux_get_syscall_number);
 
   set_gdbarch_get_siginfo_type (gdbarch, x86_linux_get_siginfo_type);
-  set_gdbarch_handle_segmentation_fault (gdbarch,
-					 i386_linux_handle_segmentation_fault);
+  set_gdbarch_report_signal_info (gdbarch, i386_linux_report_signal_info);
 }
 
+void _initialize_i386_linux_tdep ();
 void
-_initialize_i386_linux_tdep (void)
+_initialize_i386_linux_tdep ()
 {
   gdbarch_register_osabi (bfd_arch_i386, 0, GDB_OSABI_LINUX,
 			  i386_linux_init_abi);

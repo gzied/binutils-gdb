@@ -1,5 +1,5 @@
 /* atof_generic.c - turn a string of digits into a Flonum
-   Copyright (C) 1987-2019 Free Software Foundation, Inc.
+   Copyright (C) 1987-2020 Free Software Foundation, Inc.
 
    This file is part of GAS, the GNU Assembler.
 
@@ -611,10 +611,8 @@ atof_generic (/* return pointer to just AFTER number we read.  */
       /* Assert sign of the number we made is '+'.  */
       address_of_generic_floating_point_number->sign = digits_sign_char;
 
-      if (temporary_binary_low)
-	free (temporary_binary_low);
-      if (power_binary_low)
-	free (power_binary_low);
+      free (temporary_binary_low);
+      free (power_binary_low);
       free (digits_binary_low);
     }
   return return_value;

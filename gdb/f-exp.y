@@ -1,6 +1,6 @@
 
 /* YACC parser for Fortran expressions, for GDB.
-   Copyright (C) 1986-2019 Free Software Foundation, Inc.
+   Copyright (C) 1986-2020 Free Software Foundation, Inc.
 
    Contributed by Motorola.  Adapted from the C parser by Farooq Butt
    (fmbutt@engage.sps.mot.com).
@@ -149,6 +149,7 @@ static int parse_number (struct parser_state *, const char *, int,
 %token <lval> BOOLEAN_LITERAL
 %token <ssym> NAME 
 %token <tsym> TYPENAME
+%token <voidval> COMPLETE
 %type <sval> name
 %type <ssym> name_not_typename
 
@@ -167,8 +168,10 @@ static int parse_number (struct parser_state *, const char *, int,
 %token INT_KEYWORD INT_S2_KEYWORD LOGICAL_S1_KEYWORD LOGICAL_S2_KEYWORD 
 %token LOGICAL_S8_KEYWORD
 %token LOGICAL_KEYWORD REAL_KEYWORD REAL_S8_KEYWORD REAL_S16_KEYWORD 
+%token COMPLEX_KEYWORD
 %token COMPLEX_S8_KEYWORD COMPLEX_S16_KEYWORD COMPLEX_S32_KEYWORD 
 %token BOOL_AND BOOL_OR BOOL_NOT   
+%token SINGLE DOUBLE PRECISION
 %token <lval> CHARACTER 
 
 %token <voidval> DOLLAR_VARIABLE
@@ -211,8 +214,8 @@ type_exp:	type
 	;
 
 exp     :       '(' exp ')'
-        		{ }
-        ;
+			{ }
+	;
 
 /* Expressions, not including the comma operator.  */
 exp	:	'*' exp    %prec UNARY
@@ -282,35 +285,75 @@ arglist	:	arglist ',' exp   %prec ABOVE_COMMA
 			{ pstate->arglist_len++; }
 	;
 
+arglist	:	arglist ',' subrange   %prec ABOVE_COMMA
+			{ pstate->arglist_len++; }
+	;
+
 /* There are four sorts of subrange types in F90.  */
 
 subrange:	exp ':' exp	%prec ABOVE_COMMA
-			{ write_exp_elt_opcode (pstate, OP_RANGE); 
-			  write_exp_elt_longcst (pstate, NONE_BOUND_DEFAULT);
+			{ write_exp_elt_opcode (pstate, OP_RANGE);
+			  write_exp_elt_longcst (pstate, RANGE_STANDARD);
 			  write_exp_elt_opcode (pstate, OP_RANGE); }
 	;
 
 subrange:	exp ':'	%prec ABOVE_COMMA
 			{ write_exp_elt_opcode (pstate, OP_RANGE);
-			  write_exp_elt_longcst (pstate, HIGH_BOUND_DEFAULT);
+			  write_exp_elt_longcst (pstate,
+						 RANGE_HIGH_BOUND_DEFAULT);
 			  write_exp_elt_opcode (pstate, OP_RANGE); }
 	;
 
 subrange:	':' exp	%prec ABOVE_COMMA
 			{ write_exp_elt_opcode (pstate, OP_RANGE);
-			  write_exp_elt_longcst (pstate, LOW_BOUND_DEFAULT);
+			  write_exp_elt_longcst (pstate,
+						 RANGE_LOW_BOUND_DEFAULT);
 			  write_exp_elt_opcode (pstate, OP_RANGE); }
 	;
 
 subrange:	':'	%prec ABOVE_COMMA
 			{ write_exp_elt_opcode (pstate, OP_RANGE);
-			  write_exp_elt_longcst (pstate, BOTH_BOUND_DEFAULT);
+			  write_exp_elt_longcst (pstate,
+						 (RANGE_LOW_BOUND_DEFAULT
+						  | RANGE_HIGH_BOUND_DEFAULT));
+			  write_exp_elt_opcode (pstate, OP_RANGE); }
+	;
+
+/* And each of the four subrange types can also have a stride.  */
+subrange:	exp ':' exp ':' exp	%prec ABOVE_COMMA
+			{ write_exp_elt_opcode (pstate, OP_RANGE);
+			  write_exp_elt_longcst (pstate, RANGE_HAS_STRIDE);
+			  write_exp_elt_opcode (pstate, OP_RANGE); }
+	;
+
+subrange:	exp ':' ':' exp	%prec ABOVE_COMMA
+			{ write_exp_elt_opcode (pstate, OP_RANGE);
+			  write_exp_elt_longcst (pstate,
+						 (RANGE_HIGH_BOUND_DEFAULT
+						  | RANGE_HAS_STRIDE));
+			  write_exp_elt_opcode (pstate, OP_RANGE); }
+	;
+
+subrange:	':' exp ':' exp	%prec ABOVE_COMMA
+			{ write_exp_elt_opcode (pstate, OP_RANGE);
+			  write_exp_elt_longcst (pstate,
+						 (RANGE_LOW_BOUND_DEFAULT
+						  | RANGE_HAS_STRIDE));
+			  write_exp_elt_opcode (pstate, OP_RANGE); }
+	;
+
+subrange:	':' ':' exp	%prec ABOVE_COMMA
+			{ write_exp_elt_opcode (pstate, OP_RANGE);
+			  write_exp_elt_longcst (pstate,
+						 (RANGE_LOW_BOUND_DEFAULT
+						  | RANGE_HIGH_BOUND_DEFAULT
+						  | RANGE_HAS_STRIDE));
 			  write_exp_elt_opcode (pstate, OP_RANGE); }
 	;
 
 complexnum:     exp ',' exp 
-                	{ }                          
-        ;
+			{ }                          
+	;
 
 exp	:	'(' complexnum ')'
 			{ write_exp_elt_opcode (pstate, OP_COMPLEX);
@@ -327,10 +370,26 @@ exp	:	'(' type ')' exp  %prec UNARY
 	;
 
 exp     :       exp '%' name
-                        { write_exp_elt_opcode (pstate, STRUCTOP_STRUCT);
-                          write_exp_string (pstate, $3);
-                          write_exp_elt_opcode (pstate, STRUCTOP_STRUCT); }
-        ;
+			{ write_exp_elt_opcode (pstate, STRUCTOP_STRUCT);
+			  write_exp_string (pstate, $3);
+			  write_exp_elt_opcode (pstate, STRUCTOP_STRUCT); }
+	;
+
+exp     :       exp '%' name COMPLETE
+			{ pstate->mark_struct_expression ();
+			  write_exp_elt_opcode (pstate, STRUCTOP_STRUCT);
+			  write_exp_string (pstate, $3);
+			  write_exp_elt_opcode (pstate, STRUCTOP_STRUCT); }
+	;
+
+exp     :       exp '%' COMPLETE
+			{ struct stoken s;
+			  pstate->mark_struct_expression ();
+			  write_exp_elt_opcode (pstate, STRUCTOP_PTR);
+			  s.ptr = "";
+			  s.length = 0;
+			  write_exp_string (pstate, s);
+			  write_exp_elt_opcode (pstate, STRUCTOP_PTR); }
 
 /* Binary operators in order of decreasing precedence.  */
 
@@ -468,7 +527,7 @@ exp     :       BOOLEAN_LITERAL
 			  write_exp_elt_longcst (pstate, (LONGEST) $1);
 			  write_exp_elt_opcode (pstate, OP_BOOL);
 			}
-        ;
+	;
 
 exp	:	STRING_LITERAL
 			{
@@ -511,7 +570,7 @@ variable:	name_not_typename
 
 
 type    :       ptype
-        ;
+	;
 
 ptype	:	typebase
 	|	typebase abs_decl
@@ -617,12 +676,22 @@ typebase  /* Implements (approximately): (type-qualifier)* type-specifier */
 			{ $$ = parse_f_type (pstate)->builtin_real_s8; }
 	|	REAL_S16_KEYWORD
 			{ $$ = parse_f_type (pstate)->builtin_real_s16; }
+	|	COMPLEX_KEYWORD
+			{ $$ = parse_f_type (pstate)->builtin_complex_s8; }
 	|	COMPLEX_S8_KEYWORD
 			{ $$ = parse_f_type (pstate)->builtin_complex_s8; }
 	|	COMPLEX_S16_KEYWORD 
 			{ $$ = parse_f_type (pstate)->builtin_complex_s16; }
 	|	COMPLEX_S32_KEYWORD 
 			{ $$ = parse_f_type (pstate)->builtin_complex_s32; }
+	|	SINGLE PRECISION
+			{ $$ = parse_f_type (pstate)->builtin_real;}
+	|	DOUBLE PRECISION
+			{ $$ = parse_f_type (pstate)->builtin_real_s8;}
+	|	SINGLE COMPLEX_KEYWORD
+			{ $$ = parse_f_type (pstate)->builtin_complex_s8;}
+	|	DOUBLE COMPLEX_KEYWORD
+			{ $$ = parse_f_type (pstate)->builtin_complex_s16;}
 	;
 
 nonempty_typelist
@@ -815,7 +884,7 @@ push_kind_type (LONGEST val, struct type *type)
 {
   int ival;
 
-  if (TYPE_UNSIGNED (type))
+  if (type->is_unsigned ())
     {
       ULONGEST uval = static_cast <ULONGEST> (val);
       if (uval > INT_MAX)
@@ -956,10 +1025,13 @@ static const struct token f77_keywords[] =
   { "integer", INT_KEYWORD, BINOP_END, true },
   { "logical", LOGICAL_KEYWORD, BINOP_END, true },
   { "real_16", REAL_S16_KEYWORD, BINOP_END, true },
-  { "complex", COMPLEX_S8_KEYWORD, BINOP_END, true },
+  { "complex", COMPLEX_KEYWORD, BINOP_END, true },
   { "sizeof", SIZEOF, BINOP_END, true },
   { "real_8", REAL_S8_KEYWORD, BINOP_END, true },
   { "real", REAL_KEYWORD, BINOP_END, true },
+  { "single", SINGLE, BINOP_END, true },
+  { "double", DOUBLE, BINOP_END, true },
+  { "precision", PRECISION, BINOP_END, true },
   /* The following correspond to actual functions in Fortran and are case
      insensitive.  */
   { "kind", KIND, BINOP_END, false },
@@ -1045,6 +1117,15 @@ match_string_literal (void)
     }
 }
 
+/* This is set if a NAME token appeared at the very end of the input
+   string, with no whitespace separating the name from the EOF.  This
+   is used only when parsing to do field name completion.  */
+static bool saw_name_at_eof;
+
+/* This is set if the previously-returned token was a structure
+   operator '%'.  */
+static bool last_was_structop;
+
 /* Read one token, getting characters through lexptr.  */
 
 static int
@@ -1054,7 +1135,10 @@ yylex (void)
   int namelen;
   unsigned int token;
   const char *tokstart;
-  
+  bool saw_structop = last_was_structop;
+
+  last_was_structop = false;
+
  retry:
  
   pstate->prev_lexptr = pstate->lexptr;
@@ -1101,6 +1185,13 @@ yylex (void)
   switch (c = *tokstart)
     {
     case 0:
+      if (saw_name_at_eof)
+	{
+	  saw_name_at_eof = false;
+	  return COMPLETE;
+	}
+      else if (pstate->parse_completion && saw_structop)
+	return COMPLETE;
       return 0;
       
     case ' ':
@@ -1150,7 +1241,7 @@ yylex (void)
     case '8':
     case '9':
       {
-        /* It's a number.  */
+	/* It's a number.  */
 	int got_dot = 0, got_e = 0, got_d = 0, toktype;
 	const char *p = tokstart;
 	int hex = input_radix > 10;
@@ -1191,8 +1282,8 @@ yylex (void)
 	toktype = parse_number (pstate, tokstart, p - tokstart,
 				got_dot|got_e|got_d,
 				&yylval);
-        if (toktype == ERROR)
-          {
+	if (toktype == ERROR)
+	  {
 	    char *err_copy = (char *) alloca (p - tokstart + 1);
 	    
 	    memcpy (err_copy, tokstart, p - tokstart);
@@ -1202,12 +1293,14 @@ yylex (void)
 	pstate->lexptr = p;
 	return toktype;
       }
-      
+
+    case '%':
+      last_was_structop = true;
+      /* Fall through.  */
     case '+':
     case '-':
     case '*':
     case '/':
-    case '%':
     case '|':
     case '&':
     case '^':
@@ -1319,7 +1412,10 @@ yylex (void)
 	    return NAME_OR_INT;
 	  }
       }
-    
+
+    if (pstate->parse_completion && *pstate->lexptr == '\0')
+      saw_name_at_eof = true;
+
     /* Any other kind of symbol */
     yylval.ssym.sym = result;
     yylval.ssym.is_a_field_of_this = false;
@@ -1328,7 +1424,7 @@ yylex (void)
 }
 
 int
-f_parse (struct parser_state *par_state)
+f_language::parser (struct parser_state *par_state) const
 {
   /* Setting up the parser state.  */
   scoped_restore pstate_restore = make_scoped_restore (&pstate);
@@ -1336,6 +1432,8 @@ f_parse (struct parser_state *par_state)
 							parser_debug);
   gdb_assert (par_state != NULL);
   pstate = par_state;
+  last_was_structop = false;
+  saw_name_at_eof = false;
   paren_depth = 0;
 
   struct type_stack stack;

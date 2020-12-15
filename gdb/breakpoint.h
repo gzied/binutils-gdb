@@ -1,5 +1,5 @@
 /* Data structures associated with breakpoints in GDB.
-   Copyright (C) 1992-2019 Free Software Foundation, Inc.
+   Copyright (C) 1992-2020 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -387,6 +387,12 @@ public:
   /* Is this particular location enabled.  */
   bool enabled = false;
   
+  /* Is this particular location disabled because the condition
+     expression is invalid at this location.  For a location to be
+     reported as enabled, the ENABLED field above has to be true *and*
+     the DISABLED_BY_COND field has to be false.  */
+  bool disabled_by_cond = false;
+
   /* True if this breakpoint is now inserted.  */
   bool inserted = false;
 
@@ -609,7 +615,7 @@ struct breakpoint_ops
      `create_sals_from_location_default'.
 
      This function is called inside `create_breakpoint'.  */
-  void (*create_sals_from_location) (const struct event_location *location,
+  void (*create_sals_from_location) (struct event_location *location,
 				     struct linespec_result *canonical,
 				     enum bptype type_wanted);
 
@@ -636,7 +642,7 @@ struct breakpoint_ops
      This function is called inside `location_to_sals'.  */
   std::vector<symtab_and_line> (*decode_location)
     (struct breakpoint *b,
-     const struct event_location *location,
+     struct event_location *location,
      struct program_space *search_pspace);
 
   /* Return true if this breakpoint explains a signal.  See
@@ -1194,11 +1200,6 @@ enum breakpoint_here
 
 /* Prototypes for breakpoint-related functions.  */
 
-/* Return 1 if there's a program/permanent breakpoint planted in
-   memory at ADDRESS, return 0 otherwise.  */
-
-extern int program_breakpoint_here_p (struct gdbarch *gdbarch, CORE_ADDR address);
-
 extern enum breakpoint_here breakpoint_here_p (const address_space *,
 					       CORE_ADDR);
 
@@ -1299,9 +1300,9 @@ const char *bpdisp_text (enum bpdisp disp);
 
 extern void break_command (const char *, int);
 
-extern void watch_command_wrapper (const char *, int, int);
-extern void awatch_command_wrapper (const char *, int, int);
-extern void rwatch_command_wrapper (const char *, int, int);
+extern void watch_command_wrapper (const char *, int, bool);
+extern void awatch_command_wrapper (const char *, int, bool);
+extern void rwatch_command_wrapper (const char *, int, bool);
 extern void tbreak_command (const char *, int);
 
 extern struct breakpoint_ops base_breakpoint_ops;
@@ -1338,8 +1339,13 @@ extern void
 				 int enabled,
 				 int from_tty);
 
+/* Initialize a new breakpoint of the bp_catchpoint kind.  If TEMP
+   is true, then make the breakpoint temporary.  If COND_STRING is
+   not NULL, then store it in the breakpoint.  OPS, if not NULL, is
+   the breakpoint_ops structure associated to the catchpoint.  */
+
 extern void init_catchpoint (struct breakpoint *b,
-			     struct gdbarch *gdbarch, int tempflag,
+			     struct gdbarch *gdbarch, bool temp,
 			     const char *cond_string,
 			     const struct breakpoint_ops *ops);
 
@@ -1351,6 +1357,15 @@ extern void init_catchpoint (struct breakpoint *b,
 
 extern void install_breakpoint (int internal, std::unique_ptr<breakpoint> &&b,
 				int update_gll);
+
+/* Returns the breakpoint ops appropriate for use with with LOCATION and
+   according to IS_TRACEPOINT.  Use this to ensure, for example, that you pass
+   the correct ops to create_breakpoint for probe locations.  If LOCATION is
+   NULL, returns bkpt_breakpoint_ops (or tracepoint_breakpoint_ops, if
+   IS_TRACEPOINT is true).  */
+
+extern const struct breakpoint_ops *breakpoint_ops_for_event_location
+  (const struct event_location *location, bool is_tracepoint);
 
 /* Flags that can be passed down to create_breakpoint, etc., to affect
    breakpoint creation in several ways.  */
@@ -1382,7 +1397,7 @@ enum breakpoint_create_flags
    Returns true if any breakpoint was created; false otherwise.  */
 
 extern int create_breakpoint (struct gdbarch *gdbarch,
-			      const struct event_location *location,
+			      struct event_location *location,
 			      const char *cond_string, int thread,
 			      const char *extra_string,
 			      int parse_extra,
@@ -1527,7 +1542,7 @@ extern void breakpoint_set_task (struct breakpoint *b, int task);
 extern void mark_breakpoints_out (void);
 
 extern struct breakpoint *create_jit_event_breakpoint (struct gdbarch *,
-                                                       CORE_ADDR);
+						       CORE_ADDR);
 
 extern struct breakpoint *create_solib_event_breakpoint (struct gdbarch *,
 							 CORE_ADDR);
@@ -1557,9 +1572,14 @@ extern void disable_breakpoints_in_shlibs (void);
 extern bool is_catchpoint (struct breakpoint *b);
 
 /* Shared helper function (MI and CLI) for creating and installing
-   a shared object event catchpoint.  */
-extern void add_solib_catchpoint (const char *arg, int is_load, int is_temp,
-                                  int enabled);
+   a shared object event catchpoint.  If IS_LOAD is true then
+   the events to be caught are load events, otherwise they are
+   unload events.  If IS_TEMP is true the catchpoint is a
+   temporary one.  If ENABLED is true the catchpoint is
+   created in an enabled state.  */
+
+extern void add_solib_catchpoint (const char *arg, bool is_load, bool is_temp,
+				  bool enabled);
 
 /* Create and insert a new software single step breakpoint for the
    current thread.  May be called multiple times; each time will add a
@@ -1607,9 +1627,11 @@ extern int breakpoints_should_be_inserted_now (void);
    in our opinion won't ever trigger.  */
 extern void breakpoint_retire_moribund (void);
 
-/* Set break condition of breakpoint B to EXP.  */
+/* Set break condition of breakpoint B to EXP.
+   If FORCE, define the condition even if it is invalid in
+   all of the breakpoint locations.  */
 extern void set_breakpoint_condition (struct breakpoint *b, const char *exp,
-				      int from_tty);
+				      int from_tty, bool force);
 
 /* Checks if we are catching syscalls or not.
    Returns 0 if not, greater than 0 if we are.  */

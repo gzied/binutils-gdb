@@ -1,5 +1,5 @@
 /* tc-frv.c -- Assembler for the Fujitsu FRV.
-   Copyright (C) 2002-2019 Free Software Foundation, Inc.
+   Copyright (C) 2002-2020 Free Software Foundation, Inc.
 
    This file is part of GAS, the GNU Assembler.
 
@@ -858,7 +858,7 @@ frv_tomcat_analyze_vliw_chains (void)
 
   vliw1 = vliw_chain_top;
 
-workaround_top:
+ workaround_top:
 
   FRV_SET_VLIW_WINDOW (vliw1, vliw2, vliw3);
 

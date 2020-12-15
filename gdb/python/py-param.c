@@ -1,6 +1,6 @@
 /* GDB parameters implemented in Python
 
-   Copyright (C) 2008-2019 Free Software Foundation, Inc.
+   Copyright (C) 2008-2020 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -90,8 +90,6 @@ struct parmpy_object
      NULL-terminated.  */
   const char **enumeration;
 };
-
-typedef struct parmpy_object parmpy_object;
 
 extern PyTypeObject parmpy_object_type
     CPYCHECKER_TYPE_OBJECT_FOR_TYPEDEF ("parmpy_object");
@@ -569,12 +567,12 @@ add_setshow_generic (int parmclass, enum command_class cmdclass,
   /* Lookup created parameter, and register Python object against the
      parameter context.  Perform this task against both lists.  */
   tmp_name = cmd_name;
-  param = lookup_cmd (&tmp_name, *show_list, "", 0, 1);
+  param = lookup_cmd (&tmp_name, *show_list, "", NULL, 0, 1);
   if (param)
     set_cmd_context (param, self);
 
   tmp_name = cmd_name;
-  param = lookup_cmd (&tmp_name, *set_list, "", 0, 1);
+  param = lookup_cmd (&tmp_name, *set_list, "", NULL, 0, 1);
   if (param)
     set_cmd_context (param, self);
 }

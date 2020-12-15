@@ -1,6 +1,6 @@
 /* Public partial symbol table definitions.
 
-   Copyright (C) 2009-2019 Free Software Foundation, Inc.
+   Copyright (C) 2009-2020 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -27,6 +27,22 @@
 
 struct partial_symbol;
 
+/* Specialization of bcache to store partial symbols.  */
+
+struct psymbol_bcache : public gdb::bcache
+{
+  /* Calculate a hash code for the given partial symbol.  The hash is
+     calculated using the symbol's value, language, domain, class
+     and name.  These are the values which are set by
+     add_psymbol_to_bcache.  */
+  unsigned long hash (const void *addr, int length) override;
+
+  /* Returns true if the symbol LEFT equals the symbol RIGHT.
+     For the comparison this function uses a symbols value,
+     language, domain, class and name.  */
+  int compare (const void *left, const void *right, int length) override;
+};
+
 /* An instance of this class manages the partial symbol tables and
    partial symbols for a given objfile.
 
@@ -36,7 +52,9 @@ struct partial_symbol;
    other memory managed by this class), or on the per-BFD object.  The
    only link from the psymtab storage object back to the objfile (or
    objfile_obstack) that is made by the core psymtab code is the
-   compunit_symtab member in the psymtab.
+   compunit_symtab member in the standard_psymtab -- and a given
+   symbol reader can avoid this by implementing its own subclasses of
+   partial_symtab.
 
    However, it is up to each symbol reader to maintain this invariant
    in other ways, if it wants to reuse psymtabs across multiple
@@ -46,9 +64,7 @@ struct partial_symbol;
 class psymtab_storage
 {
 public:
-
-  psymtab_storage ();
-
+  psymtab_storage () = default;
   ~psymtab_storage ();
 
   DISABLE_COPY_AND_ASSIGN (psymtab_storage);
@@ -83,11 +99,10 @@ public:
     return OBSTACK_CALLOC (obstack (), number, struct partial_symtab *);
   }
 
-  /* Allocate a new psymtab on the psymtab obstack.  The new psymtab
-     will be linked in to the "psymtabs" list, but otherwise all other
-     fields will be zero.  */
+  /* Install a psymtab on the psymtab list.  This transfers ownership
+     of PST to this object.  */
 
-  struct partial_symtab *allocate_psymtab ();
+  void install_psymtab (partial_symtab *pst);
 
   typedef next_adapter<struct partial_symtab> partial_symtab_range;
 
@@ -120,19 +135,9 @@ public:
   /* A byte cache where we can stash arbitrary "chunks" of bytes that
      will not change.  */
 
-  struct bcache psymbol_cache;
-
-  /* Vectors of all partial symbols read in from file.  The actual data
-     is stored in the objfile_obstack.  */
-
-  std::vector<partial_symbol *> global_psymbols;
-  std::vector<partial_symbol *> static_psymbols;
+  psymbol_bcache psymbol_cache;
 
 private:
-
-  /* List of freed partial symtabs, available for re-use.  */
-
-  struct partial_symtab *free_psymtabs = nullptr;
 
   /* The obstack where allocations are made.  This is lazily allocated
      so that we don't waste memory when there are no psymtabs.  */

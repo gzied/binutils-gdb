@@ -1,6 +1,6 @@
 /* Target-dependent code for GNU/Linux AArch64.
 
-   Copyright (C) 2009-2019 Free Software Foundation, Inc.
+   Copyright (C) 2009-2020 Free Software Foundation, Inc.
    Contributed by ARM Ltd.
 
    This file is part of GDB.
@@ -21,7 +21,6 @@
 #include "defs.h"
 
 #include "gdbarch.h"
-#include "arch-utils.h"
 #include "glibc-tdep.h"
 #include "linux-tdep.h"
 #include "aarch64-tdep.h"
@@ -31,12 +30,11 @@
 #include "symtab.h"
 #include "tramp-frame.h"
 #include "trad-frame.h"
+#include "target/target.h"
 
-#include "inferior.h"
 #include "regcache.h"
 #include "regset.h"
 
-#include "cli/cli-utils.h"
 #include "stap-probe.h"
 #include "parser-defs.h"
 #include "user-regs.h"
@@ -45,8 +43,6 @@
 
 #include "record-full.h"
 #include "linux-record.h"
-#include "auxv.h"
-#include "elf/common.h"
 
 /* Signal frame handling.
 
@@ -586,7 +582,7 @@ aarch64_linux_collect_sve_regset (const struct regset *regset,
 			    size - SVE_HEADER_SIZE);
 }
 
-/* Implement the "regset_from_core_section" gdbarch method.  */
+/* Implement the "iterate_over_regset_sections" gdbarch method.  */
 
 static void
 aarch64_linux_iterate_over_regset_sections (struct gdbarch *gdbarch,
@@ -1449,14 +1445,14 @@ aarch64_linux_init_abi (struct gdbarch_info info, struct gdbarch *gdbarch)
 
   tdep->lowest_pc = 0x8000;
 
-  linux_init_abi (info, gdbarch);
+  linux_init_abi (info, gdbarch, 1);
 
   set_solib_svr4_fetch_link_map_offsets (gdbarch,
 					 svr4_lp64_fetch_link_map_offsets);
 
   /* Enable TLS support.  */
   set_gdbarch_fetch_tls_load_module_address (gdbarch,
-                                             svr4_fetch_objfile_link_map);
+					     svr4_fetch_objfile_link_map);
 
   /* Shared library handling.  */
   set_gdbarch_skip_trampoline_code (gdbarch, find_solib_trampoline_target);
@@ -1662,15 +1658,15 @@ aarch64_linux_init_abi (struct gdbarch_info info, struct gdbarch *gdbarch)
   set_gdbarch_displaced_step_copy_insn (gdbarch,
 					aarch64_displaced_step_copy_insn);
   set_gdbarch_displaced_step_fixup (gdbarch, aarch64_displaced_step_fixup);
-  set_gdbarch_displaced_step_location (gdbarch, linux_displaced_step_location);
   set_gdbarch_displaced_step_hw_singlestep (gdbarch,
 					    aarch64_displaced_step_hw_singlestep);
 
   set_gdbarch_gcc_target_options (gdbarch, aarch64_linux_gcc_target_options);
 }
 
+void _initialize_aarch64_linux_tdep ();
 void
-_initialize_aarch64_linux_tdep (void)
+_initialize_aarch64_linux_tdep ()
 {
   gdbarch_register_osabi (bfd_arch_aarch64, 0, GDB_OSABI_LINUX,
 			  aarch64_linux_init_abi);

@@ -1,6 +1,6 @@
 /* Self tests for function_view for GDB, the GNU debugger.
 
-   Copyright (C) 2017-2019 Free Software Foundation, Inc.
+   Copyright (C) 2017-2020 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -171,6 +171,7 @@ run_tests ()
 } /* namespace function_view */
 } /* namespace selftests */
 
+void _initialize_function_view_selftests ();
 void
 _initialize_function_view_selftests ()
 {

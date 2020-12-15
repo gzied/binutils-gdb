@@ -1,5 +1,5 @@
 # This shell script emits a C file. -*- C -*-
-#   Copyright (C) 2009-2019 Free Software Foundation, Inc.
+#   Copyright (C) 2009-2020 Free Software Foundation, Inc.
 #   Contributed by ARM Ltd.
 #
 # This file is part of the GNU Binutils.
@@ -47,7 +47,13 @@ gld${EMULATION_NAME}_before_parse (void)
   config.has_shared = `if test -n "$GENERATE_SHLIB_SCRIPT" ; then echo TRUE ; else echo FALSE ; fi`;
   config.separate_code = `if test "x${SEPARATE_CODE}" = xyes ; then echo TRUE ; else echo FALSE ; fi`;
   link_info.check_relocs_after_open_input = TRUE;
+EOF
+if test -n "$COMMONPAGESIZE"; then
+fragment <<EOF
   link_info.relro = DEFAULT_LD_Z_RELRO;
+EOF
+fi
+fragment <<EOF
 }
 
 static void
@@ -170,7 +176,7 @@ elf${ELFSIZE}_aarch64_add_stub_section (const char *stub_sec_name,
   lang_output_section_statement_type *os;
   struct hook_stub_info info;
 
-  flags = (SEC_ALLOC | SEC_LOAD | SEC_READONLY | SEC_CODE | SEC_LINKER_CREATED
+  flags = (SEC_ALLOC | SEC_LOAD | SEC_READONLY | SEC_CODE
 	   | SEC_HAS_CONTENTS | SEC_RELOC | SEC_IN_MEMORY | SEC_KEEP);
   stub_sec = bfd_make_section_anyway_with_flags (stub_file->the_bfd,
 						 stub_sec_name, flags);

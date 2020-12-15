@@ -1,6 +1,6 @@
 /* Objective-C language support routines for GDB, the GNU debugger.
 
-   Copyright (C) 2002-2019 Free Software Foundation, Inc.
+   Copyright (C) 2002-2020 Free Software Foundation, Inc.
 
    Contributed by Apple Computer, Inc.
    Written by Michael Snyder.
@@ -33,7 +33,7 @@
 #include "value.h"
 #include "symfile.h"
 #include "objfiles.h"
-#include "target.h"		/* for target_has_execution */
+#include "target.h"
 #include "gdbcore.h"
 #include "gdbcmd.h"
 #include "frame.h"
@@ -95,7 +95,7 @@ lookup_struct_typedef (const char *name, const struct block *block, int noerr)
       else 
 	error (_("No struct type named %s."), name);
     }
-  if (TYPE_CODE (SYMBOL_TYPE (sym)) != TYPE_CODE_STRUCT)
+  if (SYMBOL_TYPE (sym)->code () != TYPE_CODE_STRUCT)
     {
       if (noerr)
 	return 0;
@@ -112,7 +112,7 @@ lookup_objc_class (struct gdbarch *gdbarch, const char *classname)
   struct type *char_type = builtin_type (gdbarch)->builtin_char;
   struct value * function, *classval;
 
-  if (! target_has_execution)
+  if (! target_has_execution ())
     {
       /* Can't call into inferior to lookup class.  */
       return 0;
@@ -141,7 +141,7 @@ lookup_child_selector (struct gdbarch *gdbarch, const char *selname)
   struct type *char_type = builtin_type (gdbarch)->builtin_char;
   struct value * function, *selstring;
 
-  if (! target_has_execution)
+  if (! target_has_execution ())
     {
       /* Can't call into inferior to lookup selector.  */
       return 0;
@@ -164,7 +164,7 @@ lookup_child_selector (struct gdbarch *gdbarch, const char *selname)
 }
 
 struct value * 
-value_nsstring (struct gdbarch *gdbarch, char *ptr, int len)
+value_nsstring (struct gdbarch *gdbarch, const char *ptr, int len)
 {
   struct type *char_type = builtin_type (gdbarch)->builtin_char;
   struct value *stringValue[3];
@@ -172,7 +172,7 @@ value_nsstring (struct gdbarch *gdbarch, char *ptr, int len)
   struct symbol *sym;
   struct type *type;
 
-  if (!target_has_execution)
+  if (!target_has_execution ())
     return 0;		/* Can't call into inferior to create NSString.  */
 
   stringValue[2] = value_string(ptr, len, char_type);
@@ -281,46 +281,6 @@ objc_demangle (const char *mangled, int options)
     return NULL;	/* Not an objc mangled name.  */
 }
 
-/* la_sniff_from_mangled_name for ObjC.  */
-
-static int
-objc_sniff_from_mangled_name (const char *mangled, char **demangled)
-{
-  *demangled = objc_demangle (mangled, 0);
-  return *demangled != NULL;
-}
-
-/* Determine if we are currently in the Objective-C dispatch function.
-   If so, get the address of the method function that the dispatcher
-   would call and use that as the function to step into instead.  Also
-   skip over the trampoline for the function (if any).  This is better
-   for the user since they are only interested in stepping into the
-   method function anyway.  */
-static CORE_ADDR 
-objc_skip_trampoline (struct frame_info *frame, CORE_ADDR stop_pc)
-{
-  struct gdbarch *gdbarch = get_frame_arch (frame);
-  CORE_ADDR real_stop_pc;
-  CORE_ADDR method_stop_pc;
-  
-  real_stop_pc = gdbarch_skip_trampoline_code (gdbarch, frame, stop_pc);
-
-  if (real_stop_pc != 0)
-    find_objc_msgcall (real_stop_pc, &method_stop_pc);
-  else
-    find_objc_msgcall (stop_pc, &method_stop_pc);
-
-  if (method_stop_pc)
-    {
-      real_stop_pc = gdbarch_skip_trampoline_code
-		       (gdbarch, frame, method_stop_pc);
-      if (real_stop_pc == 0)
-	real_stop_pc = method_stop_pc;
-    }
-
-  return real_stop_pc;
-}
-
 
 /* Table mapping opcodes into strings for printing operators
    and precedences of the operators.  */
@@ -359,58 +319,117 @@ static const struct op_print objc_op_print_tab[] =
     {NULL, OP_NULL, PREC_NULL, 0}
 };
 
-static const char *objc_extensions[] =
+/* Class representing the Objective-C language.  */
+
+class objc_language : public language_defn
 {
-  ".m", NULL
+public:
+  objc_language ()
+    : language_defn (language_objc)
+  { /* Nothing.  */ }
+
+  /* See language.h.  */
+
+  const char *name () const override
+  { return "objective-c"; }
+
+  /* See language.h.  */
+
+  const char *natural_name () const override
+  { return "Objective-C"; }
+
+  /* See language.h.  */
+
+  const std::vector<const char *> &filename_extensions () const override
+  {
+    static const std::vector<const char *> extensions = { ".m" };
+    return extensions;
+  }
+
+  /* See language.h.  */
+  void language_arch_info (struct gdbarch *gdbarch,
+			   struct language_arch_info *lai) const override
+  {
+    c_language_arch_info (gdbarch, lai);
+  }
+
+  /* See language.h.  */
+  bool sniff_from_mangled_name (const char *mangled,
+				char **demangled) const override
+  {
+    *demangled = objc_demangle (mangled, 0);
+    return *demangled != NULL;
+  }
+
+  /* See language.h.  */
+
+  char *demangle_symbol (const char *mangled, int options) const override
+  {
+    return objc_demangle (mangled, options);
+  }
+
+  /* See language.h.  */
+
+  void print_type (struct type *type, const char *varstring,
+		   struct ui_file *stream, int show, int level,
+		   const struct type_print_options *flags) const override
+  {
+    c_print_type (type, varstring, stream, show, level, flags);
+  }
+
+  /* See language.h.  */
+
+  CORE_ADDR skip_trampoline (struct frame_info *frame,
+			     CORE_ADDR stop_pc) const override
+  {
+    struct gdbarch *gdbarch = get_frame_arch (frame);
+    CORE_ADDR real_stop_pc;
+    CORE_ADDR method_stop_pc;
+
+    /* Determine if we are currently in the Objective-C dispatch function.
+       If so, get the address of the method function that the dispatcher
+       would call and use that as the function to step into instead.  Also
+       skip over the trampoline for the function (if any).  This is better
+       for the user since they are only interested in stepping into the
+       method function anyway.  */
+
+    real_stop_pc = gdbarch_skip_trampoline_code (gdbarch, frame, stop_pc);
+
+    if (real_stop_pc != 0)
+      find_objc_msgcall (real_stop_pc, &method_stop_pc);
+    else
+      find_objc_msgcall (stop_pc, &method_stop_pc);
+
+    if (method_stop_pc)
+      {
+	real_stop_pc = gdbarch_skip_trampoline_code
+	  (gdbarch, frame, method_stop_pc);
+	if (real_stop_pc == 0)
+	  real_stop_pc = method_stop_pc;
+      }
+
+    return real_stop_pc;
+  }
+
+  /* See language.h.  */
+
+  const char *name_of_this () const override
+  { return "self"; }
+
+  /* See language.h.  */
+
+  enum macro_expansion macro_expansion () const override
+  { return macro_expansion_c; }
+
+  /* See language.h.  */
+
+  const struct op_print *opcode_print_table () const override
+  { return c_op_print_tab; }
 };
 
-extern const struct language_defn objc_language_defn = {
-  "objective-c",		/* Language name */
-  "Objective-C",
-  language_objc,
-  range_check_off,
-  case_sensitive_on,
-  array_row_major,
-  macro_expansion_c,
-  objc_extensions,
-  &exp_descriptor_standard,
-  c_parse,
-  null_post_parser,
-  c_printchar,		       /* Print a character constant */
-  c_printstr,		       /* Function to print string constant */
-  c_emit_char,
-  c_print_type,			/* Print a type using appropriate syntax */
-  c_print_typedef,		/* Print a typedef using appropriate syntax */
-  c_val_print,			/* Print a value using appropriate syntax */
-  c_value_print,		/* Print a top-level value */
-  default_read_var_value,	/* la_read_var_value */
-  objc_skip_trampoline, 	/* Language specific skip_trampoline */
-  "self",		        /* name_of_this */
-  false,			/* la_store_sym_names_in_linkage_form_p */
-  basic_lookup_symbol_nonlocal,	/* lookup_symbol_nonlocal */
-  basic_lookup_transparent_type,/* lookup_transparent_type */
-  objc_demangle,		/* Language specific symbol demangler */
-  objc_sniff_from_mangled_name,
-  NULL,				/* Language specific
-				   class_name_from_physname */
-  objc_op_print_tab,		/* Expression operators for printing */
-  1,				/* C-style arrays */
-  0,				/* String lower bound */
-  default_word_break_characters,
-  default_collect_symbol_completion_matches,
-  c_language_arch_info,
-  default_print_array_index,
-  default_pass_by_reference,
-  c_watch_location_expression,
-  NULL,				/* la_get_symbol_name_matcher */
-  iterate_over_symbols,
-  default_search_name_hash,
-  &default_varobj_ops,
-  NULL,
-  NULL,
-  c_is_string_type_p,
-  "{...}"			/* la_struct_too_deep_ellipsis */
-};
+/* Single instance of the class representing the Objective-C language.  */
+
+static objc_language objc_language_defn;
 
 /*
  * ObjC:
@@ -1332,8 +1351,9 @@ find_objc_msgcall (CORE_ADDR pc, CORE_ADDR *new_pc)
   return 0;
 }
 
+void _initialize_objc_language ();
 void
-_initialize_objc_language (void)
+_initialize_objc_language ()
 {
   add_info ("selectors", info_selectors_command,
 	    _("All Objective-C selectors, or those matching REGEXP."));

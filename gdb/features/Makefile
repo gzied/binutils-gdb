@@ -1,4 +1,4 @@
-# Copyright (C) 2007-2019 Free Software Foundation, Inc.
+# Copyright (C) 2007-2020 Free Software Foundation, Inc.
 
 # This file is part of GDB.
 
@@ -44,9 +44,7 @@
 #   make GDB=/path/to/gdb XMLTOC="xml files" FEATURE_XMLFILES="xml files" cfiles
 
 # List of .dat files to create in ../regformats/
-WHICH = arm/arm-with-iwmmxt arm/arm-with-vfpv2 arm/arm-with-vfpv3 \
-	arm/arm-with-neon \
-	mips-linux mips-dsp-linux \
+WHICH = mips-linux mips-dsp-linux \
 	microblaze-with-stack-protect \
 	mips64-linux mips64-dsp-linux \
 	nios2-linux \
@@ -108,8 +106,6 @@ OUTPUTS = $(patsubst %,$(outdir)/%.dat,$(WHICH))
 # --enable-targets=all GDB.  You can override this by passing XMLTOC
 # to make on the command line.
 XMLTOC = \
-	arc-v2.xml \
-	arc-arcompact.xml \
 	microblaze-with-stack-protect.xml \
 	microblaze.xml \
 	mips-dsp-linux.xml \
@@ -206,6 +202,10 @@ $(outdir)/%.dat: %.xml number-regs.xsl sort-regs.xsl gdbserver-regs.xsl
 FEATURE_XMLFILES = aarch64-core.xml \
 	aarch64-fpu.xml \
 	aarch64-pauth.xml \
+	arc/v1-core.xml \
+	arc/v1-aux.xml \
+	arc/v2-core.xml \
+	arc/v2-aux.xml \
 	arm/arm-core.xml \
 	arm/arm-fpa.xml \
 	arm/arm-m-profile.xml \
@@ -229,13 +229,11 @@ FEATURE_XMLFILES = aarch64-core.xml \
 	i386/64bit-pkeys.xml \
 	i386/64bit-sse.xml \
 	i386/x32-core.xml \
+	riscv/rv32e-xregs.xml \
 	riscv/32bit-cpu.xml \
-	riscv/32bit-csr.xml \
 	riscv/32bit-fpu.xml \
 	riscv/64bit-cpu.xml \
-	riscv/64bit-csr.xml \
 	riscv/64bit-fpu.xml \
-	rx.xml \
 	tic6x-c6xp.xml \
 	tic6x-core.xml \
 	tic6x-gp.xml
@@ -250,7 +248,7 @@ $(TDESC_CFILES): %.c: %.xml
 
 $(FEATURE_CFILES): %.c: %.xml.tmp
 	$(GDB) -nx -q -batch \
-	  -ex 'maint print c-tdesc $<' > $@.tmp
+	  -ex 'maint print c-tdesc -single-feature $<' > $@.tmp
 	sh ../../move-if-change $@.tmp $@
 	rm $<
 
@@ -265,10 +263,6 @@ $(FEATURE_CFILES): %.c: %.xml.tmp
 	echo "  <xi:include href=\"$(notdir $<)\"/>" >> $@.tmp
 	echo "</target>" >> $@.tmp
 	sh ../../move-if-change $@.tmp $@
-
-# Regenerate RISC-V CSR feature lists.
-riscv/32bit-csr.xml riscv/64bit-csr.xml: ../../include/opcode/riscv-opc.h
-	./riscv/rebuild-csr-xml.sh ../../include/opcode/riscv-opc.h ./riscv
 
 # 'all' doesn't build the C files, so don't delete them in 'clean'
 # either.

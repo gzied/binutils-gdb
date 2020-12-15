@@ -1,5 +1,5 @@
 /* Iterator of varobj.
-   Copyright (C) 2013-2019 Free Software Foundation, Inc.
+   Copyright (C) 2013-2020 Free Software Foundation, Inc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -19,14 +19,14 @@
 
 /* A node or item of varobj, composed of the name and the value.  */
 
-typedef struct varobj_item
+struct varobj_item
 {
   /* Name of this item.  */
   std::string name;
 
   /* Value of this item.  */
   struct value *value;
-} varobj_item;
+};
 
 struct varobj_iter_ops;
 

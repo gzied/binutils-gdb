@@ -1,5 +1,5 @@
 /* GDB variable objects API.
-   Copyright (C) 1999-2019 Free Software Foundation, Inc.
+   Copyright (C) 1999-2020 Free Software Foundation, Inc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -232,8 +232,6 @@ struct lang_varobj_ops
 extern const struct lang_varobj_ops c_varobj_ops;
 extern const struct lang_varobj_ops cplus_varobj_ops;
 extern const struct lang_varobj_ops ada_varobj_ops;
-
-#define default_varobj_ops c_varobj_ops
 
 /* Non-zero if we want to see trace of varobj level stuff.  */
 

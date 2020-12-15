@@ -63,7 +63,7 @@ static void btrace_add_pc (struct thread_info *tp);
   do									\
     {									\
       if (record_debug != 0)						\
-        fprintf_unfiltered (gdb_stdlog,					\
+	fprintf_unfiltered (gdb_stdlog,					\
 			    "[btrace] " msg "\n", ##args);		\
     }									\
   while (0)
@@ -231,7 +231,7 @@ ftrace_function_switched (const struct btrace_function *bfun,
 /* set a record_btrace_reg_entry.  */
 
 static void
-btrace_reg_set (struct record_btrace_reg_entry *reg, struct regcache *regcache, gdb_regnum regnum, gdb_byte *value)
+btrace_reg_set (struct record_btrace_reg_entry *reg, struct regcache *regcache, int regnum, gdb_byte *value)
 {
   struct gdbarch *gdbarch = regcache->arch ();
 
@@ -279,7 +279,7 @@ ftrace_new_function (struct btrace_thread_info *btinfo,
 static void
 ftrace_update_caller (struct btrace_function *bfun,
 		      struct btrace_function *caller,
-		      enum btrace_function_flag flags)
+		      btrace_function_flags flags)
 {
   if (bfun->up != 0)
     ftrace_debug (bfun, "updating caller");
@@ -297,7 +297,7 @@ static void
 ftrace_fixup_caller (struct btrace_thread_info *btinfo,
 		     struct btrace_function *bfun,
 		     struct btrace_function *caller,
-		     enum btrace_function_flag flags)
+		     btrace_function_flags flags)
 {
   unsigned int prev, next;
 
@@ -1679,7 +1679,7 @@ static void print_trc_elem_exception(const uint8_t trace_chan_id, const ocsd_gen
 }
 
 */
-
+#define ARM_PS_REGNUM  25		/* Contains processor status */
 static void
 cs_etm_update_branch_trace(const void *context, const ocsd_generic_trace_elem *elem)
 {
@@ -1688,7 +1688,7 @@ cs_etm_update_branch_trace(const void *context, const ocsd_generic_trace_elem *e
   struct btrace_thread_info *btinfo;
   struct btrace_function *bfun;
   struct btrace_insn insn;
-  unsigned int cspr;
+  unsigned int cpsr;
   struct record_btrace_reg_entry reg;
 
   etm_decoder = (struct cs_etm_decoder *)context;
@@ -1738,26 +1738,28 @@ cs_etm_update_branch_trace(const void *context, const ocsd_generic_trace_elem *e
       switch(elem->isa)
       {
 	case ocsd_isa_arm:
-	  cspr =0;
+	  cpsr =0;
 	  break;
 	case ocsd_isa_thumb2:
-	  cspr =0x40;
+	  cpsr =0x20;
 	  break;
 	case ocsd_isa_tee:
-	  cspr =0x1000040;
+	  cpsr =0x1000020;
 	  break;
 	case ocsd_isa_jazelle:
-	  cspr =0x1000000;
+	  cpsr =0x1000000;
 	  break;
 	default:
-	  cspr =0;
+	  cpsr =0;
       }
-      btrace_reg_set (&reg, get_thread_regcache(tp), ARM_PS_REGNUM, (gdb_byte *)&cspr);
+      btrace_reg_set (&reg, get_thread_regcache(tp), ARM_PS_REGNUM, (gdb_byte *)&cpsr);
       insn.registers.push_back (reg);
       ftrace_update_insns (bfun, insn);
     }
 
 }
+#undef ARM_PS_REGNUM
+
 static ocsd_datapath_resp_t cs_etm_trace_element_callback(
 				const void *context,
 				const ocsd_trc_index_t indx,
@@ -1863,7 +1865,7 @@ static int cs_etm_create_decoder(
 	return 0;
 }
 
-struct cs_etm_decoder *
+static struct cs_etm_decoder *
 cs_etm_alloc_decoder(struct thread_info *tp, int num_cpu,
 		    struct cs_etm_decoder_params d_params,
 		    struct cs_etm_trace_params t_params[])
@@ -1910,7 +1912,7 @@ cs_etm_alloc_decoder(struct thread_info *tp, int num_cpu,
 	return (decoder);
 }
 
-void cs_etm_free_decoder(struct cs_etm_decoder *decoder)
+static void cs_etm_free_decoder(struct cs_etm_decoder *decoder)
 {
 	if (!decoder)
 		return;
@@ -2098,7 +2100,7 @@ btrace_compute_ftrace_1 (struct thread_info *tp,
     	return;
     }
 
-  internal_error (__FILE__, __LINE__, _("Unkown branch trace format."));
+  internal_error (__FILE__, __LINE__, _("Unknown branch trace format."));
 }
 
 static void
@@ -2157,7 +2159,8 @@ void
 btrace_enable (struct thread_info *tp, const struct btrace_config *conf)
 {
   if (tp->btrace.target != NULL)
-    return;
+    error (_("Recording already enabled on thread %s (%s)."),
+	   print_thread_id (tp), target_pid_to_str (tp->ptid).c_str ());
 
 #if !defined (HAVE_LIBIPT)
   if (conf->format == BTRACE_FORMAT_PT)
@@ -2173,9 +2176,9 @@ btrace_enable (struct thread_info *tp, const struct btrace_config *conf)
 
   tp->btrace.target = target_enable_btrace (tp->ptid, conf);
 
-  /* We're done if we failed to enable tracing.  */
   if (tp->btrace.target == NULL)
-    return;
+    error (_("Failed to enable recording on thread %s (%s)."),
+	   print_thread_id (tp), target_pid_to_str (tp->ptid).c_str ());
 
   /* We need to undo the enable in case of errors.  */
   try
@@ -2220,7 +2223,8 @@ btrace_disable (struct thread_info *tp)
   struct btrace_thread_info *btp = &tp->btrace;
 
   if (btp->target == NULL)
-    return;
+    error (_("Recording not enabled on thread %s (%s)."),
+	   print_thread_id (tp), target_pid_to_str (tp->ptid).c_str ());
 
   DEBUG ("disable thread %s (%s)", print_thread_id (tp),
 	 target_pid_to_str (tp->ptid).c_str ());
@@ -2363,7 +2367,7 @@ btrace_stitch_trace (struct btrace_data *btrace, struct thread_info *tp)
       return -1;
     }
 
-  internal_error (__FILE__, __LINE__, _("Unkown branch trace format."));
+  internal_error (__FILE__, __LINE__, _("Unknown branch trace format."));
 }
 
 /* Clear the branch trace histories in BTINFO.  */
@@ -2489,11 +2493,12 @@ btrace_fetch (struct thread_info *tp, const struct btrace_cpu *cpu)
   if (btinfo->replay != NULL)
     return;
 
-  /* With CLI usage, TP->PTID always equals INFERIOR_PTID here.  Now that we
-     can store a gdb.Record object in Python referring to a different thread
-     than the current one, temporarily set INFERIOR_PTID.  */
-  scoped_restore save_inferior_ptid = make_scoped_restore (&inferior_ptid);
-  inferior_ptid = tp->ptid;
+  /* With CLI usage, TP is always the current thread when we get here.
+     However, since we can also store a gdb.Record object in Python
+     referring to a different thread than the current one, we need to
+     temporarily set the current thread.  */
+  scoped_restore_current_thread restore_thread;
+  switch_to_thread (tp);
 
   /* We should not be called on running or exited threads.  */
   gdb_assert (can_access_registers_thread (tp));
@@ -3834,7 +3839,7 @@ maint_btrace_packet_history_cmd (const char *arg, int from_tty)
   struct btrace_thread_info *btinfo;
   unsigned int size, begin, end, from, to;
 
-  thread_info *tp = find_thread_ptid (inferior_ptid);
+  thread_info *tp = find_thread_ptid (current_inferior (), inferior_ptid);
   if (tp == NULL)
     error (_("No thread."));
 
@@ -3964,51 +3969,6 @@ maint_btrace_clear_cmd (const char *args, int from_tty)
   btrace_clear (tp);
 }
 
-/* The "maintenance btrace" command.  */
-
-static void
-maint_btrace_cmd (const char *args, int from_tty)
-{
-  help_list (maint_btrace_cmdlist, "maintenance btrace ", all_commands,
-	     gdb_stdout);
-}
-
-/* The "maintenance set btrace" command.  */
-
-static void
-maint_btrace_set_cmd (const char *args, int from_tty)
-{
-  help_list (maint_btrace_set_cmdlist, "maintenance set btrace ", all_commands,
-	     gdb_stdout);
-}
-
-/* The "maintenance show btrace" command.  */
-
-static void
-maint_btrace_show_cmd (const char *args, int from_tty)
-{
-  help_list (maint_btrace_show_cmdlist, "maintenance show btrace ",
-	     all_commands, gdb_stdout);
-}
-
-/* The "maintenance set btrace pt" command.  */
-
-static void
-maint_btrace_pt_set_cmd (const char *args, int from_tty)
-{
-  help_list (maint_btrace_pt_set_cmdlist, "maintenance set btrace pt ",
-	     all_commands, gdb_stdout);
-}
-
-/* The "maintenance show btrace pt" command.  */
-
-static void
-maint_btrace_pt_show_cmd (const char *args, int from_tty)
-{
-  help_list (maint_btrace_pt_show_cmdlist, "maintenance show btrace pt ",
-	     all_commands, gdb_stdout);
-}
-
 /* The "maintenance info btrace" command.  */
 
 static void
@@ -4090,36 +4050,39 @@ show_maint_btrace_pt_skip_pad  (struct ui_file *file, int from_tty,
 
 /* Initialize btrace maintenance commands.  */
 
+void _initialize_btrace ();
 void
-_initialize_btrace (void)
+_initialize_btrace ()
 {
   add_cmd ("btrace", class_maintenance, maint_info_btrace_cmd,
 	   _("Info about branch tracing data."), &maintenanceinfolist);
 
-  add_prefix_cmd ("btrace", class_maintenance, maint_btrace_cmd,
-		  _("Branch tracing maintenance commands."),
-		  &maint_btrace_cmdlist, "maintenance btrace ",
-		  0, &maintenancelist);
+  add_basic_prefix_cmd ("btrace", class_maintenance,
+			_("Branch tracing maintenance commands."),
+			&maint_btrace_cmdlist, "maintenance btrace ",
+			0, &maintenancelist);
 
-  add_prefix_cmd ("btrace", class_maintenance, maint_btrace_set_cmd, _("\
+  add_basic_prefix_cmd ("btrace", class_maintenance, _("\
 Set branch tracing specific variables."),
-                  &maint_btrace_set_cmdlist, "maintenance set btrace ",
-                  0, &maintenance_set_cmdlist);
+			&maint_btrace_set_cmdlist, "maintenance set btrace ",
+			0, &maintenance_set_cmdlist);
 
-  add_prefix_cmd ("pt", class_maintenance, maint_btrace_pt_set_cmd, _("\
+  add_basic_prefix_cmd ("pt", class_maintenance, _("\
 Set Intel Processor Trace specific variables."),
-                  &maint_btrace_pt_set_cmdlist, "maintenance set btrace pt ",
-                  0, &maint_btrace_set_cmdlist);
+			&maint_btrace_pt_set_cmdlist,
+			"maintenance set btrace pt ",
+			0, &maint_btrace_set_cmdlist);
 
-  add_prefix_cmd ("btrace", class_maintenance, maint_btrace_show_cmd, _("\
+  add_show_prefix_cmd ("btrace", class_maintenance, _("\
 Show branch tracing specific variables."),
-                  &maint_btrace_show_cmdlist, "maintenance show btrace ",
-                  0, &maintenance_show_cmdlist);
+		       &maint_btrace_show_cmdlist, "maintenance show btrace ",
+		       0, &maintenance_show_cmdlist);
 
-  add_prefix_cmd ("pt", class_maintenance, maint_btrace_pt_show_cmd, _("\
+  add_show_prefix_cmd ("pt", class_maintenance, _("\
 Show Intel Processor Trace specific variables."),
-                  &maint_btrace_pt_show_cmdlist, "maintenance show btrace pt ",
-                  0, &maint_btrace_show_cmdlist);
+		       &maint_btrace_pt_show_cmdlist,
+		       "maintenance show btrace pt ",
+		       0, &maint_btrace_show_cmdlist);
 
   add_setshow_boolean_cmd ("skip-pad", class_maintenance,
 			   &maint_btrace_pt_skip_pad, _("\

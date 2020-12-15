@@ -1,4 +1,4 @@
-# Copyright 1992-2019 Free Software Foundation, Inc.
+# Copyright 1992-2020 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -355,7 +355,7 @@ gdb_test_no_output "set verbose off" "set verbose off"
 gdb_test "show verbose" "Verbosity is off..*" "show verbose (off)" 
 #test argument must be preceded by space
 foreach x {"history file" "solib-search-path" "data-directory"} {
-    foreach y {"/home/" "." "~/home" "=home"} {
+    foreach y {"/home/" "~/home" "=home"} {
         gdb_test "set $x$y" "Argument must be preceded by space." \
             "$x is not set to $y"
     }

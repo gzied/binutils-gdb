@@ -1,6 +1,6 @@
 /* Portable <sys/ptrace.h>
 
-   Copyright (C) 2004-2019 Free Software Foundation, Inc.
+   Copyright (C) 2004-2020 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -121,14 +121,6 @@
 # endif
 #endif
 
-/* Some systems, in particular DEC OSF/1, Digital Unix, Compaq Tru64
-   or whatever it's called these days, don't provide a prototype for
-   ptrace.  Provide one to silence compiler warnings.  */
-
-#ifndef HAVE_DECL_PTRACE
-extern PTRACE_TYPE_RET ptrace();
-#endif
-
 /* Some systems, at least AIX and HP-UX have a ptrace with five
    arguments.  Since we never use the fifth argument, define a ptrace
    macro that calls the real ptrace with the last argument set to
@@ -137,17 +129,17 @@ extern PTRACE_TYPE_RET ptrace();
 #ifdef PTRACE_TYPE_ARG5
 # ifdef HAVE_PTRACE64
 #  define ptrace(request, pid, addr, data) \
-          ptrace64 (request, pid, addr, data, 0)
+	  ptrace64 (request, pid, addr, data, 0)
 #  undef PTRACE_TYPE_ARG3
 #  define PTRACE_TYPE_ARG3 long long
 # else
 #  define ptrace(request, pid, addr, data) \
-          ptrace (request, pid, addr, data, 0)
+	  ptrace (request, pid, addr, data, 0)
 # endif
 #else
 /* Wrapper that avoids adding a pointless cast to all callers.  */
 # define ptrace(request, pid, addr, data) \
-         ptrace ((PTRACE_TYPE_ARG1) request, pid, addr, data)
+	 ptrace ((PTRACE_TYPE_ARG1) request, pid, addr, data)
 #endif
 
 #endif /* NAT_GDB_PTRACE_H */

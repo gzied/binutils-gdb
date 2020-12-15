@@ -1,6 +1,6 @@
 /* Manages interpreters for GDB, the GNU debugger.
 
-   Copyright (C) 2000-2019 Free Software Foundation, Inc.
+   Copyright (C) 2000-2020 Free Software Foundation, Inc.
 
    Written by Jim Ingham <jingham@apple.com> of Apple Computer, Inc.
 
@@ -32,7 +32,7 @@
 #include "defs.h"
 #include "gdbcmd.h"
 #include "ui-out.h"
-#include "event-loop.h"
+#include "gdbsupport/event-loop.h"
 #include "event-top.h"
 #include "interps.h"
 #include "completer.h"
@@ -439,8 +439,9 @@ current_interpreter (void)
 }
 
 /* This just adds the "interpreter-exec" command.  */
+void _initialize_interpreter ();
 void
-_initialize_interpreter (void)
+_initialize_interpreter ()
 {
   struct cmd_list_element *c;
 

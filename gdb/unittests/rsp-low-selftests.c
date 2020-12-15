@@ -1,6 +1,6 @@
 /* Unit tests for the rsp-low.c file.
 
-   Copyright (C) 2017-2019 Free Software Foundation, Inc.
+   Copyright (C) 2017-2020 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -61,6 +61,7 @@ static void test_hex2str ()
 } /* namespace rsp_low */
 } /* namespace selftests */
 
+void _initialize_rsp_low_selftests ();
 void
 _initialize_rsp_low_selftests ()
 {

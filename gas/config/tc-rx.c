@@ -1,5 +1,5 @@
 /* tc-rx.c -- Assembler for the Renesas RX
-   Copyright (C) 2008-2019 Free Software Foundation, Inc.
+   Copyright (C) 2008-2020 Free Software Foundation, Inc.
 
    This file is part of GAS, the GNU Assembler.
 
@@ -41,16 +41,15 @@ const char line_separator_chars[] = "!";
 const char EXP_CHARS[]            = "eE";
 const char FLT_CHARS[]            = "dD";
 
-/* ELF flags to set in the output file header.  */
-static int elf_flags = E_FLAG_RX_ABI;
-
 #ifndef TE_LINUX
 bfd_boolean rx_use_conventional_section_names = FALSE;
+static int elf_flags = E_FLAG_RX_ABI;
 #else
 bfd_boolean rx_use_conventional_section_names = TRUE;
+static int elf_flags;
 #endif
-static bfd_boolean rx_use_small_data_limit = FALSE;
 
+static bfd_boolean rx_use_small_data_limit = FALSE;
 static bfd_boolean rx_pid_mode = FALSE;
 static int rx_num_int_regs = 0;
 int rx_pid_register;
@@ -491,7 +490,7 @@ parse_rx_section (char * name)
       else
 	type = SHT_NOBITS;
 
-      obj_elf_change_section (name, type, 0, attr, 0, NULL, FALSE, FALSE);
+      obj_elf_change_section (name, type, attr, 0, NULL, FALSE, FALSE);
     }
   else /* Try not to redefine a section, especially B_1.  */
     {
@@ -506,7 +505,7 @@ parse_rx_section (char * name)
 	| ((flags & SEC_STRINGS) ? SHF_STRINGS : 0)
 	| ((flags & SEC_THREAD_LOCAL) ? SHF_TLS : 0);
 
-      obj_elf_change_section (name, type, 0, attr, 0, NULL, FALSE, FALSE);
+      obj_elf_change_section (name, type, attr, 0, NULL, FALSE, FALSE);
     }
 
   bfd_set_section_alignment (now_seg, align);

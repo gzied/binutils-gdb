@@ -1,6 +1,6 @@
 /* Target-dependent code for the VAX.
 
-   Copyright (C) 1986-2019 Free Software Foundation, Inc.
+   Copyright (C) 1986-2020 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -206,13 +206,13 @@ vax_return_value (struct gdbarch *gdbarch, struct value *function,
   int len = TYPE_LENGTH (type);
   gdb_byte buf[8];
 
-  if (TYPE_CODE (type) == TYPE_CODE_STRUCT
-      || TYPE_CODE (type) == TYPE_CODE_UNION
-      || TYPE_CODE (type) == TYPE_CODE_ARRAY)
+  if (type->code () == TYPE_CODE_STRUCT
+      || type->code () == TYPE_CODE_UNION
+      || type->code () == TYPE_CODE_ARRAY)
     {
       /* The default on VAX is to return structures in static memory.
-         Consequently a function must return the address where we can
-         find the return value.  */
+	 Consequently a function must return the address where we can
+	 find the return value.  */
 
       if (readbuf)
 	{
@@ -353,9 +353,9 @@ vax_frame_cache (struct frame_info *this_frame, void **this_cache)
       ULONGEST numarg;
 
       /* This is a procedure with Stack Argument List.  Adjust the
-         stack address for the arguments that were pushed onto the
-         stack.  The return instruction will automatically pop the
-         arguments from the stack.  */
+	 stack address for the arguments that were pushed onto the
+	 stack.  The return instruction will automatically pop the
+	 arguments from the stack.  */
       numarg = get_frame_memory_unsigned (this_frame, addr, 1);
       addr += 4 + numarg * 4;
     }
@@ -507,8 +507,9 @@ vax_gdbarch_init (struct gdbarch_info info, struct gdbarch_list *arches)
   return (gdbarch);
 }
 
+void _initialize_vax_tdep ();
 void
-_initialize_vax_tdep (void)
+_initialize_vax_tdep ()
 {
   gdbarch_register (bfd_arch_vax, vax_gdbarch_init, NULL);
 }

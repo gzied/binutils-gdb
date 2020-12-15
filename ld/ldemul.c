@@ -1,5 +1,5 @@
 /* ldemul.c -- clearing house for ld emulation states
-   Copyright (C) 1991-2019 Free Software Foundation, Inc.
+   Copyright (C) 1991-2020 Free Software Foundation, Inc.
 
    This file is part of the GNU Binutils.
 
@@ -69,6 +69,12 @@ void
 ldemul_after_check_relocs (void)
 {
   ld_emulation->after_check_relocs ();
+}
+
+void
+ldemul_before_place_orphans (void)
+{
+  ld_emulation->before_place_orphans ();
 }
 
 void
@@ -267,6 +273,11 @@ after_check_relocs_default (void)
 }
 
 void
+before_place_orphans_default (void)
+{
+}
+
+void
 after_allocation_default (void)
 {
   lang_relax_sections (FALSE);
@@ -407,13 +418,25 @@ ldemul_emit_ctf_early (void)
 }
 
 void
-ldemul_examine_strtab_for_ctf (struct ctf_file *ctf_output,
-			       struct elf_sym_strtab *syms,
-			       bfd_size_type symcount,
-			       struct elf_strtab_hash *symstrtab)
-
+ldemul_acquire_strings_for_ctf (struct ctf_dict *ctf_output,
+				struct elf_strtab_hash *symstrtab)
 {
-  if (ld_emulation->examine_strtab_for_ctf)
-    ld_emulation->examine_strtab_for_ctf (ctf_output, syms,
-					  symcount, symstrtab);
+  if (ld_emulation->acquire_strings_for_ctf)
+    ld_emulation->acquire_strings_for_ctf (ctf_output, symstrtab);
+}
+
+void
+ldemul_new_dynsym_for_ctf (struct ctf_dict *ctf_output, int symidx,
+			   struct elf_internal_sym *sym)
+{
+  if (ld_emulation->new_dynsym_for_ctf)
+    ld_emulation->new_dynsym_for_ctf (ctf_output, symidx, sym);
+}
+
+bfd_boolean
+ldemul_print_symbol (struct bfd_link_hash_entry *hash_entry, void *ptr)
+{
+  if (ld_emulation->print_symbol)
+    return ld_emulation->print_symbol (hash_entry, ptr);
+  return print_one_symbol (hash_entry, ptr);
 }

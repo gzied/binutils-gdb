@@ -1,5 +1,5 @@
 /* Legacy support routines for building symbol tables in GDB's internal format.
-   Copyright (C) 1986-2019 Free Software Foundation, Inc.
+   Copyright (C) 1986-2020 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -252,7 +252,9 @@ void
 record_line (struct subfile *subfile, int line, CORE_ADDR pc)
 {
   gdb_assert (buildsym_compunit != nullptr);
-  buildsym_compunit->record_line (subfile, line, pc);
+  /* Assume every line entry is a statement start, that is a good place to
+     put a breakpoint for that line number.  */
+  buildsym_compunit->record_line (subfile, line, pc, true);
 }
 
 /* Start a new symtab for a new source file in OBJFILE.  Called, for example,

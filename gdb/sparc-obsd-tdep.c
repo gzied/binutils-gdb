@@ -1,6 +1,6 @@
 /* Target-dependent code for OpenBSD/sparc.
 
-   Copyright (C) 2004-2019 Free Software Foundation, Inc.
+   Copyright (C) 2004-2020 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -87,7 +87,7 @@ sparc32obsd_sigtramp_frame_cache (struct frame_info *this_frame,
       cache->pc &= ~(sparc32obsd_page_size - 1);
 
       /* Since we couldn't find the frame's function, the cache was
-         initialized under the assumption that we're frameless.  */
+	 initialized under the assumption that we're frameless.  */
       sparc_record_save_insn (cache);
       addr = get_frame_register_unsigned (this_frame, SPARC_FP_REGNUM);
       cache->base = addr;
@@ -246,8 +246,9 @@ sparc32obsd_init_abi (struct gdbarch_info info, struct gdbarch *gdbarch)
   bsd_uthread_set_collect_uthread (gdbarch, sparc32obsd_collect_uthread);
 }
 
+void _initialize_sparc32obsd_tdep ();
 void
-_initialize_sparc32obsd_tdep (void)
+_initialize_sparc32obsd_tdep ()
 {
   gdbarch_register_osabi (bfd_arch_sparc, 0, GDB_OSABI_OPENBSD,
 			  sparc32obsd_init_abi);

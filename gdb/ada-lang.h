@@ -1,6 +1,6 @@
 /* Ada language support definitions for GDB, the GNU debugger.
 
-   Copyright (C) 1992-2019 Free Software Foundation, Inc.
+   Copyright (C) 1992-2020 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -85,17 +85,17 @@ enum ada_renaming_category
     ADA_NOT_RENAMING,
 
     /* For symbols declared
-         Foo : TYPE renamed OBJECT;  */
+	 Foo : TYPE renamed OBJECT;  */
     ADA_OBJECT_RENAMING,
 
     /* For symbols declared
-         Foo : exception renames EXCEPTION;  */
+	 Foo : exception renames EXCEPTION;  */
     ADA_EXCEPTION_RENAMING,
     /* For packages declared
-          package Foo renames PACKAGE; */
+	  package Foo renames PACKAGE; */
     ADA_PACKAGE_RENAMING,
     /* For subprograms declared
-          SUBPROGRAM_SPEC renames SUBPROGRAM;
+	  SUBPROGRAM_SPEC renames SUBPROGRAM;
        (Currently not used).  */
     ADA_SUBPROGRAM_RENAMING
   };
@@ -152,27 +152,27 @@ struct ada_task_info
 extern void ada_ensure_varsize_limit (const struct type *type);
 
 extern int ada_get_field_index (const struct type *type,
-                                const char *field_name,
-                                int maybe_missing);
+				const char *field_name,
+				int maybe_missing);
 
 extern int ada_parse (struct parser_state *);    /* Defined in ada-exp.y */
 
-                        /* Defined in ada-typeprint.c */
+			/* Defined in ada-typeprint.c */
 extern void ada_print_type (struct type *, const char *, struct ui_file *, int,
-                            int, const struct type_print_options *);
+			    int, const struct type_print_options *);
 
 extern void ada_print_typedef (struct type *type, struct symbol *new_symbol,
 			       struct ui_file *stream);
 
-extern void ada_val_print (struct type *, int, CORE_ADDR,
-			   struct ui_file *, int,
-			   struct value *,
-			   const struct value_print_options *);
+/* Implement la_value_print_inner for Ada.  */
+
+extern void ada_value_print_inner (struct value *, struct ui_file *, int,
+				   const struct value_print_options *);
 
 extern void ada_value_print (struct value *, struct ui_file *,
 			     const struct value_print_options *);
 
-                                /* Defined in ada-lang.c */
+				/* Defined in ada-lang.c */
 
 extern void ada_emit_char (int, struct type *, struct ui_file *, int, int);
 
@@ -183,12 +183,12 @@ extern void ada_printstr (struct ui_file *, struct type *, const gdb_byte *,
 			  const struct value_print_options *);
 
 struct value *ada_convert_actual (struct value *actual,
-                                  struct type *formal_type0);
+				  struct type *formal_type0);
 
 extern bool ada_is_access_to_unconstrained_array (struct type *type);
 
 extern struct value *ada_value_subscript (struct value *, int,
-                                          struct value **);
+					  struct value **);
 
 extern void ada_fixup_array_indexes_type (struct type *index_desc_type);
 
@@ -219,7 +219,7 @@ extern const char *ada_decode_symbol (const struct general_symbol_info *);
 extern std::string ada_decode (const char*);
 
 extern int ada_lookup_symbol_list (const char *, const struct block *,
-                                   domain_enum,
+				   domain_enum,
 				   std::vector<struct block_symbol> *);
 
 extern struct block_symbol ada_lookup_symbol (const char *,
@@ -234,6 +234,11 @@ extern struct bound_minimal_symbol ada_lookup_simple_minsym (const char *);
 
 extern int ada_scan_number (const char *, int, LONGEST *, int *);
 
+extern struct value *ada_value_primitive_field (struct value *arg1,
+						int offset,
+						int fieldno,
+						struct type *arg_type);
+
 extern struct type *ada_parent_type (struct type *);
 
 extern int ada_is_ignored_field (struct type *, int);
@@ -242,8 +247,8 @@ extern int ada_is_constrained_packed_array_type (struct type *);
 
 extern struct value *ada_value_primitive_packed_val (struct value *,
 						     const gdb_byte *,
-                                                     long, int, int,
-                                                     struct type *);
+						     long, int, int,
+						     struct type *);
 
 extern struct type *ada_coerce_to_simple_array_type (struct type *);
 
@@ -255,7 +260,7 @@ extern int ada_is_tagged_type (struct type *, int);
 
 extern int ada_is_tag_type (struct type *);
 
-extern const char *ada_tag_name (struct value *);
+extern gdb::unique_xmalloc_ptr<char> ada_tag_name (struct value *);
 
 extern struct value *ada_tag_value_at_base_address (struct value *obj);
 
@@ -276,20 +281,19 @@ extern struct type *ada_aligned_type (struct type *);
 extern const gdb_byte *ada_aligned_value_addr (struct type *,
 					       const gdb_byte *);
 
-extern int ada_is_fixed_point_type (struct type *);
+extern int ada_is_gnat_encoded_fixed_point_type (struct type *);
 
 extern int ada_is_system_address_type (struct type *);
 
-extern struct value *ada_delta (struct type *);
+extern struct value *gnat_encoded_fixed_point_delta (struct type *);
 
-extern struct value *ada_scaling_factor (struct type *);
+extern struct value *gnat_encoded_fixed_point_scaling_factor (struct type *);
 
-extern int ada_which_variant_applies (struct type *, struct type *,
-				      const gdb_byte *);
+extern int ada_which_variant_applies (struct type *, struct value *);
 
 extern struct type *ada_to_fixed_type (struct type *, const gdb_byte *,
 				       CORE_ADDR, struct value *,
-                                       int check_tag);
+				       int check_tag);
 
 extern struct value *ada_to_fixed_value (struct value *val);
 
@@ -304,7 +308,7 @@ extern int ada_name_prefix_len (const char *);
 extern const char *ada_type_name (struct type *);
 
 extern struct type *ada_find_parallel_type (struct type *,
-                                            const char *suffix);
+					    const char *suffix);
 
 extern bool get_int_var_value (const char *, LONGEST &value);
 
@@ -314,7 +318,7 @@ extern struct type *ada_get_base_type (struct type *);
 
 extern struct type *ada_check_typedef (struct type *);
 
-extern char *ada_encode (const char *);
+extern std::string ada_encode (const char *);
 
 extern const char *ada_enum_name (const char *);
 
@@ -371,9 +375,10 @@ extern struct ada_task_info *ada_get_task_info_from_ptid (ptid_t ptid);
 
 extern int ada_get_task_number (thread_info *thread);
 
-typedef void (ada_task_list_iterator_ftype) (struct ada_task_info *task);
+typedef gdb::function_view<void (struct ada_task_info *task)>
+  ada_task_list_iterator_ftype;
 extern void iterate_over_live_ada_tasks
-  (ada_task_list_iterator_ftype *iterator);
+  (ada_task_list_iterator_ftype iterator);
 
 extern const char *ada_get_tcb_types_info (void);
 

@@ -1,6 +1,6 @@
 /* tc-msp430.c -- Assembler code for the Texas Instruments MSP430
 
-  Copyright (C) 2002-2019 Free Software Foundation, Inc.
+  Copyright (C) 2002-2020 Free Software Foundation, Inc.
   Contributed by Dmitry Diky <diwil@mail.ru>
 
   This file is part of GAS, the GNU Assembler.
@@ -194,7 +194,7 @@ const char FLT_CHARS[] = "dD";
 /* Handle  long expressions.  */
 extern LITTLENUM_TYPE generic_bignum[];
 
-static struct hash_control *msp430_hash;
+static htab_t msp430_hash;
 
 /* Relaxations.  */
 #define STATE_UNCOND_BRANCH	1	/* jump */
@@ -275,21 +275,21 @@ target_is_430xv2 (void)
   return selected_isa == MSP_ISA_430Xv2;
 }
 
-/* Generate an absolute 16-bit relocation.
-   For the 430X we generate a relocation without linker range checking
-    if the value is being used in an extended (ie 20-bit) instruction,
-    otherwise if have a shifted expression we use a HI reloc.
+/* Generate an absolute 16-bit relocation, for 430 (!extended_op) instructions
+   only.
+   For the 430X we generate a 430 relocation only for the case where part of an
+   expression is being extracted (e.g. #hi(EXP), #lo(EXP). Otherwise generate
+   a 430X relocation.
    For the 430 we generate a relocation without assembler range checking
-    if we are handling an immediate value or a byte-width instruction.  */
+   if we are handling an immediate value or a byte-width instruction.  */
 
 #undef  CHECK_RELOC_MSP430
 #define CHECK_RELOC_MSP430(OP)				\
   (target_is_430x ()					\
-  ? (extended_op					\
-     ? BFD_RELOC_16					\
-     : ((OP).vshift == 1)				\
-     ? BFD_RELOC_MSP430_ABS_HI16			\
-     : BFD_RELOC_MSP430X_ABS16)				\
+   ? ((OP).expp == MSP_EXPP_ALL				\
+       ? BFD_RELOC_MSP430X_ABS16			\
+       : ((OP).vshift == 1				\
+	  ? BFD_RELOC_MSP430_ABS_HI16 : BFD_RELOC_16))	\
    : ((imm_op || byte_op)				\
       ? BFD_RELOC_MSP430_16_BYTE : BFD_RELOC_MSP430_16))
 
@@ -620,7 +620,7 @@ msp430_profiler (int dummy ATTRIBUTE_UNUSED)
   subseg = now_subseg;
 
   /* Now go to .profiler section.  */
-  obj_elf_change_section (".profiler", SHT_PROGBITS, 0, 0, 0, 0, 0, 0);
+  obj_elf_change_section (".profiler", SHT_PROGBITS, 0, 0, 0, 0, 0);
 
   /* Save flags.  */
   emit_expr (& exp, 2);
@@ -685,12 +685,13 @@ static bfd_boolean warn_interrupt_nops = TRUE;
 #define OPTION_NO_UNKNOWN_INTR_NOPS 'U'
 static bfd_boolean do_unknown_interrupt_nops = TRUE;
 #define OPTION_MCPU 'c'
-#define OPTION_MOVE_DATA 'd'
-static bfd_boolean move_data = FALSE;
 #define OPTION_DATA_REGION 'r'
 static bfd_boolean upper_data_region_in_use = FALSE;
 /* The default is to use the lower region only.  */
 static bfd_boolean lower_data_region_only = TRUE;
+
+/* Deprecated option, silently ignore it for compatibility with GCC <= 10.  */
+#define OPTION_MOVE_DATA 'd'
 
 enum
 {
@@ -1468,7 +1469,7 @@ md_parse_option (int c, const char * arg)
       return 1;
 
     case OPTION_MOVE_DATA:
-      move_data = TRUE;
+      /* Silently ignored.  */
       return 1;
 
     case OPTION_DATA_REGION:
@@ -1795,8 +1796,6 @@ md_show_usage (FILE * stream)
 	     "        known how the state is changed, warn/insert NOPs (default)\n"
 	     "        -mn and/or -my are required for this to have any effect\n"));
   fprintf (stream,
-	   _("  -md - Force copying of data from ROM to RAM at startup\n"));
-  fprintf (stream,
 	   _("  -mdata-region={none|lower|upper|either} - select region data will be\n"
 	     "    placed in.\n"));
 }
@@ -1834,10 +1833,10 @@ void
 md_begin (void)
 {
   struct msp430_opcode_s * opcode;
-  msp430_hash = hash_new ();
+  msp430_hash = str_htab_create ();
 
   for (opcode = msp430_opcodes; opcode->name; opcode++)
-    hash_insert (msp430_hash, opcode->name, (char *) opcode);
+    str_hash_insert (msp430_hash, opcode->name, opcode, 0);
 
   bfd_set_arch_mach (stdoutput, TARGET_ARCH,
 		     target_is_430x () ? bfd_mach_msp430x : bfd_mach_msp11);
@@ -1909,13 +1908,15 @@ msp430_srcoperand (struct msp430_operand_s * op,
       char *h = l;
       int vshift = -1;
       int rval = 0;
+      /* Use all parts of the constant expression by default.  */
+      enum msp430_expp_e expp = MSP_EXPP_ALL;
 
       /* Check if there is:
 	 llo(x) - least significant 16 bits, x &= 0xffff
 	 lhi(x) - x = (x >> 16) & 0xffff,
 	 hlo(x) - x = (x >> 32) & 0xffff,
 	 hhi(x) - x = (x >> 48) & 0xffff
-	 The value _MUST_ be constant expression: #hlo(1231231231).  */
+	 The value _MUST_ be an immediate expression: #hlo(1231231231).  */
 
       *imm_op = TRUE;
 
@@ -1923,31 +1924,37 @@ msp430_srcoperand (struct msp430_operand_s * op,
 	{
 	  vshift = 0;
 	  rval = 3;
+	  expp = MSP_EXPP_LLO;
 	}
       else if (strncasecmp (h, "#lhi(", 5) == 0)
 	{
 	  vshift = 1;
 	  rval = 3;
+	  expp = MSP_EXPP_LHI;
 	}
       else if (strncasecmp (h, "#hlo(", 5) == 0)
 	{
 	  vshift = 2;
 	  rval = 3;
+	  expp = MSP_EXPP_HLO;
 	}
       else if (strncasecmp (h, "#hhi(", 5) == 0)
 	{
 	  vshift = 3;
 	  rval = 3;
+	  expp = MSP_EXPP_HHI;
 	}
       else if (strncasecmp (h, "#lo(", 4) == 0)
 	{
 	  vshift = 0;
 	  rval = 2;
+	  expp = MSP_EXPP_LO;
 	}
       else if (strncasecmp (h, "#hi(", 4) == 0)
 	{
 	  vshift = 1;
 	  rval = 2;
+	  expp = MSP_EXPP_HI;
 	}
 
       op->reg = 0;		/* Reg PC.  */
@@ -1956,6 +1963,7 @@ msp430_srcoperand (struct msp430_operand_s * op,
       __tl = h + 1 + rval;
       op->mode = OP_EXP;
       op->vshift = vshift;
+      op->expp = expp;
 
       end = parse_exp (__tl, &(op->exp));
       if (end != NULL && *end != 0 && *end != ')' )
@@ -2167,6 +2175,7 @@ msp430_srcoperand (struct msp430_operand_s * op,
 	}
       op->mode = OP_EXP;
       op->vshift = 0;
+      op->expp = MSP_EXPP_ALL;
       if (op->exp.X_op == O_constant)
 	{
 	  int x = op->exp.X_add_number;
@@ -2275,6 +2284,7 @@ msp430_srcoperand (struct msp430_operand_s * op,
       *h = 0;
       op->mode = OP_EXP;
       op->vshift = 0;
+      op->expp = MSP_EXPP_ALL;
       end = parse_exp (__tl, &(op->exp));
       if (end != NULL && *end != 0)
 	{
@@ -2348,6 +2358,7 @@ msp430_srcoperand (struct msp430_operand_s * op,
   op->am = (*l == '-' ? 3 : 1);
   op->ol = 1;
   op->vshift = 0;
+  op->expp = MSP_EXPP_ALL;
   __tl = l;
   end = parse_exp (__tl, &(op->exp));
   if (end != NULL && * end != 0)
@@ -2382,6 +2393,7 @@ msp430_dstoperand (struct msp430_operand_s * op,
       op->am = 1;
       op->ol = 1;
       op->vshift = 0;
+      op->expp = MSP_EXPP_ALL;
       (void) parse_exp (__tl, &(op->exp));
 
       if (op->exp.X_op != O_constant || op->exp.X_add_number != 0)
@@ -2858,7 +2870,7 @@ msp430_operands (struct msp430_opcode_s * opcode, char * line)
       char real_name[32];
 
       sprintf (real_name, "%sa", old_name);
-      opcode = hash_find (msp430_hash, real_name);
+      opcode = str_hash_find (msp430_hash, real_name);
       if (opcode == NULL)
 	{
 	  as_bad (_("instruction %s.a does not exist"), old_name);
@@ -4342,7 +4354,7 @@ md_assemble (char * str)
       return;
     }
 
-  opcode = (struct msp430_opcode_s *) hash_find (msp430_hash, cmd);
+  opcode = (struct msp430_opcode_s *) str_hash_find (msp430_hash, cmd);
 
   if (opcode == NULL)
     {
@@ -5044,8 +5056,56 @@ msp430_fix_adjustable (struct fix *fixp ATTRIBUTE_UNUSED)
   return FALSE;
 }
 
-/* Set the contents of the .MSP430.attributes and .GNU.attributes sections.  */
+/* Scan uleb128 subtraction expressions and insert fixups for them.
+   e.g., .uleb128 .L1 - .L0
+   Because relaxation may change the value of the subtraction, we
+   must resolve them at link-time.  */
 
+static void
+msp430_insert_uleb128_fixes (bfd *abfd ATTRIBUTE_UNUSED,
+			    asection *sec, void *xxx ATTRIBUTE_UNUSED)
+{
+  segment_info_type *seginfo = seg_info (sec);
+  struct frag *fragP;
+
+  subseg_set (sec, 0);
+
+  for (fragP = seginfo->frchainP->frch_root;
+       fragP; fragP = fragP->fr_next)
+    {
+      expressionS *exp, *exp_dup;
+
+      if (fragP->fr_type != rs_leb128  || fragP->fr_symbol == NULL)
+	continue;
+
+      exp = symbol_get_value_expression (fragP->fr_symbol);
+
+      if (exp->X_op != O_subtract)
+	continue;
+
+      /* FIXME: Skip for .sleb128.  */
+      if (fragP->fr_subtype != 0)
+	continue;
+
+      exp_dup = xmemdup (exp, sizeof (*exp), sizeof (*exp));
+      exp_dup->X_op = O_symbol;
+      exp_dup->X_op_symbol = NULL;
+
+      /* Emit the SUB relocation first, since the SET relocation will write out
+	 the final value.  */
+      exp_dup->X_add_symbol = exp->X_op_symbol;
+      fix_new_exp (fragP, fragP->fr_fix, 0,
+		   exp_dup, 0, BFD_RELOC_MSP430_SUB_ULEB128);
+
+      exp_dup->X_add_symbol = exp->X_add_symbol;
+      /* Insert relocations to resolve the subtraction at link-time.  */
+      fix_new_exp (fragP, fragP->fr_fix, 0,
+		   exp_dup, 0, BFD_RELOC_MSP430_SET_ULEB128);
+
+    }
+}
+
+/* Called after all assembly has been done.  */
 void
 msp430_md_end (void)
 {
@@ -5060,6 +5120,10 @@ msp430_md_end (void)
       else if (warn_interrupt_nops)
 	as_warn (_(WARN_NOP_AT_EOF));
     }
+
+  /* Insert relocations for uleb128 directives, so the values can be recomputed
+     at link time.  */
+  bfd_map_over_sections (stdoutput, msp430_insert_uleb128_fixes, NULL);
 
   /* We have already emitted an error if any of the following attributes
      disagree with the attributes in the input assembly file.  See

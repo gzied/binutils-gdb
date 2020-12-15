@@ -1,5 +1,5 @@
 /* Run a function on the main thread
-   Copyright (C) 2019 Free Software Foundation, Inc.
+   Copyright (C) 2019-2020 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -22,7 +22,7 @@
 #if CXX_STD_THREAD
 #include <mutex>
 #endif
-#include "event-loop.h"
+#include "gdbsupport/event-loop.h"
 
 /* The serial event used when posting runnables.  */
 
@@ -89,9 +89,11 @@ run_on_main_thread (std::function<void ()> &&func)
   serial_event_set (runnable_event);
 }
 
+void _initialize_run_on_main_thread ();
 void
 _initialize_run_on_main_thread ()
 {
   runnable_event = make_serial_event ();
-  add_file_handler (serial_event_fd (runnable_event), run_events, nullptr);
+  add_file_handler (serial_event_fd (runnable_event), run_events, nullptr,
+		    "run-on-main-thread");
 }

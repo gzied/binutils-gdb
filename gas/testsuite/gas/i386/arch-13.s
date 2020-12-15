@@ -38,5 +38,9 @@
 # rdpru instruction
 	rdpru
 
+# vmgexit instruction
+	vmgexit
+	repne; vmmcall # vmgexit alternative encoding
+
 # wbnoinvd instruction
 	wbnoinvd

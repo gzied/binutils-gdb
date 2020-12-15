@@ -1,6 +1,6 @@
 /* GNU/Linux native-dependent code for debugging multiple forks.
 
-   Copyright (C) 2005-2019 Free Software Foundation, Inc.
+   Copyright (C) 2005-2020 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -61,8 +61,8 @@ struct fork_info
 
     if (savedregs)
       delete savedregs;
-    if (filepos)
-      xfree (filepos);
+
+    xfree (filepos);
   }
 
   ptid_t ptid = null_ptid;
@@ -110,8 +110,7 @@ find_last_fork (void)
 static bool
 one_fork_p ()
 {
-  return (!fork_list.empty ()
-	  && &fork_list.front () == &fork_list.back ());
+  return fork_list.size () == 1;
 }
 
 /* Add a new fork to the internal fork list.  */
@@ -215,7 +214,6 @@ call_lseek (int fd, off_t offset, int whence)
 static void
 fork_load_infrun_state (struct fork_info *fp)
 {
-  extern void nullify_last_target_wait_ptid ();
   int i;
 
   linux_nat_switch_fork (fp->ptid);
@@ -520,12 +518,12 @@ Please switch to another checkpoint before deleting the current one"));
      list, waitpid the ptid.
      If fi->parent_ptid is a part of lwp and it is stopped, waitpid the
      ptid.  */
-  thread_info *parent = find_thread_ptid (pptid);
+  thread_info *parent = find_thread_ptid (linux_target, pptid);
   if ((parent == NULL && find_fork_ptid (pptid))
       || (parent != NULL && parent->state == THREAD_STOPPED))
     {
       if (inferior_call_waitpid (pptid, ptid.pid ()))
-        warning (_("Unable to wait pid %s"),
+	warning (_("Unable to wait pid %s"),
 		 target_pid_to_str (ptid).c_str ());
     }
 }
@@ -647,7 +645,7 @@ checkpoint_command (const char *args, int from_tty)
   struct fork_info *fp;
   pid_t retpid;
 
-  if (!target_has_execution) 
+  if (!target_has_execution ()) 
     error (_("The program is not being run."));
 
   /* Ensure that the inferior is not multithreaded.  */
@@ -665,7 +663,7 @@ checkpoint_command (const char *args, int from_tty)
   if (!fork_fn)
     error (_("checkpoint: can't find fork function in inferior."));
 
-  gdbarch = get_objfile_arch (fork_objf);
+  gdbarch = fork_objf->arch ();
   ret = value_from_longest (builtin_type (gdbarch)->builtin_int, 0);
 
   /* Tell linux-nat.c that we're checkpointing this inferior.  */
@@ -680,7 +678,7 @@ checkpoint_command (const char *args, int from_tty)
     error (_("checkpoint: call_function_by_hand returned null."));
 
   retpid = value_as_long (ret);
-  get_last_target_status (&last_target_ptid, &last_target_waitstatus);
+  get_last_target_status (nullptr, &last_target_ptid, &last_target_waitstatus);
 
   fp = find_fork_pid (retpid);
 
@@ -752,8 +750,9 @@ restart_command (const char *args, int from_tty)
   linux_fork_context (fp, from_tty);
 }
 
+void _initialize_linux_fork ();
 void
-_initialize_linux_fork (void)
+_initialize_linux_fork ()
 {
   /* Checkpoint command: create a fork of the inferior process
      and set it aside for later debugging.  */

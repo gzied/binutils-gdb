@@ -1,6 +1,6 @@
 /* Xtensa GNU/Linux native support.
 
-   Copyright (C) 2007-2019 Free Software Foundation, Inc.
+   Copyright (C) 2007-2020 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -313,7 +313,7 @@ xtensa_linux_nat_target::store_registers (struct regcache *regcache,
 
 ps_err_e
 ps_get_thread_area (struct ps_prochandle *ph,
-                    lwpid_t lwpid, int idx, void **base)
+		    lwpid_t lwpid, int idx, void **base)
 {
   xtensa_elf_gregset_t regs;
 
@@ -328,8 +328,9 @@ ps_get_thread_area (struct ps_prochandle *ph,
   return PS_OK;
 }
 
+void _initialize_xtensa_linux_nat ();
 void
-_initialize_xtensa_linux_nat (void)
+_initialize_xtensa_linux_nat ()
 {
   const xtensa_regtable_t *ptr;
 

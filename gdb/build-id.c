@@ -1,6 +1,6 @@
 /* build-id-related functions.
 
-   Copyright (C) 1991-2019 Free Software Foundation, Inc.
+   Copyright (C) 1991-2020 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -32,7 +32,8 @@
 const struct bfd_build_id *
 build_id_bfd_get (bfd *abfd)
 {
-  if (!bfd_check_format (abfd, bfd_object))
+  if (!bfd_check_format (abfd, bfd_object)
+      && !bfd_check_format (abfd, bfd_core))
     return NULL;
 
   if (abfd->build_id != NULL)
@@ -56,7 +57,7 @@ build_id_verify (bfd *abfd, size_t check_len, const bfd_byte *check)
     warning (_("File \"%s\" has no build-id, file skipped"),
 	     bfd_get_filename (abfd));
   else if (found->size != check_len
-           || memcmp (found->data, check, found->size) != 0)
+	   || memcmp (found->data, check, found->size) != 0)
     warning (_("File \"%s\" has a different build-id, file skipped"),
 	     bfd_get_filename (abfd));
   else
@@ -93,7 +94,7 @@ build_id_to_debug_bfd_1 (const std::string &link, size_t build_id_len,
     }
 
   /* We expect to be silent on the non-existing files.  */
-  gdb_bfd_ref_ptr debug_bfd = gdb_bfd_open (filename.get (), gnutarget, -1);
+  gdb_bfd_ref_ptr debug_bfd = gdb_bfd_open (filename.get (), gnutarget);
 
   if (debug_bfd == NULL)
     {
@@ -117,10 +118,13 @@ build_id_to_debug_bfd_1 (const std::string &link, size_t build_id_len,
   return debug_bfd;
 }
 
-/* See build-id.h.  */
+/* Common code for finding BFDs of a given build-id.  This function
+   works with both debuginfo files (SUFFIX == ".debug") and executable
+   files (SUFFIX == "").  */
 
-gdb_bfd_ref_ptr
-build_id_to_debug_bfd (size_t build_id_len, const bfd_byte *build_id)
+static gdb_bfd_ref_ptr
+build_id_to_bfd_suffix (size_t build_id_len, const bfd_byte *build_id,
+			const char *suffix)
 {
   /* Keep backward compatibility so that DEBUG_FILE_DIRECTORY being "" will
      cause "/.build-id/..." lookups.  */
@@ -136,7 +140,7 @@ build_id_to_debug_bfd (size_t build_id_len, const bfd_byte *build_id)
       /* Compute where the file named after the build-id would be.
 
 	 If debugdir is "/usr/lib/debug" and the build-id is abcdef, this will
-         give "/usr/lib/debug/.build-id/ab/cdef.debug".  */
+	 give "/usr/lib/debug/.build-id/ab/cdef.debug".  */
       std::string link = debugdir.get ();
       link += "/.build-id/";
 
@@ -149,7 +153,7 @@ build_id_to_debug_bfd (size_t build_id_len, const bfd_byte *build_id)
       while (size-- > 0)
 	string_appendf (link, "%02x", (unsigned) *data++);
 
-      link += ".debug";
+      link += suffix;
 
       gdb_bfd_ref_ptr debug_bfd
 	= build_id_to_debug_bfd_1 (link, build_id_len, build_id);
@@ -157,12 +161,12 @@ build_id_to_debug_bfd (size_t build_id_len, const bfd_byte *build_id)
 	return debug_bfd;
 
       /* Try to look under the sysroot as well.  If the sysroot is
-         "/the/sysroot", it will give
-         "/the/sysroot/usr/lib/debug/.build-id/ab/cdef.debug".
+	 "/the/sysroot", it will give
+	 "/the/sysroot/usr/lib/debug/.build-id/ab/cdef.debug".
 
-         Don't do it if the sysroot is the target system ("target:").  It
-         could work in theory, but the lrealpath in build_id_to_debug_bfd_1
-         only works with local paths.  */
+	 Don't do it if the sysroot is the target system ("target:").  It
+	 could work in theory, but the lrealpath in build_id_to_debug_bfd_1
+	 only works with local paths.  */
       if (strcmp (gdb_sysroot, TARGET_SYSROOT_PREFIX) != 0)
 	{
 	  link = gdb_sysroot + link;
@@ -173,6 +177,22 @@ build_id_to_debug_bfd (size_t build_id_len, const bfd_byte *build_id)
     }
 
   return {};
+}
+
+/* See build-id.h.  */
+
+gdb_bfd_ref_ptr
+build_id_to_debug_bfd (size_t build_id_len, const bfd_byte *build_id)
+{
+  return build_id_to_bfd_suffix (build_id_len, build_id, ".debug");
+}
+
+/* See build-id.h.  */
+
+gdb_bfd_ref_ptr
+build_id_to_exec_bfd (size_t build_id_len, const bfd_byte *build_id)
+{
+  return build_id_to_bfd_suffix (build_id_len, build_id, "");
 }
 
 /* See build-id.h.  */

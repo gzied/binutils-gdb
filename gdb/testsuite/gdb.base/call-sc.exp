@@ -1,6 +1,6 @@
 # This testcase is part of GDB, the GNU debugger.
 
-# Copyright 2004-2019 Free Software Foundation, Inc.
+# Copyright 2004-2020 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -55,20 +55,9 @@ proc start_scalars_test { type } {
     set testfile "call-sc-${type}"
 
     set binfile [standard_output_file ${testfile}]
-    if  { [gdb_compile "${srcdir}/${subdir}/${srcfile}" "${binfile}" executable "${flags}"] != "" } {
-	# built the second test case since we can't use prototypes
-	warning "Prototypes not supported, rebuilding with -DNO_PROTOTYPES"
-	if  { [gdb_compile "${srcdir}/${subdir}/${srcfile}" "${binfile}" executable "${flags} additional_flags=-DNO_PROTOTYPES"] != "" } {
-	    untested "failed to compile"
-	    return -1
-	}
+    if { [prepare_for_testing "failed to prepare" $binfile $srcfile $flags] } {
+	return -1
     }
-
-    # Start with a fresh gdb.
-    gdb_exit
-    gdb_start
-    gdb_reinitialize_dir $srcdir/$subdir
-    gdb_load ${binfile}
 
     # Make certain that the output is consistent
     with_test_prefix "testfile=$testfile" {
@@ -284,6 +273,19 @@ proc test_scalar_returns { } {
 		# would be by reference, and that can't happen, the
 		# value should be unmodified and hence Z is expected.
 		# Is this a reasonable assumption?
+		pass "${test}"
+	    } else {
+		# This contradicts the above claim that GDB knew
+		# the location of the return-value.
+		fail "${test}"
+	    }
+	}
+	-re " = 57 .*${gdb_prompt} $" {
+	    if $return_value_unknown {
+		# The struct return case.
+		# The return value is stored on the stack, and since GDB
+		# didn't override it, it still has value that was stored
+		# there in the earlier Foo(init) call.
 		pass "${test}"
 	    } else {
 		# This contradicts the above claim that GDB knew

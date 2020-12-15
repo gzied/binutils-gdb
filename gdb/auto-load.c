@@ -1,6 +1,6 @@
 /* GDB routines for supporting auto-loaded scripts.
 
-   Copyright (C) 2012-2019 Free Software Foundation, Inc.
+   Copyright (C) 2012-2020 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -364,7 +364,7 @@ filename_is_in_pattern_1 (char *filename, char *pattern)
   for (;;)
     {
       /* Trim trailing slashes ("/").  PATTERN also has slashes trimmed the
-         same way so they will match.  */
+	 same way so they will match.  */
       while (filename_len && IS_DIR_SEPARATOR (filename[filename_len - 1]))
 	filename_len--;
       filename[filename_len] = '\0';
@@ -498,11 +498,26 @@ file_is_auto_load_safe (const char *filename, const char *debug_fmt, ...)
 
   if (!advice_printed)
     {
-      const char *homedir = getenv ("HOME");
-
-      if (homedir == NULL)
-	homedir = "$HOME";
-      std::string homeinit = string_printf ("%s/%s", homedir, GDBINIT);
+      /* Find the existing home directory config file.  */
+      struct stat buf;
+      std::string home_config = find_gdb_home_config_file (GDBINIT, &buf);
+      if (home_config.empty ())
+	{
+	  /* The user doesn't have an existing home directory config file,
+	     so we should suggest a suitable path for them to use.  */
+	  std::string config_dir_file
+	    = get_standard_config_filename (GDBINIT);
+	  if (!config_dir_file.empty ())
+	    home_config = config_dir_file;
+	  else
+	    {
+	      const char *homedir = getenv ("HOME");
+	      if (homedir == nullptr)
+		homedir = "$HOME";
+	      home_config = (std::string (homedir) + SLASH_STRING
+			     + std::string (GDBINIT));
+	    }
+	}
 
       printf_filtered (_("\
 To enable execution of this file add\n\
@@ -515,7 +530,7 @@ For more information about this security protection see the\n\
 \"Auto-loading safe path\" section in the GDB manual.  E.g., run from the shell:\n\
 \tinfo \"(gdb)Auto-loading safe path\"\n"),
 		       filename_real.get (),
-		       homeinit.c_str (), homeinit.c_str ());
+		       home_config.c_str (), home_config.c_str ());
       advice_printed = 1;
     }
 
@@ -529,13 +544,10 @@ For more information about this security protection see the\n\
 
 struct auto_load_pspace_info
 {
-  auto_load_pspace_info () = default;
-  ~auto_load_pspace_info ();
-
   /* For each program space we keep track of loaded scripts, both when
      specified as file names and as scripts to be executed directly.  */
-  struct htab *loaded_script_files = nullptr;
-  struct htab *loaded_script_texts = nullptr;
+  htab_up loaded_script_files;
+  htab_up loaded_script_texts;
 
   /* Non-zero if we've issued the warning about an auto-load script not being
      supported.  We only want to issue this warning once.  */
@@ -566,14 +578,6 @@ struct loaded_script
 /* Per-program-space data key.  */
 static const struct program_space_key<struct auto_load_pspace_info>
   auto_load_pspace_data;
-
-auto_load_pspace_info::~auto_load_pspace_info ()
-{
-  if (loaded_script_files)
-    htab_delete (loaded_script_files);
-  if (loaded_script_texts)
-    htab_delete (loaded_script_texts);
-}
 
 /* Get the current autoload data.  If none is found yet, add it now.  This
    function always returns a valid object.  */
@@ -621,14 +625,16 @@ init_loaded_scripts_info (struct auto_load_pspace_info *pspace_info)
      Space for each entry is obtained with one malloc so we can free them
      easily.  */
 
-  pspace_info->loaded_script_files = htab_create (31,
-						  hash_loaded_script_entry,
-						  eq_loaded_script_entry,
-						  xfree);
-  pspace_info->loaded_script_texts = htab_create (31,
-						  hash_loaded_script_entry,
-						  eq_loaded_script_entry,
-						  xfree);
+  pspace_info->loaded_script_files.reset
+    (htab_create (31,
+		  hash_loaded_script_entry,
+		  eq_loaded_script_entry,
+		  xfree));
+  pspace_info->loaded_script_texts.reset
+    (htab_create (31,
+		  hash_loaded_script_entry,
+		  eq_loaded_script_entry,
+		  xfree));
 
   pspace_info->unsupported_script_warning_printed = false;
   pspace_info->script_not_found_warning_printed = false;
@@ -660,7 +666,7 @@ maybe_add_script_file (struct auto_load_pspace_info *pspace_info, int loaded,
 		       const char *name, const char *full_path,
 		       const struct extension_language_defn *language)
 {
-  struct htab *htab = pspace_info->loaded_script_files;
+  struct htab *htab = pspace_info->loaded_script_files.get ();
   struct loaded_script **slot, entry;
   int in_hash_table;
 
@@ -708,7 +714,7 @@ maybe_add_script_text (struct auto_load_pspace_info *pspace_info,
 		       int loaded, const char *name,
 		       const struct extension_language_defn *language)
 {
-  struct htab *htab = pspace_info->loaded_script_texts;
+  struct htab *htab = pspace_info->loaded_script_texts.get ();
   struct loaded_script **slot, entry;
   int in_hash_table;
 
@@ -783,6 +789,11 @@ auto_load_objfile_script_1 (struct objfile *objfile, const char *realname,
 	fprintf_unfiltered (gdb_stdlog, _("auto-load: Searching 'set auto-load "
 					  "scripts-directory' path \"%s\".\n"),
 			    auto_load_dir);
+
+      /* Convert Windows file name from c:/dir/file to /c/dir/file.  */
+      if (HAS_DRIVE_SPEC (debugfile))
+	filename = (std::string("\\") + debugfile[0]
+		    + STRIP_DRIVE_SPEC (debugfile));
 
       for (const gdb::unique_xmalloc_ptr<char> &dir : vec)
 	{
@@ -1292,7 +1303,7 @@ auto_load_info_scripts (const char *pattern, int from_tty,
       collect_matching_scripts_data data (&script_files, language);
 
       /* Pass a pointer to scripts as VEC_safe_push can realloc space.  */
-      htab_traverse_noresize (pspace_info->loaded_script_files,
+      htab_traverse_noresize (pspace_info->loaded_script_files.get (),
 			      collect_matching_scripts, &data);
 
       std::sort (script_files.begin (), script_files.end (),
@@ -1304,7 +1315,7 @@ auto_load_info_scripts (const char *pattern, int from_tty,
       collect_matching_scripts_data data (&script_texts, language);
 
       /* Pass a pointer to scripts as VEC_safe_push can realloc space.  */
-      htab_traverse_noresize (pspace_info->loaded_script_texts,
+      htab_traverse_noresize (pspace_info->loaded_script_texts.get (),
 			      collect_matching_scripts, &data);
 
       std::sort (script_texts.begin (), script_texts.end (),
@@ -1460,15 +1471,6 @@ automatic loading of Python scripts."),
   return &retval;
 }
 
-/* Command "show auto-load" displays summary of all the current
-   "show auto-load " settings.  */
-
-static void
-show_auto_load_cmd (const char *args, int from_tty)
-{
-  cmd_show_list (*auto_load_show_cmdlist_get (), from_tty, "");
-}
-
 /* Initialize "show auto-load " commands prefix and return it.  */
 
 struct cmd_list_element **
@@ -1477,12 +1479,12 @@ auto_load_show_cmdlist_get (void)
   static struct cmd_list_element *retval;
 
   if (retval == NULL)
-    add_prefix_cmd ("auto-load", class_maintenance, show_auto_load_cmd, _("\
+    add_show_prefix_cmd ("auto-load", class_maintenance, _("\
 Show auto-loading specific settings.\n\
 Show configuration of various auto-load-specific variables such as\n\
 automatic loading of Python scripts."),
-		    &retval, "show auto-load ",
-		    0/*allow-unknown*/, &showlist);
+			 &retval, "show auto-load ",
+			 0/*allow-unknown*/, &showlist);
 
   return &retval;
 }
@@ -1530,8 +1532,9 @@ found and/or loaded."),
   return &retval;
 }
 
+void _initialize_auto_load ();
 void
-_initialize_auto_load (void)
+_initialize_auto_load ()
 {
   struct cmd_list_element *cmd;
   char *scripts_directory_help, *gdb_name_help, *python_name_help;

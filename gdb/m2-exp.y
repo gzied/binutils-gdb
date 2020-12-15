@@ -1,5 +1,5 @@
 /* YACC grammar for Modula-2 expressions, for GDB.
-   Copyright (C) 1986-2019 Free Software Foundation, Inc.
+   Copyright (C) 1986-2020 Free Software Foundation, Inc.
    Generated from expread.y (now c-exp.y) and contributed by the Department
    of Computer Science at the State University of New York at Buffalo, 1991.
 
@@ -162,7 +162,7 @@ type_exp:	type
 /* Expressions */
 
 exp     :       exp '^'   %prec UNARY
-                        { write_exp_elt_opcode (pstate, UNOP_IND); }
+			{ write_exp_elt_opcode (pstate, UNOP_IND); }
 	;
 
 exp	:	'-'
@@ -293,21 +293,20 @@ set	:	'{' arglist '}'
 	;
 
 
-/* Modula-2 array subscript notation [a,b,c...] */
+/* Modula-2 array subscript notation [a,b,c...].  */
 exp     :       exp '['
-                        /* This function just saves the number of arguments
+			/* This function just saves the number of arguments
 			   that follow in the list.  It is *not* specific to
 			   function types */
-                        { pstate->start_arglist(); }
-                non_empty_arglist ']'  %prec DOT
-                        { write_exp_elt_opcode (pstate, MULTI_SUBSCRIPT);
+			{ pstate->start_arglist(); }
+		non_empty_arglist ']'  %prec DOT
+			{
+			  gdb_assert (pstate->arglist_len > 0);
+			  write_exp_elt_opcode (pstate, MULTI_SUBSCRIPT);
 			  write_exp_elt_longcst (pstate,
 						 pstate->end_arglist());
-			  write_exp_elt_opcode (pstate, MULTI_SUBSCRIPT); }
-        ;
-
-exp	:	exp '[' exp ']'
-			{ write_exp_elt_opcode (pstate, BINOP_SUBSCRIPT); }
+			  write_exp_elt_opcode (pstate, MULTI_SUBSCRIPT);
+			}
 	;
 
 exp	:	exp '('
@@ -333,12 +332,12 @@ arglist	:	arglist ',' exp   %prec ABOVE_COMMA
 	;
 
 non_empty_arglist
-        :       exp
-                        { pstate->arglist_len = 1; }
+	:       exp
+			{ pstate->arglist_len = 1; }
 	;
 
 non_empty_arglist
-        :       non_empty_arglist ',' exp %prec ABOVE_COMMA
+	:       non_empty_arglist ',' exp %prec ABOVE_COMMA
      	       	    	{ pstate->arglist_len++; }
      	;
 
@@ -350,7 +349,7 @@ exp	:	'{' type '}' exp  %prec UNARY
 	;
 
 exp     :       type '(' exp ')' %prec UNARY
-                        { write_exp_elt_opcode (pstate, UNOP_CAST);
+			{ write_exp_elt_opcode (pstate, UNOP_CAST);
 			  write_exp_elt_type (pstate, $1);
 			  write_exp_elt_opcode (pstate, UNOP_CAST); }
 	;
@@ -376,8 +375,8 @@ exp	:	exp '/' exp
 	;
 
 exp     :       exp DIV exp
-                        { write_exp_elt_opcode (pstate, BINOP_INTDIV); }
-        ;
+			{ write_exp_elt_opcode (pstate, BINOP_INTDIV); }
+	;
 
 exp	:	exp MOD exp
 			{ write_exp_elt_opcode (pstate, BINOP_REM); }
@@ -397,8 +396,8 @@ exp	:	exp '=' exp
 
 exp	:	exp NOTEQUAL exp
 			{ write_exp_elt_opcode (pstate, BINOP_NOTEQUAL); }
-        |       exp '#' exp
-                        { write_exp_elt_opcode (pstate, BINOP_NOTEQUAL); }
+	|       exp '#' exp
+			{ write_exp_elt_opcode (pstate, BINOP_NOTEQUAL); }
 	;
 
 exp	:	exp LEQ exp
@@ -599,7 +598,6 @@ type
 	:	TYPENAME
 			{ $$
 			    = lookup_typename (pstate->language (),
-					       pstate->gdbarch (),
 					       copy_name ($1).c_str (),
 					       pstate->expression_context_block,
 					       0);
@@ -910,7 +908,7 @@ yylex (void)
 	    break;
 	}
 	toktype = parse_number (p - tokstart);
-        if (toktype == ERROR)
+	if (toktype == ERROR)
 	  {
 	    char *err_copy = (char *) alloca (p - tokstart + 1);
 
@@ -974,7 +972,7 @@ yylex (void)
 			 VAR_DOMAIN, 0).symbol;
     if (sym && SYMBOL_CLASS (sym) == LOC_BLOCK)
       return BLOCKNAME;
-    if (lookup_typename (pstate->language (), pstate->gdbarch (),
+    if (lookup_typename (pstate->language (),
 			 tmp.c_str (), pstate->expression_context_block, 1))
       return TYPENAME;
 
@@ -1033,7 +1031,7 @@ yylex (void)
 }
 
 int
-m2_parse (struct parser_state *par_state)
+m2_language::parser (struct parser_state *par_state) const
 {
   /* Setting up the parser state.  */
   scoped_restore pstate_restore = make_scoped_restore (&pstate);

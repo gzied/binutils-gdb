@@ -1,6 +1,6 @@
 /* Native-dependent code for FreeBSD/aarch64.
 
-   Copyright (C) 2017-2019 Free Software Foundation, Inc.
+   Copyright (C) 2017-2020 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -124,8 +124,9 @@ aarch64_fbsd_nat_target::store_registers (struct regcache *regcache,
     }
 }
 
+void _initialize_aarch64_fbsd_nat ();
 void
-_initialize_aarch64_fbsd_nat (void)
+_initialize_aarch64_fbsd_nat ()
 {
   add_inf_child_target (&the_aarch64_fbsd_nat_target);
 }

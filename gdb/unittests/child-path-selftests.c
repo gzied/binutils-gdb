@@ -1,6 +1,6 @@
 /* Self tests for child_path for GDB, the GNU debugger.
 
-   Copyright (C) 2019 Free Software Foundation, Inc.
+   Copyright (C) 2019-2020 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -59,6 +59,7 @@ test ()
 }
 }
 
+void _initialize_child_path_selftests ();
 void
 _initialize_child_path_selftests ()
 {

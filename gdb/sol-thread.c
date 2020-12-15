@@ -1,6 +1,6 @@
 /* Solaris threads debugging interface.
 
-   Copyright (C) 1996-2019 Free Software Foundation, Inc.
+   Copyright (C) 1996-2020 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -84,7 +84,7 @@ public:
   strata stratum () const override { return thread_stratum; }
 
   void detach (inferior *, int) override;
-  ptid_t wait (ptid_t, struct target_waitstatus *, int) override;
+  ptid_t wait (ptid_t, struct target_waitstatus *, target_wait_flags) override;
   void resume (ptid_t, int, enum gdb_signal) override;
   void mourn_inferior () override;
   std::string pid_to_str (ptid_t) override;
@@ -425,18 +425,8 @@ sol_thread_target::resume (ptid_t ptid, int step, enum gdb_signal signo)
 
 ptid_t
 sol_thread_target::wait (ptid_t ptid, struct target_waitstatus *ourstatus,
-			 int options)
+			 target_wait_flags options)
 {
-  ptid_t rtnval;
-  ptid_t save_ptid;
-
-  save_ptid = inferior_ptid;
-  scoped_restore save_inferior_ptid = make_scoped_restore (&inferior_ptid);
-
-  inferior_ptid = thread_to_lwp (inferior_ptid, main_ph.ptid.pid ());
-  if (inferior_ptid.pid () == -1)
-    inferior_ptid = procfs_first_available ();
-
   if (ptid.pid () != -1)
     {
       ptid_t ptid_for_warning = ptid;
@@ -449,21 +439,25 @@ sol_thread_target::wait (ptid_t ptid, struct target_waitstatus *ourstatus,
 		 ptid_for_warning.tid ());
     }
 
-  rtnval = beneath ()->wait (ptid, ourstatus, options);
+  ptid_t rtnval = beneath ()->wait (ptid, ourstatus, options);
 
   if (ourstatus->kind != TARGET_WAITKIND_EXITED)
     {
       /* Map the LWP of interest back to the appropriate thread ID.  */
-      rtnval = lwp_to_thread (rtnval);
-      if (rtnval.pid () == -1)
-	rtnval = save_ptid;
+      ptid_t thr_ptid = lwp_to_thread (rtnval);
+      if (thr_ptid.pid () != -1)
+	rtnval = thr_ptid;
 
       /* See if we have a new thread.  */
-      if (rtnval.tid_p () && rtnval != save_ptid)
+      if (rtnval.tid_p ())
 	{
-	  thread_info *thr = find_thread_ptid (rtnval);
+	  thread_info *thr = find_thread_ptid (current_inferior (), rtnval);
 	  if (thr == NULL || thr->state == THREAD_EXITED)
-	    add_thread (rtnval);
+	    {
+	      process_stratum_target *proc_target
+		= current_inferior ()->process_target ();
+	      add_thread (proc_target, rtnval);
+	    }
 	}
     }
 
@@ -594,7 +588,7 @@ sol_thread_target::xfer_partial (enum target_object object,
   if (inferior_ptid.tid_p () || !target_thread_alive (inferior_ptid))
     {
       /* It's either a thread or an LWP that isn't alive.  Any live
-         LWP will do so use the first available.
+	 LWP will do so use the first available.
 
 	 NOTE: We don't need to call switch_to_thread; we're just
 	 reading memory.  */
@@ -790,7 +784,7 @@ rw_common (int dowrite, const struct ps_prochandle *ph, psaddr_t addr,
   if (inferior_ptid.tid_p () || !target_thread_alive (inferior_ptid))
     {
       /* It's either a thread or an LWP that isn't alive.  Any live
-         LWP will do so use the first available.
+	 LWP will do so use the first available.
 
 	 NOTE: We don't need to call switch_to_thread; we're just
 	 reading memory.  */
@@ -800,7 +794,7 @@ rw_common (int dowrite, const struct ps_prochandle *ph, psaddr_t addr,
 #if defined (__sparcv9)
   /* For Sparc64 cross Sparc32, make sure the address has not been
      accidentally sign-extended (or whatever) to beyond 32 bits.  */
-  if (bfd_get_arch_size (exec_bfd) == 32)
+  if (bfd_get_arch_size (current_program_space->exec_bfd ()) == 32)
     addr &= 0xffffffff;
 #endif
 
@@ -851,9 +845,10 @@ ps_ptwrite (struct ps_prochandle *ph, psaddr_t addr,
 ps_err_e
 ps_lgetregs (struct ps_prochandle *ph, lwpid_t lwpid, prgregset_t gregset)
 {
-  ptid_t ptid = ptid_t (inferior_ptid.pid (), lwpid, 0);
+  ptid_t ptid = ptid_t (current_inferior ()->pid, lwpid, 0);
   struct regcache *regcache
-    = get_thread_arch_regcache (ptid, target_gdbarch ());
+    = get_thread_arch_regcache (current_inferior ()->process_target (),
+				ptid, target_gdbarch ());
 
   target_fetch_registers (regcache, -1);
   fill_gregset (regcache, (gdb_gregset_t *) gregset, -1);
@@ -867,9 +862,10 @@ ps_err_e
 ps_lsetregs (struct ps_prochandle *ph, lwpid_t lwpid,
 	     const prgregset_t gregset)
 {
-  ptid_t ptid = ptid_t (inferior_ptid.pid (), lwpid, 0);
+  ptid_t ptid = ptid_t (current_inferior ()->pid, lwpid, 0);
   struct regcache *regcache
-    = get_thread_arch_regcache (ptid, target_gdbarch ());
+    = get_thread_arch_regcache (current_inferior ()->process_target (),
+				ptid, target_gdbarch ());
 
   supply_gregset (regcache, (const gdb_gregset_t *) gregset);
   target_store_registers (regcache, -1);
@@ -919,9 +915,10 @@ ps_err_e
 ps_lgetfpregs (struct ps_prochandle *ph, lwpid_t lwpid,
 	       prfpregset_t *fpregset)
 {
-  ptid_t ptid = ptid_t (inferior_ptid.pid (), lwpid, 0);
+  ptid_t ptid = ptid_t (current_inferior ()->pid, lwpid, 0);
   struct regcache *regcache
-    = get_thread_arch_regcache (ptid, target_gdbarch ());
+    = get_thread_arch_regcache (current_inferior ()->process_target (),
+				ptid, target_gdbarch ());
 
   target_fetch_registers (regcache, -1);
   fill_fpregset (regcache, (gdb_fpregset_t *) fpregset, -1);
@@ -935,9 +932,10 @@ ps_err_e
 ps_lsetfpregs (struct ps_prochandle *ph, lwpid_t lwpid,
 	       const prfpregset_t * fpregset)
 {
-  ptid_t ptid = ptid_t (inferior_ptid.pid (), lwpid, 0);
+  ptid_t ptid = ptid_t (current_inferior ()->pid, lwpid, 0);
   struct regcache *regcache
-    = get_thread_arch_regcache (ptid, target_gdbarch ());
+    = get_thread_arch_regcache (current_inferior ()->process_target (),
+				ptid, target_gdbarch ());
 
   supply_fpregset (regcache, (const gdb_fpregset_t *) fpregset);
   target_store_registers (regcache, -1);
@@ -952,47 +950,15 @@ ps_lsetfpregs (struct ps_prochandle *ph, lwpid_t lwpid,
 ps_err_e
 ps_pdmodel (struct ps_prochandle *ph, int *data_model)
 {
-  if (exec_bfd == 0)
+  if (current_program_space->exec_bfd () == 0)
     *data_model = PR_MODEL_UNKNOWN;
-  else if (bfd_get_arch_size (exec_bfd) == 32)
+  else if (bfd_get_arch_size (current_program_space->exec_bfd ()) == 32)
     *data_model = PR_MODEL_ILP32;
   else
     *data_model = PR_MODEL_LP64;
 
   return PS_OK;
 }
-
-#if (defined(__i386__) || defined(__x86_64__)) && defined (sun)
-
-/* Reads the local descriptor table of a LWP.
-
-   This function is necessary on x86-solaris only.  Without it, the loading
-   of libthread_db would fail because of ps_lgetLDT being undefined.  */
-
-ps_err_e
-ps_lgetLDT (struct ps_prochandle *ph, lwpid_t lwpid, struct ssd *pldt)	/* ARI: editCase function */
-{
-  /* NOTE: only used on Solaris, therefore OK to refer to procfs.c.  */
-  struct ssd *ret;
-
-  /* FIXME: can't I get the process ID from the prochandle or
-     something?  */
-
-  if (inferior_ptid.pid () <= 0 || lwpid <= 0)
-    return PS_BADLID;
-
-  ret = procfs_find_LDT_entry (ptid_t (inferior_ptid.pid (),
-			       lwpid, 0));
-  if (ret)
-    {
-      memcpy (pldt, ret, sizeof (struct ssd));
-      return PS_OK;
-    }
-  else
-    /* LDT not found.  */
-    return PS_ERR;
-}
-#endif
 
 
 /* Convert PTID to printable form.  */
@@ -1036,10 +1002,14 @@ sol_update_thread_list_callback (const td_thrhandle_t *th, void *ignored)
   if (retval != TD_OK)
     return -1;
 
-  ptid_t ptid = ptid_t (inferior_ptid.pid (), 0, ti.ti_tid);
-  thread_info *thr = find_thread_ptid (ptid);
+  ptid_t ptid = ptid_t (current_inferior ()->pid, 0, ti.ti_tid);
+  thread_info *thr = find_thread_ptid (current_inferior (), ptid);
   if (thr == NULL || thr->state == THREAD_EXITED)
-    add_thread (ptid);
+    {
+      process_stratum_target *proc_target
+	= current_inferior ()->process_target ();
+      add_thread (proc_target, ptid);
+    }
 
   return 0;
 }
@@ -1167,10 +1137,10 @@ sol_thread_target::get_ada_task_ptid (long lwp, long thread)
   if (thread_info == NULL)
     {
       /* The list of threads is probably not up to date.  Find any
-         thread that is missing from the list, and try again.  */
+	 thread that is missing from the list, and try again.  */
       update_thread_list ();
       thread_info = iterate_over_threads (thread_db_find_thread_from_tid,
-                                          &thread);
+					  &thread);
     }
 
   gdb_assert (thread_info != NULL);
@@ -1178,8 +1148,9 @@ sol_thread_target::get_ada_task_ptid (long lwp, long thread)
   return (thread_info->ptid);
 }
 
+void _initialize_sol_thread ();
 void
-_initialize_sol_thread (void)
+_initialize_sol_thread ()
 {
   void *dlhandle;
 

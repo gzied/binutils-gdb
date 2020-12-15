@@ -1,5 +1,5 @@
 /* addr2line.c -- convert addresses to line number and function name
-   Copyright (C) 1997-2019 Free Software Foundation, Inc.
+   Copyright (C) 1997-2020 Free Software Foundation, Inc.
    Contributed by Ulrich Lauther <Ulrich.Lauther@mchp.siemens.de>
 
    This file is part of GNU Binutils.
@@ -314,8 +314,7 @@ translate_addresses (bfd *abfd, asection *section)
                   else
                     printf ("\n");
 
-                  if (alloc != NULL)
-                    free (alloc);
+		  free (alloc);
                 }
 
               if (base_names && filename != NULL)
@@ -410,11 +409,8 @@ process_file (const char *file_name, const char *section_name,
 
   translate_addresses (abfd, section);
 
-  if (syms != NULL)
-    {
-      free (syms);
-      syms = NULL;
-    }
+  free (syms);
+  syms = NULL;
 
   bfd_close (abfd);
 

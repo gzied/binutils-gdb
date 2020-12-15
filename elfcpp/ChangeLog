@@ -1,61 +1,73 @@
-2019-09-09  Phil Blundell  <pb@pbcl.net>
+2020-10-13  H.J. Lu  <hongjiu.lu@intel.com>
 
-	binutils 2.33 branch created.
+	* elfcpp.h (GNU_PROPERTY_X86_ISA_1_USED): Renamed to ...
+	(GNU_PROPERTY_X86_COMPAT_ISA_1_USED): This.
+	(GNU_PROPERTY_X86_ISA_1_NEEDED): Renamed to ...
+	(GNU_PROPERTY_X86_COMPAT_ISA_1_NEEDED): This.
+	(GNU_PROPERTY_X86_UINT32_AND_LO): New.
+	(GNU_PROPERTY_X86_UINT32_AND_HI): Likewise.
+	(GNU_PROPERTY_X86_UINT32_OR_LO): Likewise.
+	(GNU_PROPERTY_X86_UINT32_OR_HI): Likewise.
+	(GNU_PROPERTY_X86_UINT32_OR_AND_LO): Likewise.
+	(GNU_PROPERTY_X86_UINT32_OR_AND_HI): Likewise.
+	(GNU_PROPERTY_X86_COMPAT_2_ISA_1_NEEDED): New.
+	(GNU_PROPERTY_X86_COMPAT_2_ISA_1_NEEDED): Likewise.
+	(GNU_PROPERTY_X86_FEATURE_1_AND): Updated to
+	(GNU_PROPERTY_X86_UINT32_AND_LO + 0).
+	(GNU_PROPERTY_X86_ISA_1_NEEDED): New.  Defined to
+	GNU_PROPERTY_X86_UINT32_OR_LO + 2.
+	(GNU_PROPERTY_X86_FEATURE_2_NEEDED): New.  Defined to
+	(GNU_PROPERTY_X86_UINT32_OR_LO + 1).
+	(GNU_PROPERTY_X86_ISA_1_USED): New.  Defined to
+	GNU_PROPERTY_X86_UINT32_OR_AND_LO + 2.
+	(GNU_PROPERTY_X86_FEATURE_2_USED): New.  Defined to
+	(GNU_PROPERTY_X86_UINT32_OR_AND_LO + 1).
 
-2019-08-02  Alan Modra  <amodra@gmail.com>
+2020-09-25  Alan Modra  <amodra@gmail.com>
 
-	* powerpc.h (R_PPC64_TPREL34, R_PPC64_DTPREL34),
-	(R_PPC64_GOT_TLSGD34, R_PPC64_GOT_TLSLD34),
-	(R_PPC64_GOT_TPREL34, R_PPC64_GOT_DTPREL34): Define.
+	* dwarf.h (DW_FIRST_UT, DW_UT, DW_END_UT): Define.
 
-2019-07-13  Alan Modra  <amodra@gmail.com>
+2020-08-26  Cooper Qu  <cooper.qu@linux.alibaba.com>
 
-	* powerpc.h (R_PPC64_PCREL_OPT, R_PPC64_D34, R_PPC64_D34_LO),
-	(R_PPC64_D34_HI30, R_PPC64_D34_HA30, R_PPC64_PCREL34),
-	(R_PPC64_GOT_PCREL34, R_PPC64_PLT_PCREL34, R_PPC64_PLT_PCREL34_NOTOC),
-	(R_PPC64_ADDR16_HIGHER34, R_PPC64_ADDR16_HIGHERA34),
-	(R_PPC64_ADDR16_HIGHEST34, R_PPC64_ADDR16_HIGHESTA34),
-	(R_PPC64_REL16_HIGHER34, R_PPC64_REL16_HIGHERA34),
-	(R_PPC64_REL16_HIGHEST34, R_PPC64_REL16_HIGHESTA34),
-	(R_PPC64_D28, R_PPC64_PCREL28): Define.
+        * elfcpp.h (enum SHT): New enum SHT_CSKY_ATTRIBUTES.
 
-2019-07-13  Alan Modra  <amodra@gmail.com>
+2020-07-04  Nick Clifton  <nickc@redhat.com>
 
-	* powerpc.h (R_PPC64_PLTSEQ_NOTOC, R_PPC64_PLTCALL_NOTOC): Define.
+	Binutils 2.35 branch created.
 
-2019-06-28  Alan Modra  <amodra@gmail.com>
+2020-06-26  Nick Alcock  <nick.alcock@oracle.com>
 
-	* powerpc.h (R_PPC64_REL16_HIGH, R_PPC64_REL16_HIGHA),
-	(R_PPC64_REL16_HIGHER, R_PPC64_REL16_HIGHERA),
-	(R_PPC64_REL16_HIGHEST, R_PPC64_REL16_HIGHESTA): Define.
+	* elfcpp_swap.h (bswap_16): Do not assume that presence of
+	<byteswap.h> means this is declared.  Make static inline, matching
+	recent change to libctf, since there is no non-inline definition
+	of these functions.
+	(bswap_32): Likewise.
+	(bswap_64): Likewise.
 
-2019-05-16  Andre Vieira  <andre.simoesdiasvieira@arm.com>
+2020-06-18  Fangrui Song  <i@maskray.me>
 
-	* arm.h (Tag_MVE_arch): Define new enum value.
+	PR gold/26039
+	* elfcpp.h (enum DF_1): New enum member DF_1_PIE.
 
-2019-04-15  Sudakshina Das  <sudi.das@arm.com>
+2020-06-06  Alan Modra  <amodra@gmail.com>
 
-	* arm.h (R_ARM_THM_BF12): New relocation code.
+	* powerpc.h: Rename
+	R_PPC64_GOT_TLSGD34 to R_PPC64_GOT_TLSGD_PCREL34,
+	R_PPC64_GOT_TLSLD34 to R_PPC64_GOT_TLSLD_PCREL34,
+	R_PPC64_GOT_TPREL34 to R_PPC64_GOT_TPREL_PCREL34, and
+	R_PPC64_GOT_DTPREL34 to R_PPC64_GOT_DTPREL_PCREL34.
 
-2019-04-15  Sudakshina Das  <sudi.das@arm.com>
+2020-01-18  Nick Clifton  <nickc@redhat.com>
 
-	* arm.h (R_ARM_THM_BF18): New relocation code.
+	Binutils 2.34 branch created.
 
-2019-04-15  Sudakshina Das  <sudi.das@arm.com>
-
-	* arm.h (R_ARM_THM_BF16): New relocation code.
-
-2018-06-24  Nick Clifton  <nickc@redhat.com>
-
-	2.32 branch created.
-
-2019-01-01  Alan Modra  <amodra@gmail.com>
+2020-01-01  Alan Modra  <amodra@gmail.com>
 
 	Update year range in copyright notice of all files.
 
-For older changes see ChangeLog-2018
+For older changes see ChangeLog-2019
 
-Copyright (C) 2019 Free Software Foundation, Inc.
+Copyright (C) 2020 Free Software Foundation, Inc.
 
 Copying and distribution of this file, with or without modification,
 are permitted in any medium without royalty provided the copyright

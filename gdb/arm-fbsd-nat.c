@@ -1,6 +1,6 @@
 /* Native-dependent code for FreeBSD/arm.
 
-   Copyright (C) 2017-2019 Free Software Foundation, Inc.
+   Copyright (C) 2017-2020 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -143,8 +143,9 @@ arm_fbsd_nat_target::read_description ()
   return desc;
 }
 
+void _initialize_arm_fbsd_nat ();
 void
-_initialize_arm_fbsd_nat (void)
+_initialize_arm_fbsd_nat ()
 {
   add_inf_child_target (&the_arm_fbsd_nat_target);
 }

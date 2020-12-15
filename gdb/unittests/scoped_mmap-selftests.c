@@ -1,6 +1,6 @@
 /* Self tests for scoped_mmap for GDB, the GNU debugger.
 
-   Copyright (C) 2018-2019 Free Software Foundation, Inc.
+   Copyright (C) 2018-2020 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -135,6 +135,7 @@ run_tests ()
 
 #endif /* !defined(HAVE_SYS_MMAN_H) */
 
+void _initialize_scoped_mmap_selftests ();
 void
 _initialize_scoped_mmap_selftests ()
 {

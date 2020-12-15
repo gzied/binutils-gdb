@@ -1,4 +1,4 @@
-# Copyright 1998-2019 Free Software Foundation, Inc.
+# Copyright 1998-2020 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -172,6 +172,11 @@ if { ![readline_is_used] } {
     return -1
 }
 
+# The bulk of this test script pre-dates the completion-support
+# library, and should probably (where possible) be converted.
+# However, for now, new tests are being added using this library.
+load_lib completion-support.exp
+
 set test "complete 'hfgfh'"
 send_gdb "hfgfh\t"
 gdb_test_multiple "" "$test" {
@@ -310,7 +315,7 @@ gdb_test_multiple "" "$test" {
     -re "^info $" {
 	send_gdb "\n"
 	gdb_test_multiple "" "$test" {
-	    -re "\"info\" must be followed by the name of an info command\\.\r\nList of info subcommands.*$gdb_prompt $" {
+	    -re "List of info subcommands.*$gdb_prompt $" {
 		pass "$test"
 	    }
 	}
@@ -323,7 +328,7 @@ gdb_test_multiple "" "$test" {
     -re "^info \\\x07$" {
 	send_gdb "\n"
 	gdb_test_multiple "" "$test" {
-	    -re "\"info\" must be followed by the name of an info command\\.\r\nList of info subcommands:\r\n\r\n.*$gdb_prompt $" {
+	    -re "List of info subcommands:\r\n\r\n.*$gdb_prompt $" {
 		pass "$test"
 	    }
 	}
@@ -339,7 +344,7 @@ gdb_test_multiple "" "$test" {
 	    -re "address.*types.*$gdb_prompt " {
 		send_gdb "\n"
 		gdb_test_multiple "" "$test" {
-		    -re "\"info\".*unambiguous\\..*$gdb_prompt $" {
+		    -re "allowed if unambiguous\\..*$gdb_prompt $" {
 			pass "$test"
 		    }
 		}
@@ -920,5 +925,40 @@ send_gdb "complete p mark\n"
 gdb_test_multiple "" "$test" {
     -re "List may be truncated, max-completions reached.*\r\n$gdb_prompt $" {
 	pass "$test"
+    }
+}
+
+# Test completion of 'p', 'x', and 'display' all using a /FMT.
+foreach_with_prefix spc { " " "" } {
+    test_gdb_complete_multiple "p${spc}/d some_union_global." "" "f" {
+	"f1"
+	"f2"
+    }
+
+    test_gdb_complete_none "p${spc}/"
+    test_gdb_complete_unique "p${spc}/d" "p${spc}/d"
+
+    test_gdb_complete_unique "x${spc}/1w values\[0\].b"\
+	"x${spc}/1w values\[0\].b_field"
+
+    test_gdb_complete_unique "display${spc}/x values\[0\].z"\
+	"display${spc}/x values\[0\].z_field"
+}
+
+# Test 'p' using both options and /FMT.
+test_gdb_complete_multiple "p -array on -- /d some_union_global." \
+    "" "f" {
+	"f1"
+	"f2"
+    }
+
+# Check the watch commands can all complete, with and without flags.
+foreach_with_prefix cmd { "watch" "awatch" "rwatch" } {
+    foreach_with_prefix opt { "" "-l" "-location" } {
+	test_gdb_complete_multiple "${cmd} ${opt} some_union_global." \
+	    "" "f" {
+		"f1"
+		"f2"
+	    }
     }
 }

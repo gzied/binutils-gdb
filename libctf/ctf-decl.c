@@ -1,5 +1,5 @@
 /* C declarator syntax glue.
-   Copyright (C) 2019 Free Software Foundation, Inc.
+   Copyright (C) 2019-2020 Free Software Foundation, Inc.
 
    This file is part of libctf.
 
@@ -68,10 +68,11 @@ ctf_decl_fini (ctf_decl_t *cd)
 	  free (cdp);
 	}
     }
+  free (cd->cd_buf);
 }
 
 void
-ctf_decl_push (ctf_decl_t *cd, ctf_file_t *fp, ctf_id_t type)
+ctf_decl_push (ctf_decl_t *cd, ctf_dict_t *fp, ctf_id_t type)
 {
   ctf_decl_node_t *cdp;
   ctf_decl_prec_t prec;
@@ -195,5 +196,7 @@ void ctf_decl_sprintf (ctf_decl_t *cd, const char *format, ...)
 
 char *ctf_decl_buf (ctf_decl_t *cd)
 {
-  return cd->cd_buf;
+  char *buf = cd->cd_buf;
+  cd->cd_buf = NULL;
+  return buf;
 }

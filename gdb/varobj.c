@@ -1,6 +1,6 @@
 /* Implementation of the GDB variable objects API.
 
-   Copyright (C) 1999-2019 Free Software Foundation, Inc.
+   Copyright (C) 1999-2020 Free Software Foundation, Inc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -277,7 +277,7 @@ varobj_create (const char *objname,
       CORE_ADDR pc;
 
       /* Parse and evaluate the expression, filling in as much of the
-         variable's data as possible.  */
+	 variable's data as possible.  */
 
       if (has_stack_frames ())
 	{
@@ -313,7 +313,7 @@ varobj_create (const char *objname,
       innermost_block_tracker tracker (INNERMOST_BLOCK_FOR_SYMBOLS
 				       | INNERMOST_BLOCK_FOR_REGISTERS);
       /* Wrap the call to parse expression, so we can 
-         return a sensible error.  */
+	 return a sensible error.  */
       try
 	{
 	  var->root->exp = parse_exp_1 (&p, pc, block, 0, &tracker);
@@ -342,9 +342,9 @@ varobj_create (const char *objname,
       var->path_expr = expression;
 
       /* When the frame is different from the current frame, 
-         we must select the appropriate frame before parsing
-         the expression, otherwise the value will not be current.
-         Since select_frame is so benign, just call it for all cases.  */
+	 we must select the appropriate frame before parsing
+	 the expression, otherwise the value will not be current.
+	 Since select_frame is so benign, just call it for all cases.  */
       if (var->root->valid_block)
 	{
 	  /* User could specify explicit FRAME-ADDR which was not found but
@@ -361,8 +361,8 @@ varobj_create (const char *objname,
 	}
 
       /* We definitely need to catch errors here.
-         If evaluate_expression succeeds we got the value we wanted.
-         But if it fails, we still go on with a call to evaluate_type().  */
+	 If evaluate_expression succeeds we got the value we wanted.
+	 But if it fails, we still go on with a call to evaluate_type().  */
       try
 	{
 	  value = evaluate_expression (var->root->exp.get ());
@@ -386,7 +386,7 @@ varobj_create (const char *objname,
 	}
 
       /* Set language info */
-      var->root->lang_ops = var->root->exp->language_defn->la_varobj_ops;
+      var->root->lang_ops = var->root->exp->language_defn->varobj_ops ();
 
       install_new_value (var.get (), value, 1 /* Initial assignment */);
 
@@ -406,7 +406,7 @@ varobj_create (const char *objname,
       var->obj_name = objname;
 
       /* If a varobj name is duplicated, the install will fail so
-         we must cleanup.  */
+	 we must cleanup.  */
       if (!install_variable (var.get ()))
 	return NULL;
     }
@@ -1271,7 +1271,7 @@ install_new_value (struct varobj *var, struct value *value, bool initial)
   if (value)
     value = coerce_ref (value);
 
-  if (var->type && TYPE_CODE (var->type) == TYPE_CODE_UNION)
+  if (var->type && var->type->code () == TYPE_CODE_UNION)
     /* For unions, we need to fetch the value implicitly because
        of implementation of union member fetch.  When gdb
        creates a value for a field and the value of the enclosing
@@ -1361,7 +1361,7 @@ install_new_value (struct varobj *var, struct value *value, bool initial)
 		 value.  */
 	      changed = true;
 	    }
-          else  if (var->value == NULL && value == NULL)
+	  else  if (var->value == NULL && value == NULL)
 	    /* Equal.  */
 	    ;
 	  else if (var->value == NULL || value == NULL)
@@ -1600,7 +1600,7 @@ varobj_update (struct varobj **varp, bool is_explicit)
 	  if (varobj_value_has_mutated (v, newobj, new_type))
 	    {
 	      /* The children are no longer valid; delete them now.
-	         Report the fact that its type changed as well.  */
+		 Report the fact that its type changed as well.  */
 	      varobj_delete (v, 1 /* only_children */);
 	      v->num_children = -1;
 	      v->to = -1;
@@ -1893,7 +1893,7 @@ uninstall_variable (struct varobj *var)
 	  if (cr == NULL)
 	    {
 	      warning (_("Assertion failed: Could not find "
-		         "varobj \"%s\" in root list"),
+			 "varobj \"%s\" in root list"),
 		       var->obj_name.c_str ());
 	      return;
 	    }
@@ -2132,7 +2132,7 @@ value_of_root_1 (struct varobj **var_handle)
     {
 
       /* We need to catch errors here, because if evaluate
-         expression fails we want to just return NULL.  */
+	 expression fails we want to just return NULL.  */
       try
 	{
 	  new_val = evaluate_expression (var->root->exp.get ());
@@ -2398,7 +2398,7 @@ varobj_editable_p (const struct varobj *var)
 
   type = varobj_get_value_type (var);
 
-  switch (TYPE_CODE (type))
+  switch (type->code ())
     {
     case TYPE_CODE_STRUCT:
     case TYPE_CODE_UNION:
@@ -2445,7 +2445,7 @@ varobj_default_value_is_changeable_p (const struct varobj *var)
 
   type = varobj_get_value_type (var);
 
-  switch (TYPE_CODE (type))
+  switch (type->code ())
     {
     case TYPE_CODE_STRUCT:
     case TYPE_CODE_UNION:
@@ -2520,8 +2520,9 @@ varobj_invalidate (void)
   all_root_varobjs (varobj_invalidate_iter, NULL);
 }
 
+void _initialize_varobj ();
 void
-_initialize_varobj (void)
+_initialize_varobj ()
 {
   varobj_table = XCNEWVEC (struct vlist *, VAROBJ_TABLE_SIZE);
 

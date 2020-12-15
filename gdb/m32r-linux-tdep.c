@@ -1,6 +1,6 @@
 /* Target-dependent code for GNU/Linux m32r.
 
-   Copyright (C) 2004-2019 Free Software Foundation, Inc.
+   Copyright (C) 2004-2020 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -244,7 +244,7 @@ m32r_linux_sigtramp_frame_cache (struct frame_info *this_frame,
   if (addr == 0)
     {
       /* If this is a RT signal trampoline, adjust SIGCONTEXT_ADDR
-         accordingly.  */
+	 accordingly.  */
       addr = m32r_linux_rt_sigtramp_start (cache->pc, this_frame);
       if (addr)
 	sigcontext_addr += 128;
@@ -449,7 +449,7 @@ static void
 m32r_linux_init_abi (struct gdbarch_info info, struct gdbarch *gdbarch)
 {
 
-  linux_init_abi (info, gdbarch);
+  linux_init_abi (info, gdbarch, 0);
 
   /* Since EVB register is not available for native debug, we reduce
      the number of registers.  */
@@ -468,11 +468,12 @@ m32r_linux_init_abi (struct gdbarch_info info, struct gdbarch *gdbarch)
 
   /* Enable TLS support.  */
   set_gdbarch_fetch_tls_load_module_address (gdbarch,
-                                             svr4_fetch_objfile_link_map);
+					     svr4_fetch_objfile_link_map);
 }
 
+void _initialize_m32r_linux_tdep ();
 void
-_initialize_m32r_linux_tdep (void)
+_initialize_m32r_linux_tdep ()
 {
   gdbarch_register_osabi (bfd_arch_m32r, 0, GDB_OSABI_LINUX,
 			  m32r_linux_init_abi);

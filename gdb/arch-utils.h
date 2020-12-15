@@ -1,6 +1,6 @@
 /* Dynamic architecture support for GDB, the GNU debugger.
 
-   Copyright (C) 1998-2019 Free Software Foundation, Inc.
+   Copyright (C) 1998-2020 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -75,9 +75,7 @@ struct bp_manipulation_endian
   BREAK_INSN_LITTLE, BREAK_INSN_BIG>
 
 /* Default implementation of gdbarch_displaced_hw_singlestep.  */
-extern int
-  default_displaced_step_hw_singlestep (struct gdbarch *,
-					struct displaced_step_closure *);
+extern bool default_displaced_step_hw_singlestep (struct gdbarch *);
 
 /* Possible value for gdbarch_displaced_step_location:
    Place displaced instructions at the program's entry point,
@@ -228,6 +226,10 @@ extern int default_insn_is_call (struct gdbarch *, CORE_ADDR);
 extern int default_insn_is_ret (struct gdbarch *, CORE_ADDR);
 extern int default_insn_is_jump (struct gdbarch *, CORE_ADDR);
 
+/* Default implementation of gdbarch_program_breakpoint_here_p.  */
+extern bool default_program_breakpoint_here_p (struct gdbarch *gdbarch,
+					       CORE_ADDR addr);
+
 /* Do-nothing version of vsyscall_range.  Returns false.  */
 
 extern int default_vsyscall_range (struct gdbarch *gdbarch, struct mem_range *range);
@@ -276,4 +278,15 @@ extern ULONGEST default_type_align (struct gdbarch *gdbarch,
 extern std::string default_get_pc_address_flags (frame_info *frame,
 						 CORE_ADDR pc);
 
+/* Default implementation of gdbarch read_core_file_mappings method.  */
+extern void default_read_core_file_mappings (struct gdbarch *gdbarch,
+					     struct bfd *cbfd,
+					     gdb::function_view<void (ULONGEST count)>
+					       pre_loop_cb,
+					     gdb::function_view<void (int num,
+								      ULONGEST start,
+								      ULONGEST end,
+								      ULONGEST file_ofs,
+								      const char *filename)>
+					       loop_cb);
 #endif /* ARCH_UTILS_H */

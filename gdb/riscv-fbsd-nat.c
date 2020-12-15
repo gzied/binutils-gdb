@@ -1,6 +1,6 @@
 /* Native-dependent code for FreeBSD/riscv.
 
-   Copyright (C) 2018-2019 Free Software Foundation, Inc.
+   Copyright (C) 2018-2020 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -128,8 +128,9 @@ riscv_fbsd_nat_target::store_registers (struct regcache *regcache,
     }
 }
 
+void _initialize_riscv_fbsd_nat ();
 void
-_initialize_riscv_fbsd_nat (void)
+_initialize_riscv_fbsd_nat ()
 {
   add_inf_child_target (&the_riscv_fbsd_nat_target);
 }

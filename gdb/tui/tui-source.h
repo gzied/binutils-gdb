@@ -1,6 +1,6 @@
 /* TUI display source window.
 
-   Copyright (C) 1998-2019 Free Software Foundation, Inc.
+   Copyright (C) 1998-2020 Free Software Foundation, Inc.
 
    Contributed by Hewlett-Packard Company.
 
@@ -31,10 +31,7 @@ struct symtab;
 
 struct tui_source_window : public tui_source_window_base
 {
-  tui_source_window ()
-    : tui_source_window_base (SRC_WIN)
-  {
-  }
+  tui_source_window () = default;
 
   DISABLE_COPY_AND_ASSIGN (tui_source_window);
 
@@ -49,32 +46,39 @@ struct tui_source_window : public tui_source_window_base
 
   bool showing_source_p (const char *filename) const;
 
-  void maybe_update (struct frame_info *fi, symtab_and_line sal,
-		     int line_no, CORE_ADDR addr)
-    override;
+  void maybe_update (struct frame_info *fi, symtab_and_line sal) override;
 
   void erase_source_content () override
   {
     do_erase_source_content (_("[ No Source Available ]"));
   }
 
-  void show_symtab_source (struct gdbarch *, struct symtab *,
-			   struct tui_line_or_address);
+  void display_start_addr (struct gdbarch **gdbarch_p,
+			   CORE_ADDR *addr_p) override;
 
 protected:
 
   void do_scroll_vertical (int num_to_scroll) override;
 
-  enum tui_status set_contents
-    (struct gdbarch *gdbarch,
-     struct symtab *s,
-     struct tui_line_or_address line_or_addr) override;
+  bool set_contents (struct gdbarch *gdbarch,
+		     const struct symtab_and_line &sal) override;
+
+  int extra_margin () const override
+  {
+    return m_digits;
+  }
+
+  void show_line_number (int lineno) const override;
 
 private:
 
   /* Answer whether a particular line number or address is displayed
      in the current source window.  */
   bool line_is_displayed (int line) const;
+
+  /* How many digits to use when formatting the line number.  This
+     includes the trailing space.  */
+  int m_digits;
 
   /* It is the resolved form as returned by symtab_to_fullname.  */
   gdb::unique_xmalloc_ptr<char> m_fullname;

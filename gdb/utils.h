@@ -1,7 +1,7 @@
 /* *INDENT-OFF* */ /* ATTRIBUTE_PRINTF confuses indent, avoid running it
 		      for now.  */
 /* I/O, string, cleanup, and other random utilities for GDB.
-   Copyright (C) 1986-2019 Free Software Foundation, Inc.
+   Copyright (C) 1986-2020 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -22,6 +22,7 @@
 #define UTILS_H
 
 #include "exceptions.h"
+#include "gdbsupport/array-view.h"
 #include "gdbsupport/scoped_restore.h"
 #include <chrono>
 
@@ -146,10 +147,7 @@ public:
   }
 
   /* A constructor that calls buildargv on STR.  STR may be NULL, in
-     which case this object is initialized with a NULL array.  If
-     buildargv fails due to out-of-memory, call malloc_failure.
-     Therefore, the value is guaranteed to be non-NULL, unless the
-     parameter itself is NULL.  */
+     which case this object is initialized with a NULL array.  */
 
   explicit gdb_argv (const char *str)
     : m_argv (NULL)
@@ -166,6 +164,20 @@ public:
 
   gdb_argv (const gdb_argv &) = delete;
   gdb_argv &operator= (const gdb_argv &) = delete;
+
+  gdb_argv &operator= (gdb_argv &&other)
+  {
+    freeargv (m_argv);
+    m_argv = other.m_argv;
+    other.m_argv = nullptr;
+    return *this;
+  }
+
+  gdb_argv (gdb_argv &&other)
+  {
+    m_argv = other.m_argv;
+    other.m_argv = nullptr;
+  }
 
   ~gdb_argv ()
   {
@@ -211,6 +223,42 @@ public:
   {
     gdb_assert (m_argv != NULL);
     return m_argv[arg];
+  }
+
+  /* Return the arguments array as an array view.  */
+
+  gdb::array_view<char *> as_array_view ()
+  {
+    return gdb::array_view<char *> (this->get (), this->count ());
+  }
+
+  /* Append arguments to this array.  */
+  void append (gdb_argv &&other)
+  {
+    int size = count ();
+    int argc = other.count ();
+    m_argv = XRESIZEVEC (char *, m_argv, (size + argc + 1));
+
+    for (int argi = 0; argi < argc; argi++)
+      {
+	/* Transfer ownership of the string.  */
+	m_argv[size++] = other.m_argv[argi];
+	/* Ensure that destruction of OTHER works correctly.  */
+	other.m_argv[argi] = nullptr;
+      }
+    m_argv[size] = nullptr;
+  }
+
+  /* Append arguments to this array.  */
+  void append (const gdb_argv &other)
+  {
+    int size = count ();
+    int argc = other.count ();
+    m_argv = XRESIZEVEC (char *, m_argv, (size + argc + 1));
+
+    for (int argi = 0; argi < argc; argi++)
+      m_argv[size++] = xstrdup (other.m_argv[argi]);
+    m_argv[size] = nullptr;
   }
 
   /* The iterator type.  */
@@ -322,6 +370,12 @@ extern struct ui_file **current_ui_gdb_stdout_ptr (void);
 extern struct ui_file **current_ui_gdb_stdin_ptr (void);
 extern struct ui_file **current_ui_gdb_stderr_ptr (void);
 extern struct ui_file **current_ui_gdb_stdlog_ptr (void);
+
+/* Flush STREAM.  This is a wrapper for ui_file_flush that also
+   flushes any output pending from uses of the *_filtered output
+   functions; that output is kept in a special buffer so that
+   pagination and styling are handled properly.  */
+extern void gdb_flush (struct ui_file *);
 
 /* The current top level's ui_file streams.  */
 
@@ -539,6 +593,13 @@ extern pid_t wait_to_die_with_timeout (pid_t pid, int *status, int timeout);
 
 extern int myread (int, char *, int);
 
+/* Integer exponentiation: Return V1**V2, where both arguments
+   are integers.
+
+   Requires V1 != 0 if V2 < 0.
+   Returns 1 for 0 ** 0.  */
+extern ULONGEST uinteger_pow (ULONGEST v1, LONGEST v2);
+
 /* Resource limits used by getrlimit and setrlimit.  */
 
 enum resource_limit_kind
@@ -571,17 +632,18 @@ extern void copy_bitwise (gdb_byte *dest, ULONGEST dest_offset,
 			  const gdb_byte *source, ULONGEST source_offset,
 			  ULONGEST nbits, int bits_big_endian);
 
-/* A fast hashing function.  This can be used to hash strings in a fast way
+/* A fast hashing function.  This can be used to hash data in a fast way
    when the length is known.  If no fast hashing library is available, falls
-   back to iterative_hash from libiberty.  */
+   back to iterative_hash from libiberty.  START_VALUE can be set to
+   continue hashing from a previous value.  */
 
 static inline unsigned int
-fast_hash (const char* str, size_t len)
+fast_hash (const void *ptr, size_t len, unsigned int start_value = 0)
 {
 #ifdef HAVE_LIBXXHASH
-  return XXH64 (str, len, 0);
+  return XXH64 (ptr, len, start_value);
 #else
-  return iterative_hash (str, len, 0);
+  return iterative_hash (ptr, len, start_value);
 #endif
 }
 

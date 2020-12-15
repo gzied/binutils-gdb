@@ -1,6 +1,6 @@
 // elfcpp.h -- main header file for elfcpp    -*- C++ -*-
 
-// Copyright (C) 2006-2019 Free Software Foundation, Inc.
+// Copyright (C) 2006-2020 Free Software Foundation, Inc.
 // Written by Ian Lance Taylor <iant@google.com>.
 
 // This file is part of elfcpp.
@@ -412,6 +412,10 @@ enum SHT
 
   // AARCH64-specific section type.
   SHT_AARCH64_ATTRIBUTES = 0x70000003,
+
+  // CSKY-specific section types.
+  // Object file compatibility attributes.
+  SHT_CSKY_ATTRIBUTES = 0x70000001,
 
   // Link editor is to sort the entries in this section based on the
   // address specified in the associated symbol table entry.
@@ -913,7 +917,8 @@ enum DF_1
   DF_1_INTERPOSE = 0x400,
   DF_1_NODEFLIB = 0x800,
   DF_1_NODUMP = 0x1000,
-  DF_1_CONLFAT = 0x2000
+  DF_1_CONLFAT = 0x2000,
+  DF_1_PIE = 0x08000000
 };
 
 // Version numbers which appear in the vd_version field of a Verdef
@@ -1008,9 +1013,21 @@ enum
   GNU_PROPERTY_STACK_SIZE = 1,
   GNU_PROPERTY_NO_COPY_ON_PROTECTED = 2,
   GNU_PROPERTY_LOPROC = 0xc0000000,
-  GNU_PROPERTY_X86_ISA_1_USED = 0xc0000000,
-  GNU_PROPERTY_X86_ISA_1_NEEDED = 0xc0000001,
-  GNU_PROPERTY_X86_FEATURE_1_AND = 0xc0000002,
+  GNU_PROPERTY_X86_COMPAT_ISA_1_USED = 0xc0000000,
+  GNU_PROPERTY_X86_COMPAT_ISA_1_NEEDED = 0xc0000001,
+  GNU_PROPERTY_X86_UINT32_AND_LO = 0xc0000002,
+  GNU_PROPERTY_X86_UINT32_AND_HI = 0xc0007fff,
+  GNU_PROPERTY_X86_UINT32_OR_LO = 0xc0008000,
+  GNU_PROPERTY_X86_UINT32_OR_HI = 0xc000ffff,
+  GNU_PROPERTY_X86_UINT32_OR_AND_LO = 0xc0010000,
+  GNU_PROPERTY_X86_UINT32_OR_AND_HI = 0xc0017fff,
+  GNU_PROPERTY_X86_COMPAT_2_ISA_1_NEEDED = GNU_PROPERTY_X86_UINT32_OR_LO + 0,
+  GNU_PROPERTY_X86_COMPAT_2_ISA_1_USED = GNU_PROPERTY_X86_UINT32_OR_AND_LO + 0,
+  GNU_PROPERTY_X86_FEATURE_1_AND = GNU_PROPERTY_X86_UINT32_AND_LO + 0,
+  GNU_PROPERTY_X86_ISA_1_NEEDED = GNU_PROPERTY_X86_UINT32_OR_LO + 2,
+  GNU_PROPERTY_X86_FEATURE_2_NEEDED = GNU_PROPERTY_X86_UINT32_OR_LO + 1,
+  GNU_PROPERTY_X86_ISA_1_USED = GNU_PROPERTY_X86_UINT32_OR_AND_LO + 2,
+  GNU_PROPERTY_X86_FEATURE_2_USED = GNU_PROPERTY_X86_UINT32_OR_AND_LO + 1,
   GNU_PROPERTY_HIPROC = 0xdfffffff,
   GNU_PROPERTY_LOUSER = 0xe0000000,
   GNU_PROPERTY_HIUSER = 0xffffffff

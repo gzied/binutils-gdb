@@ -1,6 +1,6 @@
 /* Remote notification in GDB protocol
 
-   Copyright (C) 1988-2019 Free Software Foundation, Inc.
+   Copyright (C) 1988-2020 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -35,11 +35,12 @@
 #include "remote.h"
 #include "remote-notif.h"
 #include "observable.h"
-#include "event-loop.h"
+#include "gdbsupport/event-loop.h"
 #include "target.h"
 #include "inferior.h"
 #include "infrun.h"
 #include "gdbcmd.h"
+#include "async-event.h"
 
 bool notif_debug = false;
 
@@ -218,7 +219,7 @@ remote_notif_state_allocate (remote_target *remote)
 
   notif_state->get_pending_events_token
     = create_async_event_handler (remote_async_get_pending_events_handler,
-				  notif_state);
+				  notif_state, "remote-notif");
 
   return notif_state;
 }
@@ -237,8 +238,9 @@ remote_notif_state::~remote_notif_state ()
     delete pending_event[i];
 }
 
+void _initialize_notif ();
 void
-_initialize_notif (void)
+_initialize_notif ()
 {
   add_setshow_boolean_cmd ("notification", no_class, &notif_debug,
 			   _("\

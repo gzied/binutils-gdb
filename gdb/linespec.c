@@ -1,6 +1,6 @@
 /* Parser for linespec for the GNU debugger, GDB.
 
-   Copyright (C) 1986-2019 Free Software Foundation, Inc.
+   Copyright (C) 1986-2020 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -72,7 +72,7 @@ enum class linespec_complete_what
   /* An expression.  E.g., "break foo if EXPR", or "break *EXPR".  */
   EXPRESSION,
 
-  /* A linespec keyword ("if"/"thread"/"task").
+  /* A linespec keyword ("if"/"thread"/"task"/"-force-condition").
      E.g., "break func threa<tab>".  */
   KEYWORD,
 };
@@ -254,12 +254,13 @@ typedef enum ls_token_type linespec_token_type;
 
 /* List of keywords.  This is NULL-terminated so that it can be used
    as enum completer.  */
-const char * const linespec_keywords[] = { "if", "thread", "task", NULL };
+const char * const linespec_keywords[] = { "if", "thread", "task", "-force-condition", NULL };
 #define IF_KEYWORD_INDEX 0
+#define FORCE_KEYWORD_INDEX 3
 
 /* A token of the linespec lexer  */
 
-struct ls_token
+struct linespec_token
 {
   /* The type of the token  */
   linespec_token_type type;
@@ -274,7 +275,6 @@ struct ls_token
     const char *keyword;
   } data;
 };
-typedef struct ls_token linespec_token;
 
 #define LS_TOKEN_STOKEN(TOK) (TOK).data.string
 #define LS_TOKEN_KEYWORD(TOK) (TOK).data.keyword
@@ -421,7 +421,7 @@ static bool compare_msymbols (const bound_minimal_symbol &a,
 /* Permitted quote characters for the parser.  This is different from the
    completer's quote characters to allow backward compatibility with the
    previous parser.  */
-static const char *const linespec_quote_characters = "\"\'";
+static const char linespec_quote_characters[] = "\"\'";
 
 /* Lexer functions.  */
 
@@ -486,11 +486,22 @@ linespec_lexer_lex_keyword (const char *p)
 	    {
 	      int j;
 
+	      /* Special case: "-force" is always followed by an "if".  */
+	      if (i == FORCE_KEYWORD_INDEX)
+		{
+		  p += len;
+		  p = skip_spaces (p);
+		  int nextlen = strlen (linespec_keywords[IF_KEYWORD_INDEX]);
+		  if (!(strncmp (p, linespec_keywords[IF_KEYWORD_INDEX], nextlen) == 0
+			&& isspace (p[nextlen])))
+		    return NULL;
+		}
+
 	      /* Special case: "if" ALWAYS stops the lexer, since it
 		 is not possible to predict what is going to appear in
 		 the condition, which can only be parsed after SaLs have
 		 been found.  */
-	      if (i != IF_KEYWORD_INDEX)
+	      else if (i != IF_KEYWORD_INDEX)
 		{
 		  p += len;
 		  p = skip_spaces (p);
@@ -906,10 +917,10 @@ linespec_lexer_lex_one (linespec_parser *parser)
 
 	case '+': case '-':
 	case '0': case '1': case '2': case '3': case '4':
-        case '5': case '6': case '7': case '8': case '9':
-           if (!linespec_lexer_lex_number (parser, &(parser->lexer.current)))
+	case '5': case '6': case '7': case '8': case '9':
+	   if (!linespec_lexer_lex_number (parser, &(parser->lexer.current)))
 	     parser->lexer.current = linespec_lexer_lex_string (parser);
-          break;
+	  break;
 
 	case ':':
 	  /* If we have a scope operator, lex the input as a string.
@@ -1133,58 +1144,56 @@ iterate_over_all_matching_symtabs
    struct program_space *search_pspace, bool include_inline,
    gdb::function_view<symbol_found_callback_ftype> callback)
 {
-  struct program_space *pspace;
+  for (struct program_space *pspace : program_spaces)
+    {
+      if (search_pspace != NULL && search_pspace != pspace)
+	continue;
+      if (pspace->executing_startup)
+	continue;
 
-  ALL_PSPACES (pspace)
-  {
-    if (search_pspace != NULL && search_pspace != pspace)
-      continue;
-    if (pspace->executing_startup)
-      continue;
+      set_current_program_space (pspace);
 
-    set_current_program_space (pspace);
+      for (objfile *objfile : current_program_space->objfiles ())
+	{
+	  if (objfile->sf)
+	    objfile->sf->qf->expand_symtabs_matching (objfile,
+						      NULL,
+						      &lookup_name,
+						      NULL, NULL,
+						      search_domain);
 
-    for (objfile *objfile : current_program_space->objfiles ())
-      {
-	if (objfile->sf)
-	  objfile->sf->qf->expand_symtabs_matching (objfile,
-						    NULL,
-						    lookup_name,
-						    NULL, NULL,
-						    search_domain);
+	  for (compunit_symtab *cu : objfile->compunits ())
+	    {
+	      struct symtab *symtab = COMPUNIT_FILETABS (cu);
 
-	for (compunit_symtab *cu : objfile->compunits ())
-	  {
-	    struct symtab *symtab = COMPUNIT_FILETABS (cu);
+	      iterate_over_file_blocks (symtab, lookup_name, name_domain,
+					callback);
 
-	    iterate_over_file_blocks (symtab, lookup_name, name_domain,
-				      callback);
+	      if (include_inline)
+		{
+		  const struct block *block;
+		  int i;
 
-	    if (include_inline)
-	      {
-		const struct block *block;
-		int i;
-
-		for (i = FIRST_LOCAL_BLOCK;
-		     i < BLOCKVECTOR_NBLOCKS (SYMTAB_BLOCKVECTOR (symtab));
-		     i++)
-		  {
-		    block = BLOCKVECTOR_BLOCK (SYMTAB_BLOCKVECTOR (symtab), i);
-		    state->language->la_iterate_over_symbols
-		      (block, lookup_name, name_domain,
-		       [&] (block_symbol *bsym)
-		       {
-			 /* Restrict calls to CALLBACK to symbols
-			    representing inline symbols only.  */
-			 if (SYMBOL_INLINED (bsym->symbol))
-			   return callback (bsym);
-			 return true;
-		       });
-		  }
-	      }
-	  }
-      }
-  }
+		  for (i = FIRST_LOCAL_BLOCK;
+		       i < BLOCKVECTOR_NBLOCKS (SYMTAB_BLOCKVECTOR (symtab));
+		       i++)
+		    {
+		      block = BLOCKVECTOR_BLOCK (SYMTAB_BLOCKVECTOR (symtab), i);
+		      state->language->iterate_over_symbols
+			(block, lookup_name, name_domain,
+			 [&] (block_symbol *bsym)
+			 {
+			   /* Restrict calls to CALLBACK to symbols
+			      representing inline symbols only.  */
+			   if (SYMBOL_INLINED (bsym->symbol))
+			     return callback (bsym);
+			   return true;
+			 });
+		    }
+		}
+	    }
+	}
+    }
 }
 
 /* Returns the block to be used for symbol searches from
@@ -1211,7 +1220,7 @@ iterate_over_file_blocks
   for (block = BLOCKVECTOR_BLOCK (SYMTAB_BLOCKVECTOR (symtab), STATIC_BLOCK);
        block != NULL;
        block = BLOCK_SUPERBLOCK (block))
-    LA_ITERATE_OVER_SYMBOLS (block, name, domain, callback);
+    current_language->iterate_over_symbols (block, name, domain, callback);
 }
 
 /* A helper for find_method.  This finds all methods in type T of
@@ -1224,7 +1233,7 @@ find_methods (struct type *t, enum language t_lang, const char *name,
 	      std::vector<struct type *> *superclasses)
 {
   int ibase;
-  const char *class_name = TYPE_NAME (t);
+  const char *class_name = t->name ();
 
   /* Ignore this class if it doesn't have a name.  This is ugly, but
      unless we figure out how to get the physname without the name of
@@ -1234,13 +1243,13 @@ find_methods (struct type *t, enum language t_lang, const char *name,
       int method_counter;
       lookup_name_info lookup_name (name, symbol_name_match_type::FULL);
       symbol_name_matcher_ftype *symbol_name_compare
-	= get_symbol_name_matcher (language_def (t_lang), lookup_name);
+	= language_def (t_lang)->get_symbol_name_matcher (lookup_name);
 
       t = check_typedef (t);
 
       /* Loop over each method name.  At this level, all overloads of a name
-         are counted as a single name.  There is an inner loop which loops over
-         each overload.  */
+	 are counted as a single name.  There is an inner loop which loops over
+	 each overload.  */
 
       for (method_counter = TYPE_NFN_FIELDS (t) - 1;
 	   method_counter >= 0;
@@ -1684,12 +1693,12 @@ undefined_label_error (const char *function, const char *label)
 {
   if (function != NULL)
     throw_error (NOT_FOUND_ERROR,
-                _("No label \"%s\" defined in function \"%s\"."),
-                label, function);
+		_("No label \"%s\" defined in function \"%s\"."),
+		label, function);
   else
     throw_error (NOT_FOUND_ERROR,
-                _("No label \"%s\" defined in current function."),
-                label);
+		_("No label \"%s\" defined in current function."),
+		label);
 }
 
 /* Throw a source file not found error.  */
@@ -1876,7 +1885,7 @@ linespec_parse_basic (linespec_parser *parser)
 	    = new std::vector<block_symbol> (std::move (symbols));
 	  PARSER_RESULT (parser)->minimal_symbols
 	    = new std::vector<bound_minimal_symbol>
-	        (std::move (minimal_symbols));
+		(std::move (minimal_symbols));
 	  PARSER_EXPLICIT (parser)->function_name = name.release ();
 	}
       else
@@ -2291,7 +2300,7 @@ convert_linespec_to_sals (struct linespec_state *state, linespec_p ls)
 			  if (MSYMBOL_TYPE (elem.minsym) == mst_data_gnu_ifunc)
 			    {
 			      struct gdbarch *gdbarch
-				= get_objfile_arch (elem.objfile);
+				= elem.objfile->arch ();
 			      msym_addr
 				= (gdbarch_convert_from_func_ptr_addr
 				   (gdbarch,
@@ -2474,7 +2483,7 @@ convert_explicit_location_to_sals (struct linespec_state *self,
    label_name_spec -> STRING
    function_name_spec -> STRING
    offset_spec -> NUMBER
-               -> '+' NUMBER
+	       -> '+' NUMBER
 	       -> '-' NUMBER
 
    This may all be followed by several keywords such as "if EXPR",
@@ -3203,7 +3212,7 @@ event_location_to_sals (linespec_parser *parser,
 /* See linespec.h.  */
 
 void
-decode_line_full (const struct event_location *location, int flags,
+decode_line_full (struct event_location *location, int flags,
 		  struct program_space *search_pspace,
 		  struct symtab *default_symtab,
 		  int default_line, struct linespec_result *canonical,
@@ -3231,6 +3240,10 @@ decode_line_full (const struct event_location *location, int flags,
   std::vector<symtab_and_line> result = event_location_to_sals (&parser,
 								location);
   state = PARSER_STATE (&parser);
+
+  if (result.size () == 0)
+    throw_error (NOT_SUPPORTED_ERROR, _("Location %s not available"),
+		 event_location_to_string (location));
 
   gdb_assert (result.size () == 1 || canonical->pre_expanded);
   canonical->pre_expanded = 1;
@@ -3339,7 +3352,7 @@ initialize_defaults (struct symtab **default_symtab, int *default_line)
   if (*default_symtab == 0)
     {
       /* Use whatever we have for the default source line.  We don't use
-         get_current_or_default_symtab_and_line as it can recurse and call
+	 get_current_or_default_symtab_and_line as it can recurse and call
 	 us back!  */
       struct symtab_and_line cursal = 
 	get_current_source_symtab_and_line ();
@@ -3451,16 +3464,10 @@ class decode_compound_collector
 {
 public:
   decode_compound_collector ()
+    : m_unique_syms (htab_create_alloc (1, htab_hash_pointer,
+					htab_eq_pointer, NULL,
+					xcalloc, xfree))
   {
-    m_unique_syms = htab_create_alloc (1, htab_hash_pointer,
-				       htab_eq_pointer, NULL,
-				       xcalloc, xfree);
-  }
-
-  ~decode_compound_collector ()
-  {
-    if (m_unique_syms != NULL)
-      htab_delete (m_unique_syms);
   }
 
   /* Return all symbols collected.  */
@@ -3475,7 +3482,7 @@ public:
 private:
   /* A hash table of all symbols we found.  We use this to avoid
      adding any symbol more than once.  */
-  htab_t m_unique_syms;
+  htab_up m_unique_syms;
 
   /* The result vector.  */
   std::vector<block_symbol>  m_symbols;
@@ -3493,12 +3500,12 @@ decode_compound_collector::operator () (block_symbol *bsym)
 
   t = SYMBOL_TYPE (sym);
   t = check_typedef (t);
-  if (TYPE_CODE (t) != TYPE_CODE_STRUCT
-      && TYPE_CODE (t) != TYPE_CODE_UNION
-      && TYPE_CODE (t) != TYPE_CODE_NAMESPACE)
+  if (t->code () != TYPE_CODE_STRUCT
+      && t->code () != TYPE_CODE_UNION
+      && t->code () != TYPE_CODE_NAMESPACE)
     return true; /* Continue iterating.  */
 
-  slot = htab_find_slot (m_unique_syms, sym, INSERT);
+  slot = htab_find_slot (m_unique_syms.get (), sym, INSERT);
   if (!*slot)
     {
       *slot = sym;
@@ -3670,12 +3677,12 @@ find_method (struct linespec_state *self, std::vector<symtab *> *file_symtabs,
      because we collect data across the program space before deciding
      what to do.  */
   last_result_len = 0;
-  unsigned int ix = 0;
   for (const auto &elt : *sym_classes)
     {
       struct type *t;
       struct program_space *pspace;
       struct symbol *sym = elt.symbol;
+      unsigned int ix = &elt - &*sym_classes->begin ();
 
       /* Program spaces that are executing startup should have
 	 been filtered out earlier.  */
@@ -3683,7 +3690,7 @@ find_method (struct linespec_state *self, std::vector<symtab *> *file_symtabs,
       gdb_assert (!pspace->executing_startup);
       set_current_program_space (pspace);
       t = check_typedef (SYMBOL_TYPE (sym));
-      find_methods (t, SYMBOL_LANGUAGE (sym),
+      find_methods (t, sym->language (),
 		    method_name, &result_names, &superclass_vec);
 
       /* Handle all items from a single program space at once; and be
@@ -3696,7 +3703,7 @@ find_method (struct linespec_state *self, std::vector<symtab *> *file_symtabs,
 	     this program space, consider superclasses.  */
 	  if (result_names.size () == last_result_len)
 	    find_superclass_methods (std::move (superclass_vec), method_name,
-				     SYMBOL_LANGUAGE (sym), &result_names);
+				     sym->language (), &result_names);
 
 	  /* We have a list of candidate symbol names, so now we
 	     iterate over the symbol tables looking for all
@@ -3706,7 +3713,6 @@ find_method (struct linespec_state *self, std::vector<symtab *> *file_symtabs,
 
 	  superclass_vec.clear ();
 	  last_result_len = result_names.size ();
-	  ++ix;
 	}
     }
 
@@ -3729,15 +3735,9 @@ class symtab_collector
 {
 public:
   symtab_collector ()
+    : m_symtab_table (htab_create (1, htab_hash_pointer, htab_eq_pointer,
+				   NULL))
   {
-    m_symtab_table = htab_create (1, htab_hash_pointer, htab_eq_pointer,
-				  NULL);
-  }
-
-  ~symtab_collector ()
-  {
-    if (m_symtab_table != NULL)
-      htab_delete (m_symtab_table);
   }
 
   /* Callable as a symbol_found_callback_ftype callback.  */
@@ -3754,7 +3754,7 @@ private:
   std::vector<symtab *> m_symtabs;
 
   /* This is used to ensure the symtabs are unique.  */
-  htab_t m_symtab_table;
+  htab_up m_symtab_table;
 };
 
 bool
@@ -3762,7 +3762,7 @@ symtab_collector::operator () (struct symtab *symtab)
 {
   void **slot;
 
-  slot = htab_find_slot (m_symtab_table, symtab, INSERT);
+  slot = htab_find_slot (m_symtab_table.get (), symtab, INSERT);
   if (!*slot)
     {
       *slot = symtab;
@@ -3787,10 +3787,8 @@ collect_symtabs_from_filename (const char *file,
   /* Find that file's data.  */
   if (search_pspace == NULL)
     {
-      struct program_space *pspace;
-
-      ALL_PSPACES (pspace)
-        {
+      for (struct program_space *pspace : program_spaces)
+	{
 	  if (pspace->executing_startup)
 	    continue;
 
@@ -3899,9 +3897,10 @@ find_linespec_symbols (struct linespec_state *state,
 		       std::vector <block_symbol> *symbols,
 		       std::vector<bound_minimal_symbol> *minsyms)
 {
-  std::string canon = cp_canonicalize_string_no_typedefs (lookup_name);
-  if (!canon.empty ())
-    lookup_name = canon.c_str ();
+  gdb::unique_xmalloc_ptr<char> canon
+    = cp_canonicalize_string_no_typedefs (lookup_name);
+  if (canon != nullptr)
+    lookup_name = canon.get ();
 
   /* It's important to not call expand_symtabs_matching unnecessarily
      as it can really slow things down (by unnecessarily expanding
@@ -3998,7 +3997,7 @@ find_label_symbols_in_block (const struct block *block,
 
       ALL_BLOCK_SYMBOLS (block, iter, sym)
 	{
-	  if (symbol_matches_domain (SYMBOL_LANGUAGE (sym),
+	  if (symbol_matches_domain (sym->language (),
 				     SYMBOL_DOMAIN (sym), LABEL_DOMAIN)
 	      && cmp (sym->search_name (), name, name_len) == 0)
 	    {
@@ -4168,7 +4167,7 @@ linespec_parse_variable (struct linespec_state *self, const char *variable)
       sscanf ((variable[1] == '$') ? variable + 2 : variable + 1, "%d", &index);
       val_history
 	= access_value_history ((variable[1] == '$') ? -index : index);
-      if (TYPE_CODE (value_type (val_history)) != TYPE_CODE_INT)
+      if (value_type (val_history)->code () != TYPE_CODE_INT)
 	error (_("History values used in line "
 		 "specs must have integer values."));
       offset.offset = value_as_long (val_history);
@@ -4252,41 +4251,6 @@ minsym_found (struct linespec_state *self, struct objfile *objfile,
     add_sal_to_sals (self, result, &sal, msymbol->natural_name (), 0);
 }
 
-/* A helper function to classify a minimal_symbol_type according to
-   priority.  */
-
-static int
-classify_mtype (enum minimal_symbol_type t)
-{
-  switch (t)
-    {
-    case mst_file_text:
-    case mst_file_data:
-    case mst_file_bss:
-      /* Intermediate priority.  */
-      return 1;
-
-    case mst_solib_trampoline:
-      /* Lowest priority.  */
-      return 2;
-
-    default:
-      /* Highest priority.  */
-      return 0;
-    }
-}
-
-/* Callback for std::sort that sorts symbols by priority.  */
-
-static bool
-compare_msyms (const bound_minimal_symbol &a, const bound_minimal_symbol &b)
-{
-  enum minimal_symbol_type ta = MSYMBOL_TYPE (a.minsym);
-  enum minimal_symbol_type tb = MSYMBOL_TYPE (b.minsym);
-
-  return classify_mtype (ta) < classify_mtype (tb);
-}
-
 /* Helper for search_minsyms_for_name that adds the symbol to the
    result.  */
 
@@ -4335,29 +4299,27 @@ search_minsyms_for_name (struct collect_info *info,
 
   if (symtab == NULL)
     {
-      struct program_space *pspace;
+      for (struct program_space *pspace : program_spaces)
+	{
+	  if (search_pspace != NULL && search_pspace != pspace)
+	    continue;
+	  if (pspace->executing_startup)
+	    continue;
 
-      ALL_PSPACES (pspace)
-      {
-	if (search_pspace != NULL && search_pspace != pspace)
-	  continue;
-	if (pspace->executing_startup)
-	  continue;
+	  set_current_program_space (pspace);
 
-	set_current_program_space (pspace);
-
-	for (objfile *objfile : current_program_space->objfiles ())
-	  {
-	    iterate_over_minimal_symbols (objfile, name,
-					  [&] (struct minimal_symbol *msym)
-					  {
-					    add_minsym (msym, objfile, nullptr,
-							info->state->list_mode,
-							&minsyms);
-					    return false;
-					  });
-	  }
-      }
+	  for (objfile *objfile : current_program_space->objfiles ())
+	    {
+	      iterate_over_minimal_symbols (objfile, name,
+					    [&] (struct minimal_symbol *msym)
+					    {
+					      add_minsym (msym, objfile, nullptr,
+							  info->state->list_mode,
+							  &minsyms);
+					      return false;
+					    });
+	    }
+	}
     }
   else
     {
@@ -4375,24 +4337,53 @@ search_minsyms_for_name (struct collect_info *info,
 	}
     }
 
-  if (!minsyms.empty ())
+  /* Return true if TYPE is a static symbol.  */
+  auto msymbol_type_is_static = [] (enum minimal_symbol_type type)
     {
-      int classification;
-
-      std::sort (minsyms.begin (), minsyms.end (), compare_msyms);
-
-      /* Now the minsyms are in classification order.  So, we walk
-	 over them and process just the minsyms with the same
-	 classification as the very first minsym in the list.  */
-      classification = classify_mtype (MSYMBOL_TYPE (minsyms[0].minsym));
-
-      for (const bound_minimal_symbol &item : minsyms)
+      switch (type)
 	{
-	  if (classify_mtype (MSYMBOL_TYPE (item.minsym)) != classification)
-	    break;
-
-	  info->result.minimal_symbols->push_back (item);
+	case mst_file_text:
+	case mst_file_data:
+	case mst_file_bss:
+	return true;
+	default:
+	return false;
 	}
+    };
+
+  /* Add minsyms to the result set, but filter out trampoline symbols
+     if we also found extern symbols with the same name.  I.e., don't
+     set a breakpoint on both '<foo@plt>' and 'foo', assuming that
+     'foo' is the symbol that the plt resolves to.  */
+  for (const bound_minimal_symbol &item : minsyms)
+    {
+      bool skip = false;
+      if (MSYMBOL_TYPE (item.minsym) == mst_solib_trampoline)
+	{
+	  for (const bound_minimal_symbol &item2 : minsyms)
+	    {
+	      if (&item2 == &item)
+		continue;
+
+	      /* Trampoline symbols can only jump to exported
+		 symbols.  */
+	      if (msymbol_type_is_static (MSYMBOL_TYPE (item2.minsym)))
+		continue;
+
+	      if (strcmp (item.minsym->linkage_name (),
+			  item2.minsym->linkage_name ()) != 0)
+		continue;
+
+	      /* Found a global minsym with the same name as the
+		 trampoline.  Don't create a location for this
+		 trampoline.  */
+	      skip = true;
+	      break;
+	    }
+	}
+
+      if (!skip)
+	info->result.minimal_symbols->push_back (item);
     }
 }
 

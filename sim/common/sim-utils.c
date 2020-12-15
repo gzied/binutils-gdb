@@ -1,5 +1,5 @@
 /* Miscellaneous simulator utilities.
-   Copyright (C) 1997-2019 Free Software Foundation, Inc.
+   Copyright (C) 1997-2020 Free Software Foundation, Inc.
    Contributed by Cygnus Support.
 
 This file is part of GDB, the GNU debugger.
@@ -355,8 +355,8 @@ map_to_str (unsigned map)
     case io_map: return "io";
     default:
       {
-	static char str[10];
-	sprintf (str, "(%ld)", (long) map);
+	static char str[16];
+	snprintf (str, sizeof(str), "(%ld)", (long) map);
 	return str;
       }
     }
@@ -385,8 +385,8 @@ access_to_str (unsigned access)
     case access_read_write_exec_io: return "read_write_exec_io";
     default:
       {
-	static char str[10];
-	sprintf (str, "(%ld)", (long) access);
+	static char str[16];
+	snprintf (str, sizeof(str), "(%ld)", (long) access);
 	return str;
       }
     }

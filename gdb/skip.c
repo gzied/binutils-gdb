@@ -1,6 +1,6 @@
 /* Skipping uninteresting files and functions while stepping.
 
-   Copyright (C) 2011-2019 Free Software Foundation, Inc.
+   Copyright (C) 2011-2020 Free Software Foundation, Inc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -139,14 +139,8 @@ skiplist_entry::skiplist_entry (bool file_is_glob,
   if (m_function_is_regexp)
     {
       gdb_assert (!m_function.empty ());
-
-      int flags = REG_NOSUB;
-#ifdef REG_EXTENDED
-      flags |= REG_EXTENDED;
-#endif
-
-      gdb_assert (!m_function.empty ());
-      m_compiled_function_regexp.emplace (m_function.c_str (), flags,
+      m_compiled_function_regexp.emplace (m_function.c_str (),
+					  REG_NOSUB | REG_EXTENDED,
 					  _("regexp"));
     }
 }
@@ -209,18 +203,15 @@ skip_function_command (const char *arg, int from_tty)
   /* Default to the current function if no argument is given.  */
   if (arg == NULL)
     {
+      frame_info *fi = get_selected_frame (_("No default function now."));
+      struct symbol *sym = get_frame_function (fi);
       const char *name = NULL;
-      CORE_ADDR pc;
 
-      if (!last_displayed_sal_is_valid ())
-	error (_("No default function now."));
-
-      pc = get_last_displayed_addr ();
-      if (!find_pc_partial_function (pc, &name, NULL, NULL))
-	{
-	  error (_("No function found containing current program point %s."),
-		  paddress (get_current_arch (), pc));
-	}
+      if (sym != NULL)
+	name = sym->print_name ();
+      else
+	error (_("No function found containing current program point %s."),
+	       paddress (get_current_arch (), get_frame_pc (fi)));
       skip_function (name);
       return;
     }
@@ -592,7 +583,7 @@ skiplist_entry::skip_function_p (const char *function_name) const
   if (m_function_is_regexp)
     {
       if (debug_skip)
-        fprintf_unfiltered (gdb_stdlog,
+	fprintf_unfiltered (gdb_stdlog,
 			    "skip: checking if function %s matches regex %s...",
 			    function_name, m_function.c_str ());
 
@@ -603,7 +594,7 @@ skiplist_entry::skip_function_p (const char *function_name) const
   else
     {
       if (debug_skip)
-        fprintf_unfiltered (gdb_stdlog,
+	fprintf_unfiltered (gdb_stdlog,
 			    ("skip: checking if function %s matches non-regex "
 			     "%s..."),
 			    function_name, m_function.c_str ());
@@ -665,8 +656,9 @@ complete_skip_number (cmd_list_element *cmd,
     }
 }
 
+void _initialize_step_skip ();
 void
-_initialize_step_skip (void)
+_initialize_step_skip ()
 {
   static struct cmd_list_element *skiplist = NULL;
   struct cmd_list_element *c;
@@ -684,7 +676,7 @@ FILE-SPEC is one of:\n\
 FUNCTION-SPEC is one of:\n\
        -fu|-function FUNCTION-NAME\n\
        -rfu|-rfunction FUNCTION-NAME-REGULAR-EXPRESSION"),
-                  &skiplist, "skip ", 1, &cmdlist);
+		  &skiplist, "skip ", 1, &cmdlist);
 
   c = add_cmd ("file", class_breakpoint, skip_file_command, _("\
 Ignore a file while stepping.\n\

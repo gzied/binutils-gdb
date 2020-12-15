@@ -1,6 +1,6 @@
 /* Target-dependent code for DJGPP/i386.
 
-   Copyright (C) 1988-2019 Free Software Foundation, Inc.
+   Copyright (C) 1988-2020 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -62,6 +62,7 @@ i386_coff_osabi_sniffer (bfd *abfd)
 }
 
 
+void _initialize_i386_go32_tdep ();
 void
 _initialize_i386_go32_tdep ()
 {

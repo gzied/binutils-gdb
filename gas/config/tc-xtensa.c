@@ -1,5 +1,5 @@
 /* tc-xtensa.c -- Assemble Xtensa instructions.
-   Copyright (C) 2003-2019 Free Software Foundation, Inc.
+   Copyright (C) 2003-2020 Free Software Foundation, Inc.
 
    This file is part of GAS, the GNU Assembler.
 
@@ -31,8 +31,16 @@
 #include "elf/xtensa.h"
 
 /* Provide default values for new configuration settings.  */
-#ifndef XSHAL_ABI
-#define XSHAL_ABI 0
+#ifndef XTHAL_ABI_WINDOWED
+#define XTHAL_ABI_WINDOWED 0
+#endif
+
+#ifndef XTHAL_ABI_CALL0
+#define XTHAL_ABI_CALL0 1
+#endif
+
+#ifndef XTENSA_MARCH_EARLIEST
+#define XTENSA_MARCH_EARLIEST 0
 #endif
 
 #ifndef uint32
@@ -73,6 +81,8 @@ const char FLT_CHARS[] = "rRsSfFdDxXpP";
 
 bfd_boolean density_supported;
 bfd_boolean absolute_literals_supported;
+
+static unsigned microarch_earliest;
 
 static vliw_insn cur_vinsn;
 
@@ -642,6 +652,10 @@ static bfd_boolean workaround_all_short_loops = FALSE;
    This option is defined in BDF library.  */
 extern bfd_boolean elf32xtensa_separate_props;
 
+/* Xtensa ABI.
+   This option is defined in BDF library.  */
+extern int elf32xtensa_abi;
+
 static void
 xtensa_setup_hw_workarounds (int earliest, int latest)
 {
@@ -729,6 +743,9 @@ enum
 
   option_separate_props,
   option_no_separate_props,
+
+  option_abi_windowed,
+  option_abi_call0,
 };
 
 const char *md_shortopts = "";
@@ -809,6 +826,9 @@ struct option md_longopts[] =
   { "auto-litpool-limit", required_argument, NULL, option_auto_litpool_limit },
 
   { "separate-prop-tables", no_argument, NULL, option_separate_props },
+
+  { "abi-windowed", no_argument, NULL, option_abi_windowed },
+  { "abi-call0", no_argument, NULL, option_abi_call0 },
 
   { NULL, no_argument, NULL, 0 }
 };
@@ -1036,6 +1056,14 @@ md_parse_option (int c, const char *arg)
 
     case option_no_separate_props:
       elf32xtensa_separate_props = FALSE;
+      return 1;
+
+    case option_abi_windowed:
+      elf32xtensa_abi = XTHAL_ABI_WINDOWED;
+      return 1;
+
+    case option_abi_call0:
+      elf32xtensa_abi = XTHAL_ABI_CALL0;
       return 1;
 
     default:
@@ -2047,13 +2075,13 @@ tokenize_arguments (char **args, char *str)
 	}
     }
 
-fini:
+ fini:
   if (saw_comma || saw_colon)
     goto err;
   input_line_pointer = old_input_line_pointer;
   return num_args;
 
-err:
+ err:
   if (saw_comma)
     as_bad (_("extra comma"));
   else if (saw_colon)
@@ -2498,6 +2526,18 @@ xg_translate_idioms (char **popname, int *pnum_args, char **arg_strings)
 	  xg_replace_opname (popname, (has_underbar ? "_or" : "or"));
 	  arg_strings[2] = xstrdup (arg_strings[1]);
 	  *pnum_args = 3;
+	}
+      return 0;
+    }
+
+  /* Without an operand, this is given a default immediate operand of 0.  */
+  if ((strcmp (opname, "simcall") == 0 && microarch_earliest >= 280000))
+    {
+      if (*pnum_args == 0)
+	{
+	  arg_strings[0] = (char *) xmalloc (2);
+	  strcpy (arg_strings[0], "0");
+	  *pnum_args = 1;
 	}
       return 0;
     }
@@ -4153,12 +4193,12 @@ xtensa_create_literal_symbol (segT sec, fragS *frag)
      symbol will be in the output file.  */
   if (get_is_linkonce_section (stdoutput, sec))
     {
-      symbolP = symbol_new (name, sec, 0, frag);
+      symbolP = symbol_new (name, sec, frag, 0);
       S_CLEAR_EXTERNAL (symbolP);
       /* symbolP->local = 1; */
     }
   else
-    symbolP = symbol_new (name, sec, 0, frag);
+    symbolP = symbol_new (name, sec, frag, 0);
 
   xtensa_add_literal_sym (symbolP);
 
@@ -5236,6 +5276,8 @@ xg_init_global_config (void)
 
   directive_state[directive_density] = XCHAL_HAVE_DENSITY;
   directive_state[directive_absolute_literals] = XSHAL_USE_ABSOLUTE_LITERALS;
+
+  microarch_earliest = XTENSA_MARCH_EARLIEST;
 }
 
 void
@@ -5974,18 +6016,24 @@ md_apply_fix (fixS *fixP, valueT *valP, segT seg)
     case BFD_RELOC_8:
       if (fixP->fx_subsy)
 	{
+	  bfd_boolean neg = S_GET_VALUE (fixP->fx_addsy) + fixP->fx_offset
+	    < S_GET_VALUE (fixP->fx_subsy);
+
 	  switch (fixP->fx_r_type)
 	    {
 	    case BFD_RELOC_8:
-	      fixP->fx_r_type = BFD_RELOC_XTENSA_DIFF8;
+	      fixP->fx_r_type = neg
+		? BFD_RELOC_XTENSA_NDIFF8 : BFD_RELOC_XTENSA_PDIFF8;
 	      fixP->fx_signed = 0;
 	      break;
 	    case BFD_RELOC_16:
-	      fixP->fx_r_type = BFD_RELOC_XTENSA_DIFF16;
+	      fixP->fx_r_type = neg
+		? BFD_RELOC_XTENSA_NDIFF16 : BFD_RELOC_XTENSA_PDIFF16;
 	      fixP->fx_signed = 0;
 	      break;
 	    case BFD_RELOC_32:
-	      fixP->fx_r_type = BFD_RELOC_XTENSA_DIFF32;
+	      fixP->fx_r_type = neg
+		? BFD_RELOC_XTENSA_NDIFF32 : BFD_RELOC_XTENSA_PDIFF32;
 	      fixP->fx_signed = 0;
 	      break;
 	    default:
@@ -7705,6 +7753,9 @@ xg_get_trampoline_chain (struct trampoline_seg *ts,
   struct trampoline_chain_index *idx = &ts->chain_index;
   struct trampoline_chain c;
 
+  if (idx->n_entries == 0)
+    return NULL;
+
   if (idx->needs_sorting)
     {
       qsort (idx->entry, idx->n_entries, sizeof (*idx->entry),
@@ -7834,7 +7885,7 @@ dump_litpools (void)
 	  printf("   %ld <%d:%d> (%d) [%d]: ",
 		 lpf->addr, lpf->priority, lpf->original_priority,
 		 lpf->fragP->fr_line, count);
-	  //dump_frag(lpf->fragP);
+	  /* dump_frag(lpf->fragP);  */
 	}
     }
 }
@@ -8932,7 +8983,6 @@ is_local_forward_loop (const TInsn *insn, fragS *fragP)
   return FALSE;
 }
 
-
 #define XTINFO_NAME "Xtensa_Info"
 #define XTINFO_NAMESZ 12
 #define XTINFO_TYPE 1
@@ -8949,7 +8999,7 @@ xtensa_add_config_info (void)
 
   data = XNEWVEC (char, 100);
   sprintf (data, "USE_ABSOLUTE_LITERALS=%d\nABI=%d\n",
-	   XSHAL_USE_ABSOLUTE_LITERALS, XSHAL_ABI);
+	   XSHAL_USE_ABSOLUTE_LITERALS, xtensa_abi_choice ());
   sz = strlen (data) + 1;
 
   /* Add enough null terminators to pad to a word boundary.  */
@@ -10163,7 +10213,7 @@ init_trampoline_frag (fragS *fp)
       char label[10 + 2 * sizeof(fp)];
 
       sprintf (label, ".L0_TR_%p", fp);
-      lsym = (symbolS *)local_symbol_make (label, now_seg, 0, fp);
+      lsym = (symbolS *) local_symbol_make (label, now_seg, fp, 0);
       fp->fr_symbol = lsym;
       if (fp->tc_frag_data.needs_jump_around)
         {
@@ -10785,9 +10835,9 @@ convert_frag_immed (segT segP,
 		  target_offset += unreach->tc_frag_data.text_expansion[0];
 		}
 	      gas_assert (gen_label == NULL);
-	      gen_label = symbol_new (FAKE_LABEL_NAME, now_seg,
+	      gen_label = symbol_new (FAKE_LABEL_NAME, now_seg, fragP,
 				      fr_opcode - fragP->fr_literal
-				      + target_offset, fragP);
+				      + target_offset);
 	      break;
 
 	    case ITYPE_INSN:
@@ -11090,8 +11140,7 @@ xg_promote_candidate_litpool (struct litpool_seg *lps,
   /* Create a local symbol pointing to the
      end of the pool.  */
   sprintf (label, ".L0_LT_%p", poolbeg);
-  lsym = (symbolS *)local_symbol_make (label, lps->seg,
-				       0, poolend);
+  lsym = (symbolS *) local_symbol_make (label, lps->seg, poolend, 0);
   poolbeg->fr_symbol = lsym;
   /* Rest is done in xtensa_relax_frag.  */
 }

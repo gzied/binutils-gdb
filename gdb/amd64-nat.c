@@ -1,6 +1,6 @@
 /* Native-dependent code for AMD64.
 
-   Copyright (C) 2003-2019 Free Software Foundation, Inc.
+   Copyright (C) 2003-2020 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -68,13 +68,6 @@ amd64_native_gregset_reg_offset (struct gdbarch *gdbarch, int regnum)
   if (regnum >= num_regs)
     return -1;
 
-  /* Kernels that predate Linux 2.6.25 don't provide access to
-     these segment registers in user_regs_struct.   */
-#ifndef HAVE_STRUCT_USER_REGS_STRUCT_FS_BASE
-  if (regnum == AMD64_FSBASE_REGNUM || regnum == AMD64_GSBASE_REGNUM)
-    return -1;
-#endif
-
   return reg_offset[regnum];
 }
 
@@ -136,7 +129,7 @@ amd64_collect_native_gregset (const struct regcache *regcache,
       num_regs = amd64_native_gregset32_num_regs;
 
       /* Make sure %eax, %ebx, %ecx, %edx, %esi, %edi, %ebp, %esp and
-         %eip get zero-extended to 64 bits.  */
+	 %eip get zero-extended to 64 bits.  */
       for (i = 0; i <= I386_EIP_REGNUM; i++)
 	{
 	  if (regnum == -1 || regnum == i)

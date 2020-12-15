@@ -1,5 +1,5 @@
 /* MI Command Set - varobj commands.
-   Copyright (C) 2000-2019 Free Software Foundation, Inc.
+   Copyright (C) 2000-2020 Free Software Foundation, Inc.
 
    Contributed by Cygnus Solutions (a Red Hat company).
 
@@ -340,9 +340,9 @@ mi_print_value_p (struct varobj *var, enum print_values print_values)
 
       /* For PRINT_SIMPLE_VALUES, only print the value if it has a type
 	 and that type is not a compound type.  */
-      return (TYPE_CODE (type) != TYPE_CODE_ARRAY
-	      && TYPE_CODE (type) != TYPE_CODE_STRUCT
-	      && TYPE_CODE (type) != TYPE_CODE_UNION);
+      return (type->code () != TYPE_CODE_ARRAY
+	      && type->code () != TYPE_CODE_STRUCT
+	      && type->code () != TYPE_CODE_UNION);
     }
 }
 
@@ -458,7 +458,7 @@ mi_cmd_var_info_expression (const char *command, char **argv, int argc)
 
   lang = varobj_get_language (var);
 
-  uiout->field_string ("lang", lang->la_natural_name);
+  uiout->field_string ("lang", lang->natural_name ());
 
   std::string exp = varobj_get_expression (var);
   uiout->field_string ("exp", exp.c_str ());
@@ -706,11 +706,11 @@ varobj_update_one (struct varobj *var, enum print_values print_values,
 	    }
 	  uiout->field_string ("in_scope", "true");
 	  break;
-        case VAROBJ_NOT_IN_SCOPE:
-          uiout->field_string ("in_scope", "false");
+	case VAROBJ_NOT_IN_SCOPE:
+	  uiout->field_string ("in_scope", "false");
 	  break;
-        case VAROBJ_INVALID:
-          uiout->field_string ("in_scope", "invalid");
+	case VAROBJ_INVALID:
+	  uiout->field_string ("in_scope", "invalid");
  	  break;
 	}
 

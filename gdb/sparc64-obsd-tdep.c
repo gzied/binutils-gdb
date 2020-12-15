@@ -1,6 +1,6 @@
 /* Target-dependent code for OpenBSD/sparc64.
 
-   Copyright (C) 2004-2019 Free Software Foundation, Inc.
+   Copyright (C) 2004-2020 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -168,7 +168,7 @@ sparc64obsd_frame_cache (struct frame_info *this_frame, void **this_cache)
       cache->pc &= ~(sparc64obsd_page_size - 1);
 
       /* Since we couldn't find the frame's function, the cache was
-         initialized under the assumption that we're frameless.  */
+	 initialized under the assumption that we're frameless.  */
       sparc_record_save_insn (cache);
       addr = get_frame_register_unsigned (this_frame, SPARC_FP_REGNUM);
       if (addr & 1)
@@ -440,8 +440,9 @@ sparc64obsd_init_abi (struct gdbarch_info info, struct gdbarch *gdbarch)
   bsd_uthread_set_collect_uthread (gdbarch, sparc64obsd_collect_uthread);
 }
 
+void _initialize_sparc64obsd_tdep ();
 void
-_initialize_sparc64obsd_tdep (void)
+_initialize_sparc64obsd_tdep ()
 {
   gdbarch_register_osabi (bfd_arch_sparc, bfd_mach_sparc_v9,
 			  GDB_OSABI_OPENBSD, sparc64obsd_init_abi);

@@ -40,7 +40,6 @@
 #  include <opencsd/etmv4/trc_pkt_types_etmv4.h>
 #  include <opencsd/ocsd_if_types.h>
 #  include <opencsd/ocsd_if_version.h>
-#  include "arch/arm.h"
 #endif
 
 #include <vector>

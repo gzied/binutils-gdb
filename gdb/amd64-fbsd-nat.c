@@ -1,6 +1,6 @@
 /* Native-dependent code for FreeBSD/amd64.
 
-   Copyright (C) 2003-2019 Free Software Foundation, Inc.
+   Copyright (C) 2003-2020 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -209,8 +209,9 @@ amd64_fbsd_nat_target::supports_stopped_by_hw_breakpoint ()
 }
 #endif
 
+void _initialize_amd64fbsd_nat ();
 void
-_initialize_amd64fbsd_nat (void)
+_initialize_amd64fbsd_nat ()
 {
   int offset;
 

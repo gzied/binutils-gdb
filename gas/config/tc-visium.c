@@ -1,6 +1,6 @@
 /* This is the machine dependent code of the Visium Assembler.
 
-   Copyright (C) 2005-2019 Free Software Foundation, Inc.
+   Copyright (C) 2005-2020 Free Software Foundation, Inc.
 
    This file is part of GAS, the GNU Assembler.
 
@@ -484,7 +484,7 @@ void
 md_convert_frag (bfd * abfd ATTRIBUTE_UNUSED, segT sec ATTRIBUTE_UNUSED,
 		 fragS * fragP)
 {
-  char *buf = fragP->fr_literal + fragP->fr_fix;
+  char *buf = &fragP->fr_literal[0] + fragP->fr_fix;
   expressionS exp;
   fixS *fixP;
 

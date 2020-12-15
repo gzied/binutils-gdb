@@ -1,6 +1,6 @@
 /* Base/prototype target for default child (native) targets.
 
-   Copyright (C) 1988-2019 Free Software Foundation, Inc.
+   Copyright (C) 1988-2020 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -206,7 +206,7 @@ inf_child_target::mourn_inferior ()
 void
 inf_child_target::maybe_unpush_target ()
 {
-  if (!inf_child_explicitly_opened && !have_inferiors ())
+  if (!inf_child_explicitly_opened)
     unpush_target (this);
 }
 

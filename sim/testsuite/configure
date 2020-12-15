@@ -1688,7 +1688,7 @@ ac_compiler_gnu=$ac_cv_c_compiler_gnu
 CC=${CC-cc}
 
 ac_aux_dir=
-for ac_dir in `cd $srcdir;pwd`/../.. "$srcdir"/`cd $srcdir;pwd`/../..; do
+for ac_dir in ../.. "$srcdir"/../..; do
   if test -f "$ac_dir/install-sh"; then
     ac_aux_dir=$ac_dir
     ac_install_sh="$ac_aux_dir/install-sh -c"
@@ -1704,7 +1704,7 @@ for ac_dir in `cd $srcdir;pwd`/../.. "$srcdir"/`cd $srcdir;pwd`/../..; do
   fi
 done
 if test -z "$ac_aux_dir"; then
-  as_fn_error $? "cannot find install-sh, install.sh, or shtool in \`cd $srcdir;pwd\`/../.. \"$srcdir\"/\`cd $srcdir;pwd\`/../.." "$LINENO" 5
+  as_fn_error $? "cannot find install-sh, install.sh, or shtool in ../.. \"$srcdir\"/../.." "$LINENO" 5
 fi
 
 # These three variables are undocumented and unsupported,
@@ -1875,6 +1875,9 @@ case "${target}" in
    bfin-*-*)
        sim_arch=bfin
        ;;
+   bpf-*-*)
+       sim_arch=bpf
+       ;;
    cr16*-*-*)
        sim_arch=cr16
        ;;
@@ -1928,6 +1931,9 @@ case "${target}" in
    or1k-*-* | or1knd-*-*)
        sim_arch=or1k
        ;;
+   pru*-*-*)
+       sim_arch=pru
+       ;;
    rl78-*-*)
        sim_arch=rl78
        ;;
@@ -1945,9 +1951,6 @@ case "${target}" in
        ;;
    powerpc*-*-*)
        sim_arch=ppc
-       ;;
-   pru*-*-*)
-       sim_arch=pru
        ;;
    ft32-*-*)
        sim_arch=ft32

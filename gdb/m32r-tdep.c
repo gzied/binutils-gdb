@@ -1,6 +1,6 @@
 /* Target-dependent code for Renesas M32R, for GDB.
 
-   Copyright (C) 1996-2019 Free Software Foundation, Inc.
+   Copyright (C) 1996-2020 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -202,7 +202,7 @@ m32r_sw_breakpoint_from_kind (struct gdbarch *gdbarch, int kind, int *size)
     }
 }
 
-static const char *m32r_register_names[] = {
+static const char * const m32r_register_names[] = {
   "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7",
   "r8", "r9", "r10", "r11", "r12", "fp", "lr", "sp",
   "psw", "cbr", "spi", "spu", "bpc", "pc", "accl", "acch",
@@ -293,7 +293,7 @@ decode_prologue (struct gdbarch *gdbarch,
 	break;
 
       /* If this is a 32 bit instruction, we dont want to examine its
-         immediate data as though it were an instruction.  */
+	 immediate data as though it were an instruction.  */
       if (current_pc & 0x02)
 	{
 	  /* Decode this instruction further.  */
@@ -367,7 +367,7 @@ decode_prologue (struct gdbarch *gdbarch,
 	      framesize -= stack_adjust;
 	      after_prologue = 0;
 	      /* A frameless function may have no "mv fp, sp".
-	         In that case, this is the end of the prologue.  */
+		 In that case, this is the end of the prologue.  */
 	      after_stack_adjust = current_pc + 2;
 	    }
 	  continue;
@@ -610,17 +610,17 @@ m32r_frame_unwind_cache (struct frame_info *this_frame,
   if (info->uses_frame)
     {
       /* The SP was moved to the FP.  This indicates that a new frame
-         was created.  Get THIS frame's FP value by unwinding it from
-         the next frame.  */
+	 was created.  Get THIS frame's FP value by unwinding it from
+	 the next frame.  */
       this_base = get_frame_register_unsigned (this_frame, M32R_FP_REGNUM);
       /* The FP points at the last saved register.  Adjust the FP back
-         to before the first saved register giving the SP.  */
+	 to before the first saved register giving the SP.  */
       prev_sp = this_base + info->size;
     }
   else
     {
       /* Assume that the FP is this frame's SP but with that pushed
-         stack space added back.  */
+	 stack space added back.  */
       this_base = get_frame_register_unsigned (this_frame, M32R_SP_REGNUM);
       prev_sp = this_base + info->size;
     }
@@ -690,7 +690,7 @@ m32r_push_dummy_call (struct gdbarch *gdbarch, struct value *function,
   for (argnum = 0, stack_offset = 0; argnum < nargs; argnum++)
     {
       type = value_type (args[argnum]);
-      typecode = TYPE_CODE (type);
+      typecode = type->code ();
       len = TYPE_LENGTH (type);
 
       memset (valbuf, 0, sizeof (valbuf));
@@ -911,8 +911,9 @@ m32r_gdbarch_init (struct gdbarch_info info, struct gdbarch_list *arches)
   return gdbarch;
 }
 
+void _initialize_m32r_tdep ();
 void
-_initialize_m32r_tdep (void)
+_initialize_m32r_tdep ()
 {
   register_gdbarch_init (bfd_arch_m32r, m32r_gdbarch_init);
 }

@@ -1,6 +1,6 @@
 /* Target-dependent code for GNU/Linux on CRIS processors, for GDB.
 
-   Copyright (C) 2001-2019 Free Software Foundation, Inc.
+   Copyright (C) 2001-2020 Free Software Foundation, Inc.
 
    Contributed by Axis Communications AB.
    Written by Hendrik Ruijter, Stefan Andersson, Orjan Friberg,
@@ -35,20 +35,21 @@ cris_linux_init_abi (struct gdbarch_info info, struct gdbarch *gdbarch)
 {
   struct gdbarch_tdep *tdep = gdbarch_tdep (gdbarch);
 
-  linux_init_abi (info, gdbarch);
+  linux_init_abi (info, gdbarch, 0);
 
   if (tdep->cris_version == 32)
     /* Threaded debugging is only supported on CRISv32 for now.  */
     set_gdbarch_fetch_tls_load_module_address (gdbarch,
-                                               svr4_fetch_objfile_link_map);
+					       svr4_fetch_objfile_link_map);
 
   set_solib_svr4_fetch_link_map_offsets (gdbarch,
 					 svr4_ilp32_fetch_link_map_offsets);
 
 }
 
+void _initialize_cris_linux_tdep ();
 void
-_initialize_cris_linux_tdep (void)
+_initialize_cris_linux_tdep ()
 {
   gdbarch_register_osabi (bfd_arch_cris, 0, GDB_OSABI_LINUX,
 			  cris_linux_init_abi);

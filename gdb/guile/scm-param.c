@@ -1,6 +1,6 @@
 /* GDB parameters implemented in Guile.
 
-   Copyright (C) 2008-2019 Free Software Foundation, Inc.
+   Copyright (C) 2008-2020 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -62,7 +62,7 @@ union pascm_variable
    N.B. There is no free function for this smob.
    All objects pointed to by this smob must live in GC space.  */
 
-typedef struct _param_smob
+struct param_smob
 {
   /* This always appears first.  */
   gdb_smob base;
@@ -112,7 +112,7 @@ typedef struct _param_smob
      protect/unprotect the object since a reference to it comes from
      non-gc-managed space (the command context pointer).  */
   SCM containing_scm;
-} param_smob;
+};
 
 static const char param_smob_name[] = "gdb:parameter";
 
@@ -466,13 +466,13 @@ add_setshow_generic (enum var_types param_type, enum command_class cmd_class,
   /* Lookup created parameter, and register Scheme object against the
      parameter context.  Perform this task against both lists.  */
   tmp_name = cmd_name;
-  param = lookup_cmd (&tmp_name, *show_list, "", 0, 1);
+  param = lookup_cmd (&tmp_name, *show_list, "", NULL, 0, 1);
   gdb_assert (param != NULL);
   set_cmd_context (param, self);
   *set_cmd = param;
 
   tmp_name = cmd_name;
-  param = lookup_cmd (&tmp_name, *set_list, "", 0, 1);
+  param = lookup_cmd (&tmp_name, *set_list, "", NULL, 0, 1);
   gdb_assert (param != NULL);
   set_cmd_context (param, self);
   *show_cmd = param;
@@ -969,7 +969,7 @@ pascm_parameter_defined_p (const char *name, struct cmd_list_element *list)
 {
   struct cmd_list_element *c;
 
-  c = lookup_cmd_1 (&name, list, NULL, 1);
+  c = lookup_cmd_1 (&name, list, NULL, NULL, 1);
 
   /* If the name is ambiguous that's ok, it's a new parameter still.  */
   return c != NULL && c != CMD_LIST_AMBIGUOUS;

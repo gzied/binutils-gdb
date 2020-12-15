@@ -1,6 +1,6 @@
 // object.cc -- support for an object file for linking in gold
 
-// Copyright (C) 2006-2019 Free Software Foundation, Inc.
+// Copyright (C) 2006-2020 Free Software Foundation, Inc.
 // Written by Ian Lance Taylor <iant@google.com>.
 
 // This file is part of gold.
@@ -2981,17 +2981,20 @@ Sized_relobj_file<size, big_endian>::map_to_kept_section(
         {
 	  // The kept section is a linkonce section.
 	  if (sh_size == kept_section->linkonce_size())
-	    found = true;
+	    {
+	      kept_shndx = kept_section->shndx();
+	      found = true;
+	    }
         }
       else
 	{
+	  uint64_t kept_size = 0;
 	  if (is_comdat)
 	    {
 	      // Find the corresponding kept section.
 	      // Since we're using this mapping for relocation processing,
 	      // we don't want to match sections unless they have the same
 	      // size.
-	      uint64_t kept_size = 0;
 	      if (kept_section->find_comdat_section(section_name, &kept_shndx,
 						    &kept_size))
 		{
@@ -2999,9 +3002,8 @@ Sized_relobj_file<size, big_endian>::map_to_kept_section(
 		    found = true;
 		}
 	    }
-	  else
+	  if (!found)
 	    {
-	      uint64_t kept_size = 0;
 	      if (kept_section->find_single_comdat_section(&kept_shndx,
 							   &kept_size)
 		  && sh_size == kept_size)

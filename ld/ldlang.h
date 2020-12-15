@@ -1,5 +1,5 @@
 /* ldlang.h - linker command language support
-   Copyright (C) 1991-2019 Free Software Foundation, Inc.
+   Copyright (C) 1991-2020 Free Software Foundation, Inc.
 
    This file is part of the GNU Binutils.
 
@@ -22,6 +22,8 @@
 #define LDLANG_H
 
 #define DEFAULT_MEMORY_REGION   "*default*"
+
+#define SECTION_NAME_MAP_LENGTH (16)
 
 typedef enum
 {
@@ -269,7 +271,7 @@ struct lang_input_statement_flags
   /* Set if reloading an archive or --as-needed lib.  */
   unsigned int reload : 1;
 
-#ifdef ENABLE_PLUGINS
+#if BFD_SUPPORTS_PLUGINS
   /* Set if the file was claimed by a plugin.  */
   unsigned int claimed : 1;
 
@@ -278,7 +280,7 @@ struct lang_input_statement_flags
 
   /* Set if added by the lto plugin add_input_file callback.  */
   unsigned int lto_output : 1;
-#endif /* ENABLE_PLUGINS */
+#endif /* BFD_SUPPORTS_PLUGINS */
 
   /* Head of list of pushed flags.  */
   struct lang_input_statement_flags *pushed;
@@ -293,6 +295,9 @@ typedef struct lang_input_statement_struct
      Usually the same as filename, but for a file spec'd with
      -l this is the -l switch itself rather than the filename.  */
   const char *local_sym_name;
+  /* Extra search path. Used to find a file relative to the
+     directory of the current linker script.  */
+  const char *extra_search_path;
 
   bfd *the_bfd;
 
@@ -508,6 +513,8 @@ extern bfd_boolean entry_from_cmdline;
 extern lang_statement_list_type file_chain;
 extern lang_statement_list_type input_file_chain;
 
+extern struct bfd_elf_dynamic_list **current_dynamic_list_p;
+
 extern int lang_statement_iteration;
 extern struct asneeded_minfo **asneeded_list_tail;
 
@@ -579,7 +586,7 @@ extern asection *section_for_dot
        statement = statement->next)
 
 #define lang_output_section_find(NAME) \
-  lang_output_section_statement_lookup (NAME, 0, FALSE)
+  lang_output_section_statement_lookup (NAME, 0, 0)
 
 extern void lang_process
   (void);
@@ -598,7 +605,7 @@ extern void lang_add_keepsyms_file
 extern lang_output_section_statement_type *lang_output_section_get
   (const asection *);
 extern lang_output_section_statement_type *lang_output_section_statement_lookup
-  (const char *, int, bfd_boolean);
+  (const char *, int, int);
 extern lang_output_section_statement_type *next_matching_output_section_statement
   (lang_output_section_statement_type *, int);
 extern void ldlang_add_undef
@@ -668,7 +675,8 @@ extern struct bfd_elf_version_deps *lang_add_vers_depend
   (struct bfd_elf_version_deps *, const char *);
 extern void lang_register_vers_node
   (const char *, struct bfd_elf_version_tree *, struct bfd_elf_version_deps *);
-extern void lang_append_dynamic_list (struct bfd_elf_version_expr *);
+extern void lang_append_dynamic_list (struct bfd_elf_dynamic_list **,
+				      struct bfd_elf_version_expr *);
 extern void lang_append_dynamic_list_cpp_typeinfo (void);
 extern void lang_append_dynamic_list_cpp_new (void);
 extern void lang_add_unique
@@ -681,8 +689,10 @@ extern bfd_boolean load_symbols
 
 struct elf_sym_strtab;
 struct elf_strtab_hash;
-extern void ldlang_ctf_apply_strsym
-  (struct elf_sym_strtab *, bfd_size_type, struct elf_strtab_hash *);
+extern void ldlang_ctf_acquire_strings
+  (struct elf_strtab_hash *);
+extern void ldlang_ctf_new_dynsym
+  (int symidx, struct elf_internal_sym *);
 extern void ldlang_write_ctf_late
   (void);
 extern bfd_boolean
@@ -697,5 +707,8 @@ lang_print_memory_usage (void);
 
 extern void
 lang_add_gc_name (const char *);
+
+extern bfd_boolean
+print_one_symbol (struct bfd_link_hash_entry *hash_entry, void *ptr);
 
 #endif

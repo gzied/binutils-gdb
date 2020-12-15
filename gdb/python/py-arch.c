@@ -1,6 +1,6 @@
 /* Python interface to architecture
 
-   Copyright (C) 2013-2019 Free Software Foundation, Inc.
+   Copyright (C) 2013-2020 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -23,10 +23,10 @@
 #include "disasm.h"
 #include "python-internal.h"
 
-typedef struct arch_object_type_object {
+struct arch_object {
   PyObject_HEAD
   struct gdbarch *gdbarch;
-} arch_object;
+};
 
 static struct gdbarch_data *arch_object_data = NULL;
 
@@ -138,41 +138,41 @@ archpy_disassemble (PyObject *self, PyObject *args, PyObject *kw)
 	 to be done first to ensure we do not lose information in the
 	 conversion process.  */
       if (PyLong_Check (end_obj))
-        end = PyLong_AsUnsignedLongLong (end_obj);
+	end = PyLong_AsUnsignedLongLong (end_obj);
 #if PY_MAJOR_VERSION == 2
       else if (PyInt_Check (end_obj))
-        /* If the end_pc value is specified without a trailing 'L', end_obj will
-           be an integer and not a long integer.  */
-        end = PyInt_AsLong (end_obj);
+	/* If the end_pc value is specified without a trailing 'L', end_obj will
+	   be an integer and not a long integer.  */
+	end = PyInt_AsLong (end_obj);
 #endif
       else
-        {
-          PyErr_SetString (PyExc_TypeError,
-                           _("Argument 'end_pc' should be a (long) integer."));
+	{
+	  PyErr_SetString (PyExc_TypeError,
+			   _("Argument 'end_pc' should be a (long) integer."));
 
-          return NULL;
-        }
+	  return NULL;
+	}
 
       if (end < start)
-        {
-          PyErr_SetString (PyExc_ValueError,
-                           _("Argument 'end_pc' should be greater than or "
-                             "equal to the argument 'start_pc'."));
+	{
+	  PyErr_SetString (PyExc_ValueError,
+			   _("Argument 'end_pc' should be greater than or "
+			     "equal to the argument 'start_pc'."));
 
-          return NULL;
-        }
+	  return NULL;
+	}
     }
   if (count_obj)
     {
       count = PyInt_AsLong (count_obj);
       if (PyErr_Occurred () || count < 0)
-        {
-          PyErr_SetString (PyExc_TypeError,
-                           _("Argument 'count' should be an non-negative "
-                             "integer."));
+	{
+	  PyErr_SetString (PyExc_TypeError,
+			   _("Argument 'count' should be an non-negative "
+			     "integer."));
 
-          return NULL;
-        }
+	  return NULL;
+	}
     }
 
   gdbpy_ref<> result_list (PyList_New (0));
@@ -200,23 +200,32 @@ archpy_disassemble (PyObject *self, PyObject *args, PyObject *kw)
       string_file stb;
 
       try
-        {
-          insn_len = gdb_print_insn (gdbarch, pc, &stb, NULL);
-        }
+	{
+	  insn_len = gdb_print_insn (gdbarch, pc, &stb, NULL);
+	}
       catch (const gdb_exception &except)
-        {
+	{
 	  gdbpy_convert_exception (except);
 	  return NULL;
-        }
+	}
 
-      if (PyDict_SetItemString (insn_dict.get (), "addr",
-                                gdb_py_long_from_ulongest (pc))
-          || PyDict_SetItemString (insn_dict.get (), "asm",
-                                   PyString_FromString (!stb.empty ()
-							? stb.c_str ()
-							: "<unknown>"))
-          || PyDict_SetItemString (insn_dict.get (), "length",
-                                   PyInt_FromLong (insn_len)))
+      gdbpy_ref<> pc_obj = gdb_py_object_from_ulongest (pc);
+      if (pc_obj == nullptr)
+	return nullptr;
+
+      gdbpy_ref<> asm_obj (PyString_FromString (!stb.empty ()
+						? stb.c_str ()
+						: "<unknown>"));
+      if (asm_obj == nullptr)
+	return nullptr;
+
+      gdbpy_ref<> len_obj = gdb_py_object_from_longest (insn_len);
+      if (len_obj == nullptr)
+	return nullptr;
+
+      if (PyDict_SetItemString (insn_dict.get (), "addr", pc_obj.get ())
+	  || PyDict_SetItemString (insn_dict.get (), "asm", asm_obj.get ())
+	  || PyDict_SetItemString (insn_dict.get (), "length", len_obj.get ()))
 	return NULL;
 
       pc += insn_len;
@@ -224,6 +233,42 @@ archpy_disassemble (PyObject *self, PyObject *args, PyObject *kw)
     }
 
   return result_list.release ();
+}
+
+/* Implementation of gdb.Architecture.registers (self, reggroup) -> Iterator.
+   Returns an iterator over register descriptors for registers in GROUP
+   within the architecture SELF.  */
+
+static PyObject *
+archpy_registers (PyObject *self, PyObject *args, PyObject *kw)
+{
+  static const char *keywords[] = { "reggroup", NULL };
+  struct gdbarch *gdbarch = NULL;
+  const char *group_name = NULL;
+
+  /* Parse method arguments.  */
+  if (!gdb_PyArg_ParseTupleAndKeywords (args, kw, "|s", keywords,
+					&group_name))
+    return NULL;
+
+  /* Extract the gdbarch from the self object.  */
+  ARCHPY_REQUIRE_VALID (self, gdbarch);
+
+  return gdbpy_new_register_descriptor_iterator (gdbarch, group_name);
+}
+
+/* Implementation of gdb.Architecture.register_groups (self) -> Iterator.
+   Returns an iterator that will give up all valid register groups in the
+   architecture SELF.  */
+
+static PyObject *
+archpy_register_groups (PyObject *self, PyObject *args)
+{
+  struct gdbarch *gdbarch = NULL;
+
+  /* Extract the gdbarch from the self object.  */
+  ARCHPY_REQUIRE_VALID (self, gdbarch);
+  return gdbpy_new_reggroup_iterator (gdbarch);
 }
 
 /* Initializes the Architecture class in the gdb module.  */
@@ -249,6 +294,15 @@ Return the name of the architecture as a string value." },
     "disassemble (start_pc [, end_pc [, count]]) -> List.\n\
 Return a list of at most COUNT disassembled instructions from START_PC to\n\
 END_PC." },
+  { "registers", (PyCFunction) archpy_registers,
+    METH_VARARGS | METH_KEYWORDS,
+    "registers ([ group-name ]) -> Iterator.\n\
+Return an iterator of register descriptors for the registers in register\n\
+group GROUP-NAME." },
+  { "register_groups", archpy_register_groups,
+    METH_NOARGS,
+    "register_groups () -> Iterator.\n\
+Return an iterator over all of the register groups in this architecture." },
   {NULL}  /* Sentinel */
 };
 

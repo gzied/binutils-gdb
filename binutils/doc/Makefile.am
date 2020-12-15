@@ -1,6 +1,6 @@
 ## Process this file with automake to generate Makefile.in
 #
-#   Copyright (C) 2012-2019 Free Software Foundation, Inc.
+#   Copyright (C) 2012-2020 Free Software Foundation, Inc.
 #
 # This file is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -162,7 +162,7 @@ cxxfilt.man:	$(binutils_TEXI)
 		mv -f $@.T$$$$ $@) || (rm -f $@.T$$$$ && exit 1)
 	rm -f $(DEMANGLER_NAME).pod
 
-MOSTLYCLEANFILES     = $(man_MANS) binutils.info cxxfilt.man
+MAINTAINERCLEANFILES = $(man_MANS) binutils.info cxxfilt.man
 
 $(DEMANGLER_NAME).1: cxxfilt.man Makefile
 	if test -f cxxfilt.man; then \

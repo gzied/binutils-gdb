@@ -1,5 +1,5 @@
 /* linker.c -- BFD linker routines
-   Copyright (C) 1993-2019 Free Software Foundation, Inc.
+   Copyright (C) 1993-2020 Free Software Foundation, Inc.
    Written by Steve Chamberlain and Ian Lance Taylor, Cygnus Support
 
    This file is part of BFD, the Binary File Descriptor library.
@@ -536,7 +536,7 @@ bfd_wrapped_link_hash_lookup (bfd *abfd,
 			      bfd_boolean copy,
 			      bfd_boolean follow)
 {
-  bfd_size_type amt;
+  size_t amt;
 
   if (info->wrap_hash != NULL)
     {
@@ -764,7 +764,7 @@ struct bfd_link_hash_table *
 _bfd_generic_link_hash_table_create (bfd *abfd)
 {
   struct generic_link_hash_table *ret;
-  bfd_size_type amt = sizeof (struct generic_link_hash_table);
+  size_t amt = sizeof (struct generic_link_hash_table);
 
   ret = (struct generic_link_hash_table *) bfd_malloc (amt);
   if (ret == NULL)
@@ -1301,7 +1301,7 @@ static const enum link_action link_action[8][8] =
   /* current\prev    new    undef  undefw def    defw   com    indr   warn  */
   /* UNDEF_ROW	*/  {UND,   NOACT, UND,   REF,   REF,   NOACT, REFC,  WARNC },
   /* UNDEFW_ROW	*/  {WEAK,  NOACT, NOACT, REF,   REF,   NOACT, REFC,  WARNC },
-  /* DEF_ROW	*/  {DEF,   DEF,   DEF,   MDEF,  DEF,   CDEF,  MDEF,  CYCLE },
+  /* DEF_ROW	*/  {DEF,   DEF,   DEF,   MDEF,  DEF,   CDEF,  MIND,  CYCLE },
   /* DEFW_ROW	*/  {DEFW,  DEFW,  DEFW,  NOACT, NOACT, NOACT, NOACT, CYCLE },
   /* COMMON_ROW	*/  {COM,   COM,   COM,   CREF,  COM,   BIG,   REFC,  WARNC },
   /* INDR_ROW	*/  {IND,   IND,   IND,   MDEF,  IND,   CIND,  MIND,  CYCLE },
@@ -1672,6 +1672,17 @@ _bfd_generic_link_add_one_symbol (struct bfd_link_info *info,
 	case MIND:
 	  /* Multiple indirect symbols.  This is OK if they both point
 	     to the same symbol.  */
+	  if (h->u.i.link->type == bfd_link_hash_defweak)
+	    {
+	      /* It is also OK to redefine a symbol that indirects to
+		 a weak definition.  So for sym@ver -> sym@@ver where
+		 sym@@ver is weak and we have a new strong sym@ver,
+		 redefine sym@@ver.  Of course if there exists
+		 sym -> sym@@ver then this also redefines sym.  */
+	      h = h->u.i.link;
+	      cycle = TRUE;
+	      break;
+	    }
 	  if (strcmp (h->u.i.link->root.string, string) == 0)
 	    break;
 	  /* Fall through.  */
@@ -1995,7 +2006,7 @@ _bfd_generic_link_output_symbols (bfd *output_bfd,
 	      newsym = bfd_make_empty_symbol (input_bfd);
 	      if (!newsym)
 		return FALSE;
-	      newsym->name = input_bfd->filename;
+	      newsym->name = bfd_get_filename (input_bfd);
 	      newsym->value = 0;
 	      newsym->flags = BSF_LOCAL | BSF_FILE;
 	      newsym->section = sec;
@@ -2422,7 +2433,7 @@ _bfd_generic_reloc_link_order (bfd *abfd,
 struct bfd_link_order *
 bfd_new_link_order (bfd *abfd, asection *section)
 {
-  bfd_size_type amt = sizeof (struct bfd_link_order);
+  size_t amt = sizeof (struct bfd_link_order);
   struct bfd_link_order *new_lo;
 
   new_lo = (struct bfd_link_order *) bfd_zalloc (abfd, amt);
@@ -2661,13 +2672,11 @@ default_indirect_link_order (bfd *output_bfd,
 				  new_contents, loc, input_section->size))
     goto error_return;
 
-  if (contents != NULL)
-    free (contents);
+  free (contents);
   return TRUE;
 
  error_return:
-  if (contents != NULL)
-    free (contents);
+  free (contents);
   return FALSE;
 }
 
@@ -2894,10 +2903,8 @@ _bfd_handle_already_linked (asection *sec,
 	      (_("%pB: duplicate section `%pA' has different contents\n"),
 	       sec->owner, sec);
 
-	  if (sec_contents)
-	    free (sec_contents);
-	  if (l_sec_contents)
-	    free (l_sec_contents);
+	  free (sec_contents);
+	  free (l_sec_contents);
 	}
       break;
     }
@@ -3099,8 +3106,13 @@ bfd_generic_define_common_symbol (bfd *output_bfd,
   section = h->u.c.p->section;
 
   /* Increase the size of the section to align the common symbol.
-     The alignment must be a power of two.  */
-  alignment = bfd_octets_per_byte (output_bfd, section) << power_of_two;
+     The alignment must be a power of two.  But if the section does
+     not have any alignment requirement then do not increase the
+     alignment unnecessarily.  */
+  if (power_of_two)
+    alignment = bfd_octets_per_byte (output_bfd, section) << power_of_two;
+  else
+    alignment = 1;
   BFD_ASSERT (alignment != 0 && (alignment & -alignment) == alignment);
   section->size += alignment - 1;
   section->size &= -alignment;

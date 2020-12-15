@@ -1,6 +1,6 @@
 /* Core dump and executable file functions above target vector, for GDB.
 
-   Copyright (C) 1986-2019 Free Software Foundation, Inc.
+   Copyright (C) 1986-2020 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -88,8 +88,8 @@ specify_exec_file_hook (void (*hook) (const char *))
 	}
 
       /* Grow the hook array by one and add the new hook to the end.
-         Yes, it's inefficient to grow it by one each time but since
-         this is hardly ever called it's not a big deal.  */
+	 Yes, it's inefficient to grow it by one each time but since
+	 this is hardly ever called it's not a big deal.  */
       exec_file_hook_count++;
       new_array = (hook_type *)
 	xrealloc (exec_file_extra_hooks,
@@ -108,14 +108,16 @@ reopen_exec_file (void)
   struct stat st;
 
   /* Don't do anything if there isn't an exec file.  */
-  if (exec_bfd == NULL)
+  if (current_program_space->exec_bfd () == NULL)
     return;
 
   /* If the timestamp of the exec file has changed, reopen it.  */
-  std::string filename = bfd_get_filename (exec_bfd);
+  std::string filename = bfd_get_filename (current_program_space->exec_bfd ());
   res = stat (filename.c_str (), &st);
 
-  if (res == 0 && exec_bfd_mtime && exec_bfd_mtime != st.st_mtime)
+  if (res == 0
+      && current_program_space->ebfd_mtime
+      && current_program_space->ebfd_mtime != st.st_mtime)
     exec_file_attach (filename.c_str (), 0);
   else
     /* If we accessed the file since last opening it, close it now;
@@ -130,28 +132,29 @@ reopen_exec_file (void)
 void
 validate_files (void)
 {
-  if (exec_bfd && core_bfd)
+  if (current_program_space->exec_bfd () && core_bfd)
     {
-      if (!core_file_matches_executable_p (core_bfd, exec_bfd))
+      if (!core_file_matches_executable_p (core_bfd,
+					   current_program_space->exec_bfd ()))
 	warning (_("core file may not match specified executable file."));
-      else if (bfd_get_mtime (exec_bfd) > bfd_get_mtime (core_bfd))
+      else if (bfd_get_mtime (current_program_space->exec_bfd ())
+	       > bfd_get_mtime (core_bfd))
 	warning (_("exec file is newer than core file."));
     }
 }
 
 /* See gdbsupport/common-inferior.h.  */
 
-char *
+const char *
 get_exec_file (int err)
 {
-  if (exec_filename)
-    return exec_filename;
+  if (current_program_space->exec_filename != nullptr)
+    return current_program_space->exec_filename.get ();
   if (!err)
     return NULL;
 
   error (_("No executable file specified.\n\
 Use the \"file\" or \"exec-file\" command."));
-  return NULL;
 }
 
 
@@ -329,33 +332,6 @@ read_code_unsigned_integer (CORE_ADDR memaddr, int len,
   return extract_unsigned_integer (buf, len, byte_order);
 }
 
-void
-read_memory_string (CORE_ADDR memaddr, char *buffer, int max_len)
-{
-  char *cp;
-  int i;
-  int cnt;
-
-  cp = buffer;
-  while (1)
-    {
-      if (cp - buffer >= max_len)
-	{
-	  buffer[max_len - 1] = '\0';
-	  break;
-	}
-      cnt = max_len - (cp - buffer);
-      if (cnt > 8)
-	cnt = 8;
-      read_memory (memaddr + (int) (cp - buffer), (gdb_byte *) cp, cnt);
-      for (i = 0; i < cnt && *cp; i++, cp++)
-	;			/* null body */
-
-      if (i < cnt && !*cp)
-	break;
-    }
-}
-
 CORE_ADDR
 read_memory_typed_address (CORE_ADDR addr, struct type *type)
 {
@@ -416,7 +392,7 @@ write_memory_signed_integer (CORE_ADDR addr, int len,
 
 /* The current default bfd target.  Points to storage allocated for
    gnutarget_string.  */
-char *gnutarget;
+const char *gnutarget;
 
 /* Same thing, except it is "auto" not NULL for the default case.  */
 static char *gnutarget_string;
@@ -473,14 +449,14 @@ complete_set_gnutarget (struct cmd_list_element *cmd,
 void
 set_gnutarget (const char *newtarget)
 {
-  if (gnutarget_string != NULL)
-    xfree (gnutarget_string);
+  xfree (gnutarget_string);
   gnutarget_string = xstrdup (newtarget);
   set_gnutarget_command (NULL, 0, NULL);
 }
 
+void _initialize_core ();
 void
-_initialize_core (void)
+_initialize_core ()
 {
   struct cmd_list_element *c;
 
