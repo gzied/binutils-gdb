@@ -97,13 +97,13 @@ public:
   const struct target_desc *read_description () override;
 
   struct btrace_target_info *enable_btrace (ptid_t ptid,
-  					    const struct btrace_config *conf) override;
-    void disable_btrace (struct btrace_target_info *tinfo) override;
-    void teardown_btrace (struct btrace_target_info *tinfo) override;
-    enum btrace_error read_btrace (struct btrace_data *data,
-  				 struct btrace_target_info *btinfo,
-  				 enum btrace_read_type type) override;
-    const struct btrace_config *btrace_conf (const struct btrace_target_info *) override;
+					    const struct btrace_config *conf) override;
+  void disable_btrace (struct btrace_target_info *tinfo) override;
+  void teardown_btrace (struct btrace_target_info *tinfo) override;
+  enum btrace_error read_btrace (struct btrace_data *data,
+				 struct btrace_target_info *btinfo,
+				 enum btrace_read_type type) override;
+  const struct btrace_config *btrace_conf (const struct btrace_target_info *) override;
 
   /* Override linux_nat_target low methods.  */
 
@@ -1208,14 +1208,14 @@ arm_linux_nat_target::enable_btrace (ptid_t ptid,
 {
   struct btrace_target_info *tinfo = nullptr;
   try
-    {
+  {
       tinfo = linux_enable_btrace (ptid, conf);
-    }
+  }
   catch (const gdb_exception_error &exception)
-    {
+  {
       error (_("Could not enable branch tracing for %s: %s"),
 	     target_pid_to_str (ptid).c_str (), exception.what ());
-    }
+  }
 
   return tinfo;
 }

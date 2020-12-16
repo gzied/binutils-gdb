@@ -28,7 +28,7 @@ const char *
 btrace_format_string (enum btrace_format format)
 {
   switch (format)
-    {
+  {
     case BTRACE_FORMAT_NONE:
       return _("No or unknown format");
 
@@ -38,9 +38,9 @@ btrace_format_string (enum btrace_format format)
     case BTRACE_FORMAT_PT:
       return _("Intel Processor Trace");
 
-	case BTRACE_FORMAT_ETM:
-		return _("arm Processor CoreSight ETM Trace");
-    }
+    case BTRACE_FORMAT_ETM:
+      return _("arm Processor CoreSight ETM Trace");
+  }
 
   internal_error (__FILE__, __LINE__, _("Unknown branch trace format"));
 }
@@ -51,7 +51,7 @@ const char *
 btrace_format_short_string (enum btrace_format format)
 {
   switch (format)
-    {
+  {
     case BTRACE_FORMAT_NONE:
       return "unknown";
 
@@ -61,9 +61,9 @@ btrace_format_short_string (enum btrace_format format)
     case BTRACE_FORMAT_PT:
       return "pt";
 
-	case BTRACE_FORMAT_ETM:
-		return "etm";
-    }
+    case BTRACE_FORMAT_ETM:
+      return "etm";
+  }
 
   internal_error (__FILE__, __LINE__, _("Unknown branch trace format"));
 }
@@ -74,7 +74,7 @@ void
 btrace_data::fini ()
 {
   switch (format)
-    {
+  {
     case BTRACE_FORMAT_NONE:
       /* Nothing to do.  */
       return;
@@ -88,11 +88,11 @@ btrace_data::fini ()
       xfree (variant.pt.data);
       return;
 
-	case BTRACE_FORMAT_ETM:
-		if (variant.etm.data!=NULL) //variant.etm.data can be null if no new traces are collected
-		  xfree (variant.etm.data);
-		return;
-    }
+    case BTRACE_FORMAT_ETM:
+      if (variant.etm.data!=NULL) //variant.etm.data can be null if no new traces are collected
+	xfree (variant.etm.data);
+      return;
+  }
 
   internal_error (__FILE__, __LINE__, _("Unkown branch trace format."));
 }
@@ -103,7 +103,7 @@ bool
 btrace_data::empty () const
 {
   switch (format)
-    {
+  {
     case BTRACE_FORMAT_NONE:
       return true;
 
@@ -113,9 +113,9 @@ btrace_data::empty () const
     case BTRACE_FORMAT_PT:
       return (variant.pt.size == 0);
 
-	case BTRACE_FORMAT_ETM:
-		return (variant.etm.size == 0);
-    }
+    case BTRACE_FORMAT_ETM:
+      return (variant.etm.size == 0);
+  }
 
   internal_error (__FILE__, __LINE__, _("Unkown branch trace format."));
 }
@@ -136,13 +136,13 @@ btrace_data_append (struct btrace_data *dst,
 		    const struct btrace_data *src)
 {
   switch (src->format)
-    {
+  {
     case BTRACE_FORMAT_NONE:
       return 0;
 
     case BTRACE_FORMAT_BTS:
       switch (dst->format)
-	{
+      {
 	default:
 	  return -1;
 
@@ -161,45 +161,45 @@ btrace_data_append (struct btrace_data *dst,
 	    while (blk != 0)
 	      {
 		const btrace_block &block
-		  = src->variant.bts.blocks->at (--blk);
+		= src->variant.bts.blocks->at (--blk);
 		dst->variant.bts.blocks->push_back (block);
 	      }
 	  }
-	}
+      }
       return 0;
 
-    case BTRACE_FORMAT_PT:
-      switch (dst->format)
-	{
-	default:
-	  return -1;
-
-	case BTRACE_FORMAT_NONE:
-	  dst->format = BTRACE_FORMAT_PT;
-	  dst->variant.pt.data = NULL;
-	  dst->variant.pt.size = 0;
-
-	  /* fall-through.  */
 	case BTRACE_FORMAT_PT:
+	  switch (dst->format)
 	  {
-	    gdb_byte *data;
-	    size_t size;
+	    default:
+	      return -1;
 
-	    size = src->variant.pt.size + dst->variant.pt.size;
-	    data = (gdb_byte *) xmalloc (size);
+	    case BTRACE_FORMAT_NONE:
+	      dst->format = BTRACE_FORMAT_PT;
+	      dst->variant.pt.data = NULL;
+	      dst->variant.pt.size = 0;
 
-	    if (dst->variant.pt.size > 0)
-	      memcpy (data, dst->variant.pt.data, dst->variant.pt.size);
-	    memcpy (data + dst->variant.pt.size, src->variant.pt.data,
-		    src->variant.pt.size);
+	      /* fall-through.  */
+	    case BTRACE_FORMAT_PT:
+	      {
+		gdb_byte *data;
+		size_t size;
 
-	    xfree (dst->variant.pt.data);
+		size = src->variant.pt.size + dst->variant.pt.size;
+		data = (gdb_byte *) xmalloc (size);
 
-	    dst->variant.pt.data = data;
-	    dst->variant.pt.size = size;
+		if (dst->variant.pt.size > 0)
+		  memcpy (data, dst->variant.pt.data, dst->variant.pt.size);
+		memcpy (data + dst->variant.pt.size, src->variant.pt.data,
+			src->variant.pt.size);
+
+		xfree (dst->variant.pt.data);
+
+		dst->variant.pt.data = data;
+		dst->variant.pt.size = size;
+	      }
 	  }
-	}
-      return 0;
+	  return 0;
 
 	    case BTRACE_FORMAT_ETM:
 	      switch (dst->format)
@@ -232,7 +232,7 @@ btrace_data_append (struct btrace_data *dst,
 		  }
 	      }
 	      return 0;
-    }
+  }
 
   internal_error (__FILE__, __LINE__, _("Unkown branch trace format."));
 }

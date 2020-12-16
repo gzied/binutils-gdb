@@ -91,7 +91,7 @@ btrace_this_cpu (void)
 	    }
 	}
       else if (ebx == signature_AMD_ebx && ecx == signature_AMD_ecx
-	       && edx == signature_AMD_edx)
+	  && edx == signature_AMD_edx)
 	cpu.vendor = CV_AMD;
     }
 
@@ -339,7 +339,7 @@ perf_event_sample_ok (const struct perf_event_sample *sample)
 static std::vector<btrace_block> *
 perf_event_read_bts (struct btrace_target_info* tinfo, const uint8_t *begin,
 		     const uint8_t *end, const uint8_t *start, size_t size)
-{
+		     {
   std::vector<btrace_block> *btrace = new std::vector<btrace_block>;
   struct perf_event_sample sample;
   size_t read = 0;
@@ -422,7 +422,7 @@ perf_event_read_bts (struct btrace_target_info* tinfo, const uint8_t *begin,
   btrace->push_back (block);
 
   return btrace;
-}
+		     }
 
 /* Check whether an Intel cpu supports BTS.  */
 
@@ -430,10 +430,10 @@ static int
 intel_supports_bts (const struct btrace_cpu *cpu)
 {
   switch (cpu->family)
-    {
+  {
     case 0x6:
       switch (cpu->model)
-	{
+      {
 	case 0x1a: /* Nehalem */
 	case 0x1f:
 	case 0x1e:
@@ -449,8 +449,8 @@ intel_supports_bts (const struct btrace_cpu *cpu)
 	     "from" information afer an EIST transition, T-states, C1E, or
 	     Adaptive Thermal Throttling.  */
 	  return 0;
-	}
-    }
+      }
+  }
 
   return 1;
 }
@@ -464,7 +464,7 @@ cpu_supports_bts (void)
 
   cpu = btrace_this_cpu ();
   switch (cpu.vendor)
-    {
+  {
     default:
       /* Don't know about others.  Let's assume they do.  */
       return 1;
@@ -474,7 +474,7 @@ cpu_supports_bts (void)
 
     case CV_AMD:
       return 0;
-    }
+  }
 }
 
 /* The perf_event_open syscall failed.  Try to print a helpful error
@@ -484,7 +484,7 @@ static void
 diagnose_perf_event_open_fail ()
 {
   switch (errno)
-    {
+  {
     case EPERM:
     case EACCES:
       {
@@ -496,11 +496,11 @@ diagnose_perf_event_open_fail ()
 	int level, found = fscanf (file.get (), "%d", &level);
 	if (found == 1 && level > 2)
 	  error (_("You do not have permission to record the process.  "
-		   "Try setting %s to 2 or less."), filename);
+	      "Try setting %s to 2 or less."), filename);
       }
 
       break;
-    }
+  }
 
   error (_("Failed to start recording: %s"), safe_strerror (errno));
 }
@@ -519,7 +519,7 @@ linux_enable_bts (ptid_t ptid, const struct btrace_config_bts *conf)
     error (_("BTS support has been disabled for the target cpu."));
 
   gdb::unique_xmalloc_ptr<btrace_target_info> tinfo
-    (XCNEW (btrace_target_info));
+  (XCNEW (btrace_target_info));
   tinfo->ptid = ptid;
 
   tinfo->conf.format = BTRACE_FORMAT_BTS;
@@ -550,7 +550,7 @@ linux_enable_bts (ptid_t ptid, const struct btrace_config_bts *conf)
 
   /* Convert the requested size in bytes to pages (rounding up).  */
   pages = ((size_t) conf->size / page_size
-	   + ((conf->size % page_size) == 0 ? 0 : 1));
+      + ((conf->size % page_size) == 0 ? 0 : 1));
   /* We need at least one page.  */
   if (pages == 0)
     pages = 1;
@@ -593,7 +593,7 @@ linux_enable_bts (ptid_t ptid, const struct btrace_config_bts *conf)
     error (_("Failed to map trace buffer: %s."), safe_strerror (errno));
 
   struct perf_event_mmap_page *header = (struct perf_event_mmap_page *)
-    data.get ();
+	data.get ();
   data_offset = page_size;
 
 #if defined (PERF_ATTR_SIZE_VER5)
@@ -658,7 +658,7 @@ linux_enable_pt (ptid_t ptid, const struct btrace_config_pt *conf)
     pid = ptid.pid ();
 
   gdb::unique_xmalloc_ptr<btrace_target_info> tinfo
-    (XCNEW (btrace_target_info));
+  (XCNEW (btrace_target_info));
   tinfo->ptid = ptid;
 
   tinfo->conf.format = BTRACE_FORMAT_PT;
@@ -684,13 +684,13 @@ linux_enable_pt (ptid_t ptid, const struct btrace_config_pt *conf)
     error (_("Failed to map trace user page: %s."), safe_strerror (errno));
 
   struct perf_event_mmap_page *header = (struct perf_event_mmap_page *)
-    data.get ();
+	data.get ();
 
   header->aux_offset = header->data_offset + header->data_size;
 
   /* Convert the requested size in bytes to pages (rounding up).  */
   pages = ((size_t) conf->size / page_size
-	   + ((conf->size % page_size) == 0 ? 0 : 1));
+      + ((conf->size % page_size) == 0 ? 0 : 1));
   /* We need at least one page.  */
   if (pages == 0)
     pages = 1;
@@ -807,7 +807,7 @@ linux_enable_etm (ptid_t ptid, const struct btrace_config_etm *conf)
     pid = ptid.pid ();
 
   gdb::unique_xmalloc_ptr<btrace_target_info> tinfo
-    (XCNEW (btrace_target_info));
+  (XCNEW (btrace_target_info));
   tinfo->ptid = ptid;
 
   tinfo->conf.format = BTRACE_FORMAT_ETM;
@@ -824,7 +824,7 @@ linux_enable_etm (ptid_t ptid, const struct btrace_config_etm *conf)
   etm->attr.exclude_hv = 1;
   etm->attr.exclude_idle = 1;
   if (conf->sink != nullptr)
-	  etm->attr.config2 = perf_event_etm_event_sink(conf);
+    etm->attr.config2 = perf_event_etm_event_sink(conf);
 
   errno = 0;
   scoped_fd fd (syscall (SYS_perf_event_open, &etm->attr, pid, -1, -1, 0));
@@ -839,12 +839,12 @@ linux_enable_etm (ptid_t ptid, const struct btrace_config_etm *conf)
     error (_("Failed to map trace user page: %s."), safe_strerror (errno));
 
   struct perf_event_mmap_page *header = (struct perf_event_mmap_page *)
-    data.get ();
+	data.get ();
 
   header->aux_offset = header->data_offset + header->data_size;
   /* Convert the requested size in bytes to pages (rounding up).  */
   pages = ((size_t) conf->size / page_size
-	   + ((conf->size % page_size) == 0 ? 0 : 1));
+      + ((conf->size % page_size) == 0 ? 0 : 1));
   /* We need at least one page.  */
   if (pages == 0)
     pages = 1;
@@ -867,14 +867,14 @@ linux_enable_etm (ptid_t ptid, const struct btrace_config_etm *conf)
 
       /* Don't ask for more than we can represent in the configuration.  */
       if ((__u64) UINT_MAX < data_size)
-    	  continue;
+	continue;
 
 
       length = (size_t) data_size;
 
       /* Check for overflows.  */
       if ((__u64) length != data_size)
-         continue;
+	continue;
 
 
       header->aux_size = data_size;
@@ -883,7 +883,7 @@ linux_enable_etm (ptid_t ptid, const struct btrace_config_etm *conf)
       aux.reset (nullptr, length, PROT_READ, MAP_SHARED, fd.get (),
 		 header->aux_offset);
       if (aux.get () != MAP_FAILED)
-    	  break;
+	break;
     }
   if (pages == 0)
     error (_("Failed to map trace buffer: %s."), safe_strerror (errno));
@@ -907,7 +907,7 @@ struct btrace_target_info *
 linux_enable_btrace (ptid_t ptid, const struct btrace_config *conf)
 {
   switch (conf->format)
-    {
+  {
     case BTRACE_FORMAT_NONE:
       error (_("Bad branch trace format."));
 
@@ -921,8 +921,8 @@ linux_enable_btrace (ptid_t ptid, const struct btrace_config *conf)
       return linux_enable_pt (ptid, &conf->pt);
 
     case BTRACE_FORMAT_ETM:
-          return linux_enable_etm (ptid, &conf->etm);
-    }
+      return linux_enable_etm (ptid, &conf->etm);
+  }
 }
 
 /* Disable BTS tracing.  */
@@ -972,7 +972,7 @@ linux_disable_btrace (struct btrace_target_info *tinfo)
 
   errcode = BTRACE_ERR_NOT_SUPPORTED;
   switch (tinfo->conf.format)
-    {
+  {
     case BTRACE_FORMAT_NONE:
       break;
 
@@ -987,7 +987,7 @@ linux_disable_btrace (struct btrace_target_info *tinfo)
     case BTRACE_FORMAT_ETM:
       errcode = linux_disable_etm (&tinfo->variant.etm);
       break;
-    }
+  }
 
   if (errcode == BTRACE_ERR_NONE)
     xfree (tinfo);
@@ -1113,7 +1113,7 @@ linux_read_pt (struct btrace_data_pt *btrace,
   linux_fill_btrace_pt_config (&btrace->config);
 
   switch (type)
-    {
+  {
     case BTRACE_READ_DELTA:
       /* We don't support delta reads.  The data head (i.e. aux_head) wraps
 	 around to stay inside the aux buffer.  */
@@ -1127,7 +1127,7 @@ linux_read_pt (struct btrace_data_pt *btrace,
     case BTRACE_READ_ALL:
       perf_event_read_all (pt, &btrace->data, &btrace->size);
       return BTRACE_ERR_NONE;
-    }
+  }
 
   internal_error (__FILE__, __LINE__, _("Unknown btrace read type."));
 }
@@ -1135,88 +1135,88 @@ linux_read_pt (struct btrace_data_pt *btrace,
 
 static int get_cpu_count(void)
 {
-	static const char filename[] = "/sys/devices/system/cpu/present";
-	int length;
-	char * buffer;
-	int cpu_count;
+  static const char filename[] = "/sys/devices/system/cpu/present";
+  int length;
+  char * buffer;
+  int cpu_count;
 
-	gdb_file_up file = gdb_fopen_cloexec (filename, "r");
-	if (file.get () == nullptr)
-	  error (_("Failed to open %s: %s."), filename, safe_strerror (errno));
+  gdb_file_up file = gdb_fopen_cloexec (filename, "r");
+  if (file.get () == nullptr)
+    error (_("Failed to open %s: %s."), filename, safe_strerror (errno));
 
-	fseek (file.get (), 0, SEEK_END);
-	length = ftell (file.get ());
-	fseek (file.get (), 0, SEEK_SET);
-	buffer = (char*) xmalloc (length+1);
+  fseek (file.get (), 0, SEEK_END);
+  length = ftell (file.get ());
+  fseek (file.get (), 0, SEEK_SET);
+  buffer = (char*) xmalloc (length+1);
 
-	length = fread (buffer, 1, length, file.get());
-	buffer[length]='\0';
-	while (--length) {
-		if ((buffer[length] == ',') || (buffer[length] == '-')) {
-			length++;
-			break;
-		}
-	}
-	if (sscanf(&buffer[length], "%d", &cpu_count) < 1)
-		error (_("Failed to get cpu count in %s: %s."), buffer, safe_strerror (errno));
+  length = fread (buffer, 1, length, file.get());
+  buffer[length]='\0';
+  while (--length) {
+      if ((buffer[length] == ',') || (buffer[length] == '-')) {
+	  length++;
+	  break;
+      }
+  }
+  if (sscanf(&buffer[length], "%d", &cpu_count) < 1)
+    error (_("Failed to get cpu count in %s: %s."), buffer, safe_strerror (errno));
 
-	cpu_count ++;
-	return (cpu_count);
+  cpu_count ++;
+  return (cpu_count);
 }
 
 static int cs_etm_is_etmv4( int cpu)
 {
-	char filename[PATH_MAX];
-	sprintf( filename, "/sys/bus/event_source/devices/cs_etm/cpu%d/trcidr/trcidr0", cpu );
-	errno = 0;
-	gdb_file_up file = gdb_fopen_cloexec (filename, "r");
-	if (file.get () == nullptr)
-	  return 0;
+  char filename[PATH_MAX];
+  sprintf( filename, "/sys/bus/event_source/devices/cs_etm/cpu%d/trcidr/trcidr0", cpu );
+  errno = 0;
+  gdb_file_up file = gdb_fopen_cloexec (filename, "r");
+  if (file.get () == nullptr)
+    return 0;
 
-	return 1;
+  return 1;
 }
 
 
 static uint32_t cs_etm_get_register(int cpu, const char *path)
 {
-	char filename[PATH_MAX];
-	uint32_t val = 0;
+  char filename[PATH_MAX];
+  uint32_t val = 0;
 
-	/* Get coresight register from sysfs */
-	sprintf( filename, "/sys/bus/event_source/devices/cs_etm/cpu%d/%s", cpu, path );
-	errno = 0;
-	gdb_file_up file = gdb_fopen_cloexec (filename, "r");
-	if (file.get () == nullptr)
-	  error (_("Failed to open %s: %s."), filename, safe_strerror (errno));
+  /* Get coresight register from sysfs */
+  sprintf( filename, "/sys/bus/event_source/devices/cs_etm/cpu%d/%s", cpu, path );
+  errno = 0;
+  gdb_file_up file = gdb_fopen_cloexec (filename, "r");
+  if (file.get () == nullptr)
+    error (_("Failed to open %s: %s."), filename, safe_strerror (errno));
 
-	int  found = fscanf (file.get (), "0x%x", &val);
-	  if (found != 1)
-	    error (_("Failed to read coresight register from %s."), filename);
-	return val;
+  int  found = fscanf (file.get (), "0x%x", &val);
+  if (found != 1)
+    error (_("Failed to read coresight register from %s."), filename);
+  return val;
 }
 /* PTMs ETMIDR [11:8] set to b0011 */
 #define ETMIDR_PTM_VERSION 0x00000300
 static void fill_etm_trace_params (struct cs_etm_trace_params *etm_trace_params, int cpu)
 {
-	if (cs_etm_is_etmv4 (cpu)== 1)
-	{
-		etm_trace_params->protocol = CS_ETM_PROTO_ETMV4i;
-		etm_trace_params->etmv4.reg_configr = 0; //todo: check how to get this value and set it
-		etm_trace_params->etmv4.reg_idr0 = cs_etm_get_register(cpu, "trcidr/trcidr0");
-		etm_trace_params->etmv4.reg_idr1 = cs_etm_get_register(cpu, "trcidr/trcidr1");
-		etm_trace_params->etmv4.reg_idr2 = cs_etm_get_register(cpu, "trcidr/trcidr2");
-		etm_trace_params->etmv4.reg_idr8 = cs_etm_get_register(cpu, "trcidr/trcidr8");
-		etm_trace_params->etmv4.reg_traceidr =cs_etm_get_register(cpu, "mgmt/etmtraceidr");
-	}
-	else
-	{
-		etm_trace_params->etmv3.reg_ccer = cs_etm_get_register(cpu, "mgmt/etmccer");
-		etm_trace_params->etmv3.reg_ctrl = cs_etm_get_register(cpu, "mgmt/etmcr");
-		etm_trace_params->etmv3.reg_idr = cs_etm_get_register(cpu, "mgmt/etmidr");
-		etm_trace_params->protocol = (etm_trace_params->etmv3.reg_idr & ETMIDR_PTM_VERSION)== ETMIDR_PTM_VERSION?
-				CS_ETM_PROTO_PTM:CS_ETM_PROTO_ETMV3;
-		etm_trace_params->etmv3.reg_trc_id =cs_etm_get_register(cpu, "traceid");
-	}
+  if (cs_etm_is_etmv4 (cpu)== 1)
+    {
+      etm_trace_params->protocol = CS_ETM_PROTO_ETMV4i;
+      etm_trace_params->etmv4.reg_configr = 0; //todo: check how to get this value and set it
+      etm_trace_params->etmv4.reg_idr0 = cs_etm_get_register(cpu, "trcidr/trcidr0");
+      etm_trace_params->etmv4.reg_idr1 = cs_etm_get_register(cpu, "trcidr/trcidr1");
+      etm_trace_params->etmv4.reg_idr2 = cs_etm_get_register(cpu, "trcidr/trcidr2");
+      etm_trace_params->etmv4.reg_idr8 = cs_etm_get_register(cpu, "trcidr/trcidr8");
+      etm_trace_params->etmv4.reg_traceidr =cs_etm_get_register(cpu, "mgmt/etmtraceidr");
+    }
+  else
+    {
+      etm_trace_params->etmv3.reg_ccer = cs_etm_get_register(cpu, "mgmt/etmccer");
+      etm_trace_params->etmv3.reg_ctrl = cs_etm_get_register(cpu, "mgmt/etmcr");
+      etm_trace_params->etmv3.reg_idr = cs_etm_get_register(cpu, "mgmt/etmidr");
+      etm_trace_params->protocol = (etm_trace_params->etmv3.reg_idr & ETMIDR_PTM_VERSION)== ETMIDR_PTM_VERSION?
+	  CS_ETM_PROTO_PTM:CS_ETM_PROTO_ETMV3;
+      etm_trace_params->etmv3.reg_trc_id =cs_etm_get_register(cpu, "traceid");
+    }
 }
 
 static void
@@ -1227,9 +1227,9 @@ linux_fill_btrace_etm_config (struct btrace_target_info *tinfo,struct btrace_dat
   conf->num_cpu = get_cpu_count();
   conf->etm_trace_parmas= (struct cs_etm_trace_params *)xmalloc (sizeof (struct cs_etm_trace_params) *conf->num_cpu);
   for (int i = 0; i<conf->num_cpu; i++)
-  {
-	  fill_etm_trace_params (conf->etm_trace_parmas + i,i);
-  }
+    {
+      fill_etm_trace_params (conf->etm_trace_parmas + i,i);
+    }
 
   conf->etm_decoder_params.formatted = 1;
   conf->etm_decoder_params.fsyncs = 0;
@@ -1239,16 +1239,16 @@ linux_fill_btrace_etm_config (struct btrace_target_info *tinfo,struct btrace_dat
 
 static enum btrace_error
 linux_read_etm (struct btrace_data_etm *btrace,
-	       struct btrace_target_info *tinfo,
-	       enum btrace_read_type type)
+		struct btrace_target_info *tinfo,
+		enum btrace_read_type type)
 {
-	struct perf_event_buffer *etm;
-	etm = &tinfo->variant.etm.etm;
+  struct perf_event_buffer *etm;
+  etm = &tinfo->variant.etm.etm;
 
-	linux_fill_btrace_etm_config (tinfo, &btrace->config);
+  linux_fill_btrace_etm_config (tinfo, &btrace->config);
 
   switch (type)
-    {
+  {
     case BTRACE_READ_DELTA:
       /* We don't support delta reads.  The data head (i.e. aux_head) wraps
 	 around to stay inside the aux buffer.  */
@@ -1256,14 +1256,14 @@ linux_read_etm (struct btrace_data_etm *btrace,
 
     case BTRACE_READ_NEW:
       if (!perf_event_new_data (etm))
-        return BTRACE_ERR_NONE;
+	return BTRACE_ERR_NONE;
 
       /* Fall through.  */
     case BTRACE_READ_ALL:
       etm->last_head=0;
       perf_event_read_available (etm, &(btrace->data),&(btrace->size));
       return BTRACE_ERR_NONE;
-    }
+  }
 
   internal_error (__FILE__, __LINE__, _("Unkown btrace read type."));
 }
@@ -1277,7 +1277,7 @@ linux_read_btrace (struct btrace_data *btrace,
 		   enum btrace_read_type type)
 {
   switch (tinfo->conf.format)
-    {
+  {
     case BTRACE_FORMAT_NONE:
       return BTRACE_ERR_NOT_SUPPORTED;
 
@@ -1297,13 +1297,13 @@ linux_read_btrace (struct btrace_data *btrace,
       return linux_read_pt (&btrace->variant.pt, tinfo, type);
 
     case BTRACE_FORMAT_ETM:
-          /* We read btrace in arm CoreSight ETM Trace format.  */
+      /* We read btrace in arm CoreSight ETM Trace format.  */
       btrace->format = BTRACE_FORMAT_ETM;
       btrace->variant.etm.data = NULL;
       btrace->variant.etm.size = 0;
 
       return linux_read_etm (&btrace->variant.etm, tinfo, type);
-    }
+  }
 
   internal_error (__FILE__, __LINE__, _("Unkown branch trace format."));
 }

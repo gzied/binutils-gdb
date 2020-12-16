@@ -1308,9 +1308,7 @@ set_step_over_info (const address_space *aspace, CORE_ADDR address,
 		    int nonsteppable_watchpoint_p,
 		    int thread)
 {
-  if (debug_infrun)
-    fprintf_unfiltered (gdb_stdlog,
-                        "infrun: set_step_over_info\n");
+  infrun_debug_printf ("infrun: set_step_over_info\n");
   step_over_info.aspace = aspace;
   step_over_info.address = address;
   step_over_info.nonsteppable_watchpoint_p = nonsteppable_watchpoint_p;

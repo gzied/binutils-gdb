@@ -60,13 +60,13 @@ static void btrace_add_pc (struct thread_info *tp);
    when used in if statements.  */
 
 #define DEBUG(msg, args...)						\
-  do									\
+    do									\
     {									\
-      if (record_debug != 0)						\
+	if (record_debug != 0)						\
 	fprintf_unfiltered (gdb_stdlog,					\
 			    "[btrace] " msg "\n", ##args);		\
     }									\
-  while (0)
+    while (0)
 
 #define DEBUG_FTRACE(msg, args...) DEBUG ("[ftrace] " msg, ##args)
 
@@ -597,7 +597,7 @@ ftrace_update_function (struct btrace_thread_info *btinfo, CORE_ADDR pc)
   if (last != NULL)
     {
       switch (last->iclass)
-	{
+      {
 	case BTRACE_INSN_RETURN:
 	  {
 	    const char *fname;
@@ -643,7 +643,7 @@ ftrace_update_function (struct btrace_thread_info *btinfo, CORE_ADDR pc)
 	    if (strncmp (fname, "_Unwind_", strlen ("_Unwind_")) == 0)
 	      {
 		struct btrace_function *caller
-		  = ftrace_find_call_by_number (btinfo, bfun->up);
+		= ftrace_find_call_by_number (btinfo, bfun->up);
 		caller = ftrace_find_caller (btinfo, caller, mfun, fun);
 		if (caller != NULL)
 		  return ftrace_new_return (btinfo, mfun, fun);
@@ -657,7 +657,7 @@ ftrace_update_function (struct btrace_thread_info *btinfo, CORE_ADDR pc)
 
 	    break;
 	  }
-	}
+      }
     }
 
   /* Check if we're switching functions for some other reason.  */
@@ -694,17 +694,17 @@ ftrace_classify_insn (struct gdbarch *gdbarch, CORE_ADDR pc)
 
   iclass = BTRACE_INSN_OTHER;
   try
-    {
+  {
       if (gdbarch_insn_is_call (gdbarch, pc))
 	iclass = BTRACE_INSN_CALL;
       else if (gdbarch_insn_is_ret (gdbarch, pc))
 	iclass = BTRACE_INSN_RETURN;
       else if (gdbarch_insn_is_jump (gdbarch, pc))
 	iclass = BTRACE_INSN_JUMP;
-    }
+  }
   catch (const gdb_exception_error &error)
-    {
-    }
+  {
+  }
 
   return iclass;
 }
@@ -943,9 +943,9 @@ ftrace_bridge_gap (struct btrace_thread_info *btinfo,
      the two function segments that give the longest combined back trace.  */
 
   for (cand_l = lhs; cand_l != NULL;
-       cand_l = ftrace_get_caller (btinfo, cand_l))
+      cand_l = ftrace_get_caller (btinfo, cand_l))
     for (cand_r = rhs; cand_r != NULL;
-	 cand_r = ftrace_get_caller (btinfo, cand_r))
+	cand_r = ftrace_get_caller (btinfo, cand_r))
       {
 	int matches;
 
@@ -1102,7 +1102,7 @@ btrace_compute_ftrace_bts (struct thread_info *tp,
 	      bfun = ftrace_new_gap (btinfo, BDE_BTS_OVERFLOW, gaps);
 
 	      warning (_("Recorded trace may be corrupted at instruction "
-			 "%u (pc = %s)."), bfun->insn_offset - 1,
+		  "%u (pc = %s)."), bfun->insn_offset - 1,
 		       core_addr_to_string_nz (pc));
 
 	      break;
@@ -1117,12 +1117,12 @@ btrace_compute_ftrace_bts (struct thread_info *tp,
 
 	  size = 0;
 	  try
-	    {
+	  {
 	      size = gdb_insn_length (gdbarch, pc);
-	    }
+	  }
 	  catch (const gdb_exception_error &error)
-	    {
-	    }
+	  {
+	  }
 
 	  insn.pc = pc;
 	  insn.size = size;
@@ -1143,7 +1143,7 @@ btrace_compute_ftrace_bts (struct thread_info *tp,
 	      bfun = ftrace_new_gap (btinfo, BDE_BTS_INSN_SIZE, gaps);
 
 	      warning (_("Recorded trace may be incomplete at instruction %u "
-			 "(pc = %s)."), bfun->insn_offset - 1,
+		  "(pc = %s)."), bfun->insn_offset - 1,
 		       core_addr_to_string_nz (pc));
 
 	      break;
@@ -1174,7 +1174,7 @@ static enum btrace_insn_class
 pt_reclassify_insn (enum pt_insn_class iclass)
 {
   switch (iclass)
-    {
+  {
     case ptic_call:
       return BTRACE_INSN_CALL;
 
@@ -1186,7 +1186,7 @@ pt_reclassify_insn (enum pt_insn_class iclass)
 
     default:
       return BTRACE_INSN_OTHER;
-    }
+  }
 }
 
 /* Return the btrace instruction flags for INSN.  */
@@ -1208,8 +1208,8 @@ static btrace_insn
 pt_btrace_insn (const struct pt_insn &insn)
 {
   return {(CORE_ADDR) insn.ip, (gdb_byte) insn.size,{},
-	  pt_reclassify_insn (insn.iclass),
-	  pt_btrace_insn_flags (insn)};
+    pt_reclassify_insn (insn.iclass),
+    pt_btrace_insn_flags (insn)};
 }
 
 /* Handle instruction decode events (libipt-v2).  */
@@ -1231,7 +1231,7 @@ handle_pt_insn_events (struct btrace_thread_info *btinfo,
 	break;
 
       switch (event.type)
-	{
+      {
 	default:
 	  break;
 
@@ -1243,7 +1243,7 @@ handle_pt_insn_events (struct btrace_thread_info *btinfo,
 	      pt_insn_get_offset (decoder, &offset);
 
 	      warning (_("Non-contiguous trace at instruction %u (offset = 0x%"
-			 PRIx64 ")."), bfun->insn_offset - 1, offset);
+		  PRIx64 ")."), bfun->insn_offset - 1, offset);
 	    }
 
 	  break;
@@ -1257,7 +1257,7 @@ handle_pt_insn_events (struct btrace_thread_info *btinfo,
 		   bfun->insn_offset - 1, offset);
 
 	  break;
-	}
+      }
     }
 #endif /* defined (HAVE_PT_INSN_EVENT) */
 
@@ -1331,7 +1331,7 @@ ftrace_add_pt (struct btrace_thread_info *btinfo,
 	{
 	  if (status != -pte_eos)
 	    warning (_("Failed to synchronize onto the Intel Processor "
-		       "Trace stream: %s."), pt_errstr (pt_errcode (status)));
+		"Trace stream: %s."), pt_errstr (pt_errcode (status)));
 	  break;
 	}
 
@@ -1383,15 +1383,15 @@ btrace_pt_readmem_callback (gdb_byte *buffer, size_t size,
 
   result = (int) size;
   try
-    {
+  {
       errcode = target_read_code ((CORE_ADDR) pc, buffer, size);
       if (errcode != 0)
 	result = -pte_nomap;
-    }
+  }
   catch (const gdb_exception_error &error)
-    {
+  {
       result = -pte_nomap;
-    }
+  }
 
   return result;
 }
@@ -1402,13 +1402,13 @@ static enum pt_cpu_vendor
 pt_translate_cpu_vendor (enum btrace_cpu_vendor vendor)
 {
   switch (vendor)
-    {
+  {
     default:
       return pcv_unknown;
 
     case CV_INTEL:
       return pcv_intel;
-    }
+  }
 }
 
 /* Finalize the function branch trace after decode.  */
@@ -1460,7 +1460,7 @@ btrace_compute_ftrace_pt (struct thread_info *tp,
   if (btrace->config.cpu.vendor != CV_UNKNOWN)
     {
       config.cpu.vendor
-	= pt_translate_cpu_vendor (btrace->config.cpu.vendor);
+      = pt_translate_cpu_vendor (btrace->config.cpu.vendor);
       config.cpu.family = btrace->config.cpu.family;
       config.cpu.model = btrace->config.cpu.model;
       config.cpu.stepping = btrace->config.cpu.stepping;
@@ -1468,7 +1468,7 @@ btrace_compute_ftrace_pt (struct thread_info *tp,
       errcode = pt_cpu_errata (&config.errata, &config.cpu);
       if (errcode < 0)
 	error (_("Failed to configure the Intel Processor Trace "
-		 "decoder: %s."), pt_errstr (pt_errcode (errcode)));
+	    "decoder: %s."), pt_errstr (pt_errcode (errcode)));
     }
 
   decoder = pt_insn_alloc_decoder (&config);
@@ -1476,7 +1476,7 @@ btrace_compute_ftrace_pt (struct thread_info *tp,
     error (_("Failed to allocate the Intel Processor Trace decoder."));
 
   try
-    {
+  {
       struct pt_image *image;
 
       image = pt_insn_get_image(decoder);
@@ -1486,12 +1486,12 @@ btrace_compute_ftrace_pt (struct thread_info *tp,
       errcode = pt_image_set_callback(image, btrace_pt_readmem_callback, NULL);
       if (errcode < 0)
 	error (_("Failed to configure the Intel Processor Trace decoder: "
-		 "%s."), pt_errstr (pt_errcode (errcode)));
+	    "%s."), pt_errstr (pt_errcode (errcode)));
 
       ftrace_add_pt (btinfo, decoder, &level, gaps);
-    }
+  }
   catch (const gdb_exception &error)
-    {
+  {
       /* Indicate a gap in the trace if we quit trace processing.  */
       if (error.reason == RETURN_QUIT && !btinfo->functions.empty ())
 	ftrace_new_gap (btinfo, BDE_PT_USER_QUIT, gaps);
@@ -1499,7 +1499,7 @@ btrace_compute_ftrace_pt (struct thread_info *tp,
       btrace_finalize_ftrace_pt (decoder, tp, level);
 
       throw;
-    }
+  }
 
   btrace_finalize_ftrace_pt (decoder, tp, level);
 }
@@ -1520,41 +1520,41 @@ btrace_compute_ftrace_pt (struct thread_info *tp,
 #if defined (HAVE_LIBOPENCSD_C_API)
 
 struct cs_etm_decoder {
-	dcd_tree_handle_t dcd_tree;
-	Fn_MemAcc_CB mem_access;
-	struct thread_info *t_info;
-	ocsd_datapath_resp_t prev_return;
-	ocsd_gen_trc_elem_t prev_trc_elem;
+  dcd_tree_handle_t dcd_tree;
+  Fn_MemAcc_CB mem_access;
+  struct thread_info *t_info;
+  ocsd_datapath_resp_t prev_return;
+  ocsd_gen_trc_elem_t prev_trc_elem;
 };
 static int cs_etm_get_etmv3_config(struct cs_etm_trace_params *params,
-					    ocsd_etmv3_cfg *config)
+				   ocsd_etmv3_cfg *config)
 {
-	config->reg_idr = params->etmv3.reg_idr;
-	config->reg_ctrl = params->etmv3.reg_ctrl;
-	config->reg_ccer = params->etmv3.reg_ccer;
-	config->reg_trc_id = params->etmv3.reg_trc_id;
-	config->arch_ver = ARCH_V7; // to be amended to use params->cpu settings
-	config->core_prof = profile_CortexA;// to be amended to use params->cpu settings
+  config->reg_idr = params->etmv3.reg_idr;
+  config->reg_ctrl = params->etmv3.reg_ctrl;
+  config->reg_ccer = params->etmv3.reg_ccer;
+  config->reg_trc_id = params->etmv3.reg_trc_id;
+  config->arch_ver = ARCH_V7; // to be amended to use params->cpu settings
+  config->core_prof = profile_CortexA;// to be amended to use params->cpu settings
 
-	return 0;
+  return 0;
 }
 
 static void cs_etm_get_etmv4_config(struct cs_etm_trace_params *params,
-					     ocsd_etmv4_cfg *config)
+				    ocsd_etmv4_cfg *config)
 {
-	config->reg_configr = params->etmv4.reg_configr;
-	config->reg_traceidr = params->etmv4.reg_traceidr;
-	config->reg_idr0 = params->etmv4.reg_idr0;
-	config->reg_idr1 = params->etmv4.reg_idr1;
-	config->reg_idr2 = params->etmv4.reg_idr2;
-	config->reg_idr8 = params->etmv4.reg_idr8;
-	config->reg_idr9 = 0;
-	config->reg_idr10 = 0;
-	config->reg_idr11 = 0;
-	config->reg_idr12 = 0;
-	config->reg_idr13 = 0;
-	config->arch_ver = ARCH_V8;// to be amended to use params->cpu settings
-	config->core_prof = profile_CortexA;// to be amended to use params->cpu settings
+  config->reg_configr = params->etmv4.reg_configr;
+  config->reg_traceidr = params->etmv4.reg_traceidr;
+  config->reg_idr0 = params->etmv4.reg_idr0;
+  config->reg_idr1 = params->etmv4.reg_idr1;
+  config->reg_idr2 = params->etmv4.reg_idr2;
+  config->reg_idr8 = params->etmv4.reg_idr8;
+  config->reg_idr9 = 0;
+  config->reg_idr10 = 0;
+  config->reg_idr11 = 0;
+  config->reg_idr12 = 0;
+  config->reg_idr13 = 0;
+  config->arch_ver = ARCH_V8;// to be amended to use params->cpu settings
+  config->core_prof = profile_CortexA;// to be amended to use params->cpu settings
 }
 
 /*static void print_trc_elem_common(const uint8_t trace_chan_id, const ocsd_generic_trace_elem *elem)
@@ -1678,7 +1678,7 @@ static void print_trc_elem_exception(const uint8_t trace_chan_id, const ocsd_gen
   printf("last instruction size: %d\n", elem->last_instr_sz );
 }
 
-*/
+ */
 #define ARM_PS_REGNUM  25		/* Contains processor status */
 static void
 cs_etm_update_branch_trace(const void *context, const ocsd_generic_trace_elem *elem)
@@ -1761,295 +1761,295 @@ cs_etm_update_branch_trace(const void *context, const ocsd_generic_trace_elem *e
 #undef ARM_PS_REGNUM
 
 static ocsd_datapath_resp_t cs_etm_trace_element_callback(
-				const void *context,
-				const ocsd_trc_index_t indx,
-				const uint8_t trace_chan_id,
-				const ocsd_generic_trace_elem *elem)
+    const void *context,
+    const ocsd_trc_index_t indx,
+    const uint8_t trace_chan_id,
+    const ocsd_generic_trace_elem *elem)
 {
-	ocsd_datapath_resp_t resp = OCSD_RESP_CONT;
-	switch (elem->elem_type) {
-		case OCSD_GEN_TRC_ELEM_UNKNOWN:
-			//printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_UNKNOWN\n");
-			break;
-		case OCSD_GEN_TRC_ELEM_EO_TRACE:
-			//printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_EO_TRACE\n");
-			break;
-		case OCSD_GEN_TRC_ELEM_NO_SYNC:
-			//printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_NO_SYNC\n");
-			break;
-		case OCSD_GEN_TRC_ELEM_TRACE_ON:
-			//printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_TRACE_ON\n");
-			break;
-		case OCSD_GEN_TRC_ELEM_INSTR_RANGE:
-			//printf("--->cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_INSTR_RANGE\n");
-			//print_trc_elem_instr_range(trace_chan_id, elem);
-			cs_etm_update_branch_trace(context, elem);
-			break;
-		case OCSD_GEN_TRC_ELEM_EXCEPTION:
-			//printf("--->cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_EXCEPTION\n");
-			//print_trc_elem_exception(trace_chan_id, elem);
-			cs_etm_update_branch_trace(context, elem);
-			break;
-		case OCSD_GEN_TRC_ELEM_EXCEPTION_RET:
-			//printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_EXCEPTION_RET\n");
-			break;
-		case OCSD_GEN_TRC_ELEM_TIMESTAMP:
-			//printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_TIMESTAMP\n");
-			break;
-		case OCSD_GEN_TRC_ELEM_PE_CONTEXT:
-			//printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_PE_CONTEXT\n");
-			break;
-		case OCSD_GEN_TRC_ELEM_ADDR_NACC:
-			//printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_ADDR_NACC\n");
-			break;
-		case OCSD_GEN_TRC_ELEM_CYCLE_COUNT:
-			//printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_CYCLE_COUNT\n");
-			break;
-		case OCSD_GEN_TRC_ELEM_ADDR_UNKNOWN:
-			//printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_ADDR_UNKNOWN\n");
-			break;
-		case OCSD_GEN_TRC_ELEM_EVENT:
-			//printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_EVENT\n");
-			break;
-		case OCSD_GEN_TRC_ELEM_SWTRACE:
-			//printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_SWTRACE\n");
-			break;
-		case OCSD_GEN_TRC_ELEM_CUSTOM:
-			//printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_CUSTOM\n");
-			break;
-		default:
-			//printf("cs_etm_decoder_trace_element_callback: elem->elem_type %d not handledM\n",elem->elem_type);
-			break;
-		}
-	return (resp);
+  ocsd_datapath_resp_t resp = OCSD_RESP_CONT;
+  switch (elem->elem_type) {
+    case OCSD_GEN_TRC_ELEM_UNKNOWN:
+      //printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_UNKNOWN\n");
+      break;
+    case OCSD_GEN_TRC_ELEM_EO_TRACE:
+      //printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_EO_TRACE\n");
+      break;
+    case OCSD_GEN_TRC_ELEM_NO_SYNC:
+      //printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_NO_SYNC\n");
+      break;
+    case OCSD_GEN_TRC_ELEM_TRACE_ON:
+      //printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_TRACE_ON\n");
+      break;
+    case OCSD_GEN_TRC_ELEM_INSTR_RANGE:
+      //printf("--->cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_INSTR_RANGE\n");
+      //print_trc_elem_instr_range(trace_chan_id, elem);
+      cs_etm_update_branch_trace(context, elem);
+      break;
+    case OCSD_GEN_TRC_ELEM_EXCEPTION:
+      //printf("--->cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_EXCEPTION\n");
+      //print_trc_elem_exception(trace_chan_id, elem);
+      cs_etm_update_branch_trace(context, elem);
+      break;
+    case OCSD_GEN_TRC_ELEM_EXCEPTION_RET:
+      //printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_EXCEPTION_RET\n");
+      break;
+    case OCSD_GEN_TRC_ELEM_TIMESTAMP:
+      //printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_TIMESTAMP\n");
+      break;
+    case OCSD_GEN_TRC_ELEM_PE_CONTEXT:
+      //printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_PE_CONTEXT\n");
+      break;
+    case OCSD_GEN_TRC_ELEM_ADDR_NACC:
+      //printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_ADDR_NACC\n");
+      break;
+    case OCSD_GEN_TRC_ELEM_CYCLE_COUNT:
+      //printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_CYCLE_COUNT\n");
+      break;
+    case OCSD_GEN_TRC_ELEM_ADDR_UNKNOWN:
+      //printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_ADDR_UNKNOWN\n");
+      break;
+    case OCSD_GEN_TRC_ELEM_EVENT:
+      //printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_EVENT\n");
+      break;
+    case OCSD_GEN_TRC_ELEM_SWTRACE:
+      //printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_SWTRACE\n");
+      break;
+    case OCSD_GEN_TRC_ELEM_CUSTOM:
+      //printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_CUSTOM\n");
+      break;
+    default:
+      //printf("cs_etm_decoder_trace_element_callback: elem->elem_type %d not handledM\n",elem->elem_type);
+      break;
+  }
+  return (resp);
 }
 
 static int cs_etm_create_decoder(
-					struct cs_etm_trace_params *t_params,
-					struct cs_etm_decoder *decoder)
+    struct cs_etm_trace_params *t_params,
+    struct cs_etm_decoder *decoder)
 {
-	const char *decoder_name;
-	ocsd_etmv3_cfg config_etmv3;
-	ocsd_etmv4_cfg trace_config_etmv4;
-	void *trace_config;
-	uint8_t csid;
+  const char *decoder_name;
+  ocsd_etmv3_cfg config_etmv3;
+  ocsd_etmv4_cfg trace_config_etmv4;
+  void *trace_config;
+  uint8_t csid;
 
-	switch (t_params->protocol) {
-	case CS_ETM_PROTO_ETMV3:
-	case CS_ETM_PROTO_PTM:
-		cs_etm_get_etmv3_config(t_params, &config_etmv3);
-		decoder_name = (t_params->protocol == CS_ETM_PROTO_ETMV3) ?
-							OCSD_BUILTIN_DCD_ETMV3 :
-							OCSD_BUILTIN_DCD_PTM;
-		trace_config = &config_etmv3;
-		break;
-	case CS_ETM_PROTO_ETMV4i:
-		cs_etm_get_etmv4_config(t_params, &trace_config_etmv4);
-		decoder_name = OCSD_BUILTIN_DCD_ETMV4I;
-		trace_config = &trace_config_etmv4;
-		break;
-	default:
-		return -1;
-	}
+  switch (t_params->protocol) {
+    case CS_ETM_PROTO_ETMV3:
+    case CS_ETM_PROTO_PTM:
+      cs_etm_get_etmv3_config(t_params, &config_etmv3);
+      decoder_name = (t_params->protocol == CS_ETM_PROTO_ETMV3) ?
+	  OCSD_BUILTIN_DCD_ETMV3 :
+	  OCSD_BUILTIN_DCD_PTM;
+      trace_config = &config_etmv3;
+      break;
+    case CS_ETM_PROTO_ETMV4i:
+      cs_etm_get_etmv4_config(t_params, &trace_config_etmv4);
+      decoder_name = OCSD_BUILTIN_DCD_ETMV4I;
+      trace_config = &trace_config_etmv4;
+      break;
+    default:
+      return -1;
+  }
 
-	if (ocsd_dt_create_decoder(decoder->dcd_tree,
-				     decoder_name,
-				     OCSD_CREATE_FLG_FULL_DECODER,
-				     trace_config, &csid))
-		return -1;
-	if (ocsd_dt_set_gen_elem_outfn(decoder->dcd_tree,
-			cs_etm_trace_element_callback,
-			decoder))
-			return -1;
-	decoder->prev_return = OCSD_RESP_CONT;
-	return 0;
+  if (ocsd_dt_create_decoder(decoder->dcd_tree,
+			     decoder_name,
+			     OCSD_CREATE_FLG_FULL_DECODER,
+			     trace_config, &csid))
+    return -1;
+  if (ocsd_dt_set_gen_elem_outfn(decoder->dcd_tree,
+				 cs_etm_trace_element_callback,
+				 decoder))
+    return -1;
+  decoder->prev_return = OCSD_RESP_CONT;
+  return 0;
 }
 
 static struct cs_etm_decoder *
 cs_etm_alloc_decoder(struct thread_info *tp, int num_cpu,
-		    struct cs_etm_decoder_params d_params,
-		    struct cs_etm_trace_params t_params[])
+		     struct cs_etm_decoder_params d_params,
+		     struct cs_etm_trace_params t_params[])
 {
 
-	dcd_tree_handle_t dcdtree_handle;
-	ocsd_dcd_tree_src_t src_type =OCSD_TRC_SRC_SINGLE;
-	uint32_t deformatterCfgFlags =0;
-	struct cs_etm_decoder *decoder;
-	int ret, i;
+  dcd_tree_handle_t dcdtree_handle;
+  ocsd_dcd_tree_src_t src_type =OCSD_TRC_SRC_SINGLE;
+  uint32_t deformatterCfgFlags =0;
+  struct cs_etm_decoder *decoder;
+  int ret, i;
 
-	if (d_params.formatted)
-		src_type = OCSD_TRC_SRC_FRAME_FORMATTED;
-	if (d_params.frame_aligned)
-		deformatterCfgFlags |= OCSD_DFRMTR_FRAME_MEM_ALIGN;
-	if (d_params.fsyncs)
-		deformatterCfgFlags |= OCSD_DFRMTR_HAS_FSYNCS;
-	if (d_params.hsyncs)
-		deformatterCfgFlags |= OCSD_DFRMTR_HAS_HSYNCS;
+  if (d_params.formatted)
+    src_type = OCSD_TRC_SRC_FRAME_FORMATTED;
+  if (d_params.frame_aligned)
+    deformatterCfgFlags |= OCSD_DFRMTR_FRAME_MEM_ALIGN;
+  if (d_params.fsyncs)
+    deformatterCfgFlags |= OCSD_DFRMTR_HAS_FSYNCS;
+  if (d_params.hsyncs)
+    deformatterCfgFlags |= OCSD_DFRMTR_HAS_HSYNCS;
 
-	deformatterCfgFlags |= OCSD_DFRMTR_RESET_ON_4X_FSYNC; //todo: this shall be a configuration flag
+  deformatterCfgFlags |= OCSD_DFRMTR_RESET_ON_4X_FSYNC; //todo: this shall be a configuration flag
 
-	dcdtree_handle = ocsd_create_dcd_tree(src_type,
-			deformatterCfgFlags);
+  dcdtree_handle = ocsd_create_dcd_tree(src_type,
+					deformatterCfgFlags);
 
-	if (dcdtree_handle == C_API_INVALID_TREE_HANDLE)
-		return(NULL);
-	decoder=(struct cs_etm_decoder*)xmalloc (sizeof(struct cs_etm_decoder));
-	decoder->dcd_tree = dcdtree_handle;
+  if (dcdtree_handle == C_API_INVALID_TREE_HANDLE)
+    return(NULL);
+  decoder=(struct cs_etm_decoder*)xmalloc (sizeof(struct cs_etm_decoder));
+  decoder->dcd_tree = dcdtree_handle;
 
-	for (i = 0; i < num_cpu; i++) {
-		ret = cs_etm_create_decoder(&t_params[i],
-				 decoder);
-		if (ret != 0)
-		{
-			ocsd_destroy_dcd_tree(decoder->dcd_tree);
-			free(decoder);
-			return(NULL);
-		}
-
+  for (i = 0; i < num_cpu; i++) {
+      ret = cs_etm_create_decoder(&t_params[i],
+				  decoder);
+      if (ret != 0)
+	{
+	  ocsd_destroy_dcd_tree(decoder->dcd_tree);
+	  free(decoder);
+	  return(NULL);
 	}
-	decoder->t_info =tp;
-	decoder->prev_trc_elem = OCSD_GEN_TRC_ELEM_UNKNOWN;
-	return (decoder);
+
+  }
+  decoder->t_info =tp;
+  decoder->prev_trc_elem = OCSD_GEN_TRC_ELEM_UNKNOWN;
+  return (decoder);
 }
 
 static void cs_etm_free_decoder(struct cs_etm_decoder *decoder)
 {
-	if (!decoder)
-		return;
+  if (!decoder)
+    return;
 
-	ocsd_destroy_dcd_tree(decoder->dcd_tree);
-	decoder->dcd_tree = NULL;
-	decoder->t_info = NULL;
-	free(decoder);
+  ocsd_destroy_dcd_tree(decoder->dcd_tree);
+  decoder->dcd_tree = NULL;
+  decoder->t_info = NULL;
+  free(decoder);
 }
 
 /* A callback function to allow the trace decoder to read the inferior's
    memory.  */
 static uint32_t
 btrace_etm_readmem_callback (const void *p_context, const ocsd_vaddr_t address,
-		const ocsd_mem_space_acc_t mem_space, const uint32_t reqBytes,
-		uint8_t *byteBuffer)
+			     const ocsd_mem_space_acc_t mem_space, const uint32_t reqBytes,
+			     uint8_t *byteBuffer)
 {
   int result, errcode;
 
   result = (int) reqBytes;
   try
-    {
+  {
       errcode = target_read_code ((CORE_ADDR) address, byteBuffer, reqBytes);
       if (errcode != 0)
-	    result = 0;
-    }
+	result = 0;
+  }
   catch (const gdb_exception_error &error)
-    {
+  {
       result = 0;
-    }
+  }
 
   return result;
 }
 
 static ocsd_err_t
 cs_etm_add_mem_access_callback(struct cs_etm_decoder *decoder,
-				      uint64_t start, uint64_t end,
-					  Fn_MemAcc_CB p_cb_func)
+			       uint64_t start, uint64_t end,
+			       Fn_MemAcc_CB p_cb_func)
 {
-	ocsd_err_t error;
-	error = ocsd_dt_add_callback_mem_acc(decoder->dcd_tree,
-			(ocsd_vaddr_t) start, (ocsd_vaddr_t) end,
-			OCSD_MEM_SPACE_ANY, p_cb_func, decoder);
-	if (error != OCSD_OK)
-		decoder->mem_access = p_cb_func;
-	return (error);
+  ocsd_err_t error;
+  error = ocsd_dt_add_callback_mem_acc(decoder->dcd_tree,
+				       (ocsd_vaddr_t) start, (ocsd_vaddr_t) end,
+				       OCSD_MEM_SPACE_ANY, p_cb_func, decoder);
+  if (error != OCSD_OK)
+    decoder->mem_access = p_cb_func;
+  return (error);
 
 }
 
 static int
 cs_etm_process_data_block(struct cs_etm_decoder *decoder,
-		uint64_t index, const uint8_t *buf,
-        size_t len, size_t *consumed)
+			  uint64_t index, const uint8_t *buf,
+			  size_t len, size_t *consumed)
 {
-	int ret = 0;
-	ocsd_datapath_resp_t cur = OCSD_RESP_CONT;
-	ocsd_datapath_resp_t prev_return = decoder->prev_return;
-	size_t processed = 0;
-	uint32_t count;
+  int ret = 0;
+  ocsd_datapath_resp_t cur = OCSD_RESP_CONT;
+  ocsd_datapath_resp_t prev_return = decoder->prev_return;
+  size_t processed = 0;
+  uint32_t count;
 
-	while (processed < len) {
-		if (OCSD_DATA_RESP_IS_WAIT(prev_return)) {
-			cur = ocsd_dt_process_data(decoder->dcd_tree,
-						   OCSD_OP_FLUSH,
-						   0,
-						   0,
-						   NULL,
-						   NULL);
-		} else if (OCSD_DATA_RESP_IS_CONT(prev_return)) {
-			cur = ocsd_dt_process_data(decoder->dcd_tree,
-						   OCSD_OP_DATA,
-						   index + processed,
-						   len - processed,
-						   &buf[processed],
-						   &count);
-			processed += count;
-		} else {
-			DEBUG_FTRACE ("ocsd_dt_process_data returned with %d.\n", cur);
-			ret = -EINVAL;
-			break;
-		}
+  while (processed < len) {
+      if (OCSD_DATA_RESP_IS_WAIT(prev_return)) {
+	  cur = ocsd_dt_process_data(decoder->dcd_tree,
+				     OCSD_OP_FLUSH,
+				     0,
+				     0,
+				     NULL,
+				     NULL);
+      } else if (OCSD_DATA_RESP_IS_CONT(prev_return)) {
+	  cur = ocsd_dt_process_data(decoder->dcd_tree,
+				     OCSD_OP_DATA,
+				     index + processed,
+				     len - processed,
+				     &buf[processed],
+				     &count);
+	  processed += count;
+      } else {
+	  DEBUG_FTRACE ("ocsd_dt_process_data returned with %d.\n", cur);
+	  ret = -EINVAL;
+	  break;
+      }
 
-		/*
-		 * Return to the input code if the packet buffer is full.
-		 * Flushing will get done once the packet buffer has been
-		 * processed.
-		 */
-		if (OCSD_DATA_RESP_IS_WAIT(cur))
-			break;
+      /*
+       * Return to the input code if the packet buffer is full.
+       * Flushing will get done once the packet buffer has been
+       * processed.
+       */
+      if (OCSD_DATA_RESP_IS_WAIT(cur))
+	break;
 
-		prev_return = cur;
-	}
+      prev_return = cur;
+  }
 
-	decoder->prev_return = cur;
-	*consumed = processed;
+  decoder->prev_return = cur;
+  *consumed = processed;
 
-	return ret;
+  return ret;
 }
 
 
 static void
 btrace_compute_ftrace_etm (struct thread_info *tp,
-			  const struct btrace_data_etm *btrace,
-			  std::vector<unsigned int> &gaps)
+			   const struct btrace_data_etm *btrace,
+			   std::vector<unsigned int> &gaps)
 {
-    struct btrace_thread_info *btinfo;
-    struct cs_etm_decoder *decoder;
-    int errcode;
-    ocsd_err_t ocsd_error;
-    size_t consumed;
+  struct btrace_thread_info *btinfo;
+  struct cs_etm_decoder *decoder;
+  int errcode;
+  ocsd_err_t ocsd_error;
+  size_t consumed;
 
 
-    DEBUG_FTRACE ("btrace->size is 0x%x for thread %s\n", (unsigned int)(btrace->size), print_thread_id (tp));
-    if (btrace->size == 0)
-      return;
+  DEBUG_FTRACE ("btrace->size is 0x%x for thread %s\n", (unsigned int)(btrace->size), print_thread_id (tp));
+  if (btrace->size == 0)
+    return;
 
-    btinfo = &tp->btrace;
-    if (btinfo->functions.empty ())
-        btinfo->level = 0;
+  btinfo = &tp->btrace;
+  if (btinfo->functions.empty ())
+    btinfo->level = 0;
 
   decoder = cs_etm_alloc_decoder(tp,btrace->config.num_cpu,
-		  btrace->config.etm_decoder_params,
-		  btrace->config.etm_trace_parmas);
+				 btrace->config.etm_decoder_params,
+				 btrace->config.etm_trace_parmas);
   if (decoder == NULL)
-      error (_("Failed to allocate ARM CoreSight ETM Trace decoder."));
+    error (_("Failed to allocate ARM CoreSight ETM Trace decoder."));
 
   ocsd_error = cs_etm_add_mem_access_callback(decoder,
-		  0x0L, ((uint64_t) -1L),
-		  btrace_etm_readmem_callback);
+					      0x0L, ((uint64_t) -1L),
+					      btrace_etm_readmem_callback);
   if (ocsd_error!= OCSD_OK)
-	  error (_("Failed to add ARM CoreSight ETM Trace decoder memory access callback."));
+    error (_("Failed to add ARM CoreSight ETM Trace decoder memory access callback."));
 
   errcode = cs_etm_process_data_block(decoder,
-  		0, btrace->data,
-		btrace->size, &consumed);
+				      0, btrace->data,
+				      btrace->size, &consumed);
   if (errcode!=0)
-	  error (_("Failed to decode ARM CoreSight ETM Trace."));
+    error (_("Failed to decode ARM CoreSight ETM Trace."));
   ftrace_compute_global_level_offset (btinfo);
   cs_etm_free_decoder(decoder);
 
@@ -2058,8 +2058,8 @@ btrace_compute_ftrace_etm (struct thread_info *tp,
 
 static void
 btrace_compute_ftrace_etm (struct thread_info *tp,
-			  const struct btrace_data_etm *btrace,
-			  std::vector<unsigned int> &gaps)
+			   const struct btrace_data_etm *btrace,
+			   std::vector<unsigned int> &gaps)
 {
 
   internal_error (__FILE__, __LINE__, _("Unexpected branch trace format."));
@@ -2079,7 +2079,7 @@ btrace_compute_ftrace_1 (struct thread_info *tp,
   DEBUG ("compute ftrace");
 
   switch (btrace->format)
-    {
+  {
     case BTRACE_FORMAT_NONE:
       return;
 
@@ -2096,9 +2096,9 @@ btrace_compute_ftrace_1 (struct thread_info *tp,
       return;
 
     case BTRACE_FORMAT_ETM:
-    	btrace_compute_ftrace_etm (tp, &btrace->variant.etm, gaps);
-    	return;
-    }
+      btrace_compute_ftrace_etm (tp, &btrace->variant.etm, gaps);
+      return;
+  }
 
   internal_error (__FILE__, __LINE__, _("Unknown branch trace format."));
 }
@@ -2120,15 +2120,15 @@ btrace_compute_ftrace (struct thread_info *tp, struct btrace_data *btrace,
   std::vector<unsigned int> gaps;
 
   try
-    {
+  {
       btrace_compute_ftrace_1 (tp, btrace, cpu, gaps);
-    }
+  }
   catch (const gdb_exception &error)
-    {
+  {
       btrace_finalize_ftrace (tp, gaps);
 
       throw;
-    }
+  }
 
   btrace_finalize_ftrace (tp, gaps);
 }
@@ -2182,7 +2182,7 @@ btrace_enable (struct thread_info *tp, const struct btrace_config *conf)
 
   /* We need to undo the enable in case of errors.  */
   try
-    {
+  {
       /* Add an entry for the current PC so we start tracing from where we
 	 enabled it.
 
@@ -2195,13 +2195,13 @@ btrace_enable (struct thread_info *tp, const struct btrace_config *conf)
       if (conf->format != BTRACE_FORMAT_PT
 	  && can_access_registers_thread (tp))
 	btrace_add_pc (tp);
-    }
+  }
   catch (const gdb_exception &exception)
-    {
+  {
       btrace_disable (tp);
 
       throw;
-    }
+  }
 }
 
 /* See btrace.h.  */
@@ -2306,7 +2306,7 @@ btrace_stitch_bts (struct btrace_data_bts *btrace, struct thread_info *tp)
   if (first_new_block->end < last_insn.pc)
     {
       warning (_("Error while trying to read delta trace.  Falling back to "
-		 "a full read."));
+	  "a full read."));
       return -1;
     }
 
@@ -2352,7 +2352,7 @@ btrace_stitch_trace (struct btrace_data *btrace, struct thread_info *tp)
     return 0;
 
   switch (btrace->format)
-    {
+  {
     case BTRACE_FORMAT_NONE:
       return 0;
 
@@ -2365,7 +2365,7 @@ btrace_stitch_trace (struct btrace_data *btrace, struct thread_info *tp)
     case BTRACE_FORMAT_ETM:
       /* Delta reads are not supported.  */
       return -1;
-    }
+  }
 
   internal_error (__FILE__, __LINE__, _("Unknown branch trace format."));
 }
@@ -2390,7 +2390,7 @@ static void
 btrace_maint_clear (struct btrace_thread_info *btinfo)
 {
   switch (btinfo->data.format)
-    {
+  {
     default:
       break;
 
@@ -2417,7 +2417,7 @@ btrace_maint_clear (struct btrace_thread_info *btinfo)
       btinfo->maint.variant.etm.packet_history.end = 0;
       break;
 #endif /* defined (HAVE_LIBOPENCSD_C_API) */
-    }
+  }
 }
 
 /* See btrace.h.  */
@@ -2426,10 +2426,10 @@ const char *
 btrace_decode_error (enum btrace_format format, int errcode)
 {
   switch (format)
-    {
+  {
     case BTRACE_FORMAT_BTS:
       switch (errcode)
-	{
+      {
 	case BDE_BTS_OVERFLOW:
 	  return _("instruction overflow");
 
@@ -2438,33 +2438,33 @@ btrace_decode_error (enum btrace_format format, int errcode)
 
 	default:
 	  break;
-	}
+      }
       break;
 
 #if defined (HAVE_LIBIPT)
-    case BTRACE_FORMAT_PT:
-      switch (errcode)
-	{
-	case BDE_PT_USER_QUIT:
-	  return _("trace decode cancelled");
+	case BTRACE_FORMAT_PT:
+	  switch (errcode)
+	  {
+	    case BDE_PT_USER_QUIT:
+	      return _("trace decode cancelled");
 
-	case BDE_PT_DISABLED:
-	  return _("disabled");
+	    case BDE_PT_DISABLED:
+	      return _("disabled");
 
-	case BDE_PT_OVERFLOW:
-	  return _("overflow");
+	    case BDE_PT_OVERFLOW:
+	      return _("overflow");
 
-	default:
-	  if (errcode < 0)
-	    return pt_errstr (pt_errcode (errcode));
+	    default:
+	      if (errcode < 0)
+		return pt_errstr (pt_errcode (errcode));
+	      break;
+	  }
 	  break;
-	}
-      break;
 #endif /* defined (HAVE_LIBIPT)  */
 
-    default:
-      break;
-    }
+	    default:
+	      break;
+  }
 
   return _("unknown");
 }
@@ -2596,7 +2596,7 @@ check_xml_btrace_version (struct gdb_xml_parser *parser,
 			  std::vector<gdb_xml_value> &attributes)
 {
   const char *version
-    = (const char *) xml_find_attribute (attributes, "version")->value.get ();
+  = (const char *) xml_find_attribute (attributes, "version")->value.get ();
 
   if (strcmp (version, "1.0") != 0)
     gdb_xml_error (parser, _("Unsupported btrace version: \"%s\""), version);
@@ -2616,7 +2616,7 @@ parse_xml_btrace_block (struct gdb_xml_parser *parser,
   btrace = (struct btrace_data *) user_data;
 
   switch (btrace->format)
-    {
+  {
     case BTRACE_FORMAT_BTS:
       break;
 
@@ -2627,7 +2627,7 @@ parse_xml_btrace_block (struct gdb_xml_parser *parser,
 
     default:
       gdb_xml_error (parser, _("Btrace format error."));
-    }
+  }
 
   begin = (ULONGEST *) xml_find_attribute (attributes, "begin")->value.get ();
   end = (ULONGEST *) xml_find_attribute (attributes, "end")->value.get ();
@@ -2684,13 +2684,13 @@ parse_xml_btrace_pt_config_cpu (struct gdb_xml_parser *parser,
   ULONGEST *family, *model, *stepping;
 
   vendor =
-    (const char *) xml_find_attribute (attributes, "vendor")->value.get ();
+      (const char *) xml_find_attribute (attributes, "vendor")->value.get ();
   family
-    = (ULONGEST *) xml_find_attribute (attributes, "family")->value.get ();
+  = (ULONGEST *) xml_find_attribute (attributes, "family")->value.get ();
   model
-    = (ULONGEST *) xml_find_attribute (attributes, "model")->value.get ();
+  = (ULONGEST *) xml_find_attribute (attributes, "model")->value.get ();
   stepping
-    = (ULONGEST *) xml_find_attribute (attributes, "stepping")->value.get ();
+  = (ULONGEST *) xml_find_attribute (attributes, "stepping")->value.get ();
 
   btrace = (struct btrace_data *) user_data;
 
@@ -2734,49 +2734,49 @@ parse_xml_btrace_pt (struct gdb_xml_parser *parser,
 }
 
 static const struct gdb_xml_attribute block_attributes[] = {
-  { "begin", GDB_XML_AF_NONE, gdb_xml_parse_attr_ulongest, NULL },
-  { "end", GDB_XML_AF_NONE, gdb_xml_parse_attr_ulongest, NULL },
-  { NULL, GDB_XML_AF_NONE, NULL, NULL }
+    { "begin", GDB_XML_AF_NONE, gdb_xml_parse_attr_ulongest, NULL },
+    { "end", GDB_XML_AF_NONE, gdb_xml_parse_attr_ulongest, NULL },
+    { NULL, GDB_XML_AF_NONE, NULL, NULL }
 };
 
 static const struct gdb_xml_attribute btrace_pt_config_cpu_attributes[] = {
-  { "vendor", GDB_XML_AF_NONE, NULL, NULL },
-  { "family", GDB_XML_AF_NONE, gdb_xml_parse_attr_ulongest, NULL },
-  { "model", GDB_XML_AF_NONE, gdb_xml_parse_attr_ulongest, NULL },
-  { "stepping", GDB_XML_AF_NONE, gdb_xml_parse_attr_ulongest, NULL },
-  { NULL, GDB_XML_AF_NONE, NULL, NULL }
+    { "vendor", GDB_XML_AF_NONE, NULL, NULL },
+    { "family", GDB_XML_AF_NONE, gdb_xml_parse_attr_ulongest, NULL },
+    { "model", GDB_XML_AF_NONE, gdb_xml_parse_attr_ulongest, NULL },
+    { "stepping", GDB_XML_AF_NONE, gdb_xml_parse_attr_ulongest, NULL },
+    { NULL, GDB_XML_AF_NONE, NULL, NULL }
 };
 
 static const struct gdb_xml_element btrace_pt_config_children[] = {
-  { "cpu", btrace_pt_config_cpu_attributes, NULL, GDB_XML_EF_OPTIONAL,
-    parse_xml_btrace_pt_config_cpu, NULL },
-  { NULL, NULL, NULL, GDB_XML_EF_NONE, NULL, NULL }
+    { "cpu", btrace_pt_config_cpu_attributes, NULL, GDB_XML_EF_OPTIONAL,
+	parse_xml_btrace_pt_config_cpu, NULL },
+	{ NULL, NULL, NULL, GDB_XML_EF_NONE, NULL, NULL }
 };
 
 static const struct gdb_xml_element btrace_pt_children[] = {
-  { "pt-config", NULL, btrace_pt_config_children, GDB_XML_EF_OPTIONAL, NULL,
-    NULL },
-  { "raw", NULL, NULL, GDB_XML_EF_OPTIONAL, NULL, parse_xml_btrace_pt_raw },
-  { NULL, NULL, NULL, GDB_XML_EF_NONE, NULL, NULL }
+    { "pt-config", NULL, btrace_pt_config_children, GDB_XML_EF_OPTIONAL, NULL,
+	NULL },
+	{ "raw", NULL, NULL, GDB_XML_EF_OPTIONAL, NULL, parse_xml_btrace_pt_raw },
+	{ NULL, NULL, NULL, GDB_XML_EF_NONE, NULL, NULL }
 };
 
 static const struct gdb_xml_attribute btrace_attributes[] = {
-  { "version", GDB_XML_AF_NONE, NULL, NULL },
-  { NULL, GDB_XML_AF_NONE, NULL, NULL }
+    { "version", GDB_XML_AF_NONE, NULL, NULL },
+    { NULL, GDB_XML_AF_NONE, NULL, NULL }
 };
 
 static const struct gdb_xml_element btrace_children[] = {
-  { "block", block_attributes, NULL,
-    GDB_XML_EF_REPEATABLE | GDB_XML_EF_OPTIONAL, parse_xml_btrace_block, NULL },
-  { "pt", NULL, btrace_pt_children, GDB_XML_EF_OPTIONAL, parse_xml_btrace_pt,
-    NULL },
-  { NULL, NULL, NULL, GDB_XML_EF_NONE, NULL, NULL }
+    { "block", block_attributes, NULL,
+	GDB_XML_EF_REPEATABLE | GDB_XML_EF_OPTIONAL, parse_xml_btrace_block, NULL },
+	{ "pt", NULL, btrace_pt_children, GDB_XML_EF_OPTIONAL, parse_xml_btrace_pt,
+	    NULL },
+	    { NULL, NULL, NULL, GDB_XML_EF_NONE, NULL, NULL }
 };
 
 static const struct gdb_xml_element btrace_elements[] = {
-  { "btrace", btrace_attributes, btrace_children, GDB_XML_EF_NONE,
-    check_xml_btrace_version, NULL },
-  { NULL, NULL, NULL, GDB_XML_EF_NONE, NULL, NULL }
+    { "btrace", btrace_attributes, btrace_children, GDB_XML_EF_NONE,
+	check_xml_btrace_version, NULL },
+	{ NULL, NULL, NULL, GDB_XML_EF_NONE, NULL, NULL }
 };
 
 #endif /* defined (HAVE_LIBEXPAT) */
@@ -2803,7 +2803,7 @@ parse_xml_btrace (struct btrace_data *btrace, const char *buffer)
 #else  /* !defined (HAVE_LIBEXPAT) */
 
   error (_("Cannot process branch trace.  XML support was disabled at "
-	   "compile time."));
+      "compile time."));
 
 #endif  /* !defined (HAVE_LIBEXPAT) */
 }
@@ -2814,9 +2814,9 @@ parse_xml_btrace (struct btrace_data *btrace, const char *buffer)
 
 static void
 parse_xml_btrace_conf_bts (struct gdb_xml_parser *parser,
-			  const struct gdb_xml_element *element,
-			  void *user_data,
-			  std::vector<gdb_xml_value> &attributes)
+			   const struct gdb_xml_element *element,
+			   void *user_data,
+			   std::vector<gdb_xml_value> &attributes)
 {
   struct btrace_config *conf;
   struct gdb_xml_value *size;
@@ -2851,32 +2851,32 @@ parse_xml_btrace_conf_pt (struct gdb_xml_parser *parser,
 }
 
 static const struct gdb_xml_attribute btrace_conf_pt_attributes[] = {
-  { "size", GDB_XML_AF_OPTIONAL, gdb_xml_parse_attr_ulongest, NULL },
-  { NULL, GDB_XML_AF_NONE, NULL, NULL }
+    { "size", GDB_XML_AF_OPTIONAL, gdb_xml_parse_attr_ulongest, NULL },
+    { NULL, GDB_XML_AF_NONE, NULL, NULL }
 };
 
 static const struct gdb_xml_attribute btrace_conf_bts_attributes[] = {
-  { "size", GDB_XML_AF_OPTIONAL, gdb_xml_parse_attr_ulongest, NULL },
-  { NULL, GDB_XML_AF_NONE, NULL, NULL }
+    { "size", GDB_XML_AF_OPTIONAL, gdb_xml_parse_attr_ulongest, NULL },
+    { NULL, GDB_XML_AF_NONE, NULL, NULL }
 };
 
 static const struct gdb_xml_element btrace_conf_children[] = {
-  { "bts", btrace_conf_bts_attributes, NULL, GDB_XML_EF_OPTIONAL,
-    parse_xml_btrace_conf_bts, NULL },
-  { "pt", btrace_conf_pt_attributes, NULL, GDB_XML_EF_OPTIONAL,
-    parse_xml_btrace_conf_pt, NULL },
-  { NULL, NULL, NULL, GDB_XML_EF_NONE, NULL, NULL }
+    { "bts", btrace_conf_bts_attributes, NULL, GDB_XML_EF_OPTIONAL,
+	parse_xml_btrace_conf_bts, NULL },
+	{ "pt", btrace_conf_pt_attributes, NULL, GDB_XML_EF_OPTIONAL,
+	    parse_xml_btrace_conf_pt, NULL },
+	    { NULL, NULL, NULL, GDB_XML_EF_NONE, NULL, NULL }
 };
 
 static const struct gdb_xml_attribute btrace_conf_attributes[] = {
-  { "version", GDB_XML_AF_NONE, NULL, NULL },
-  { NULL, GDB_XML_AF_NONE, NULL, NULL }
+    { "version", GDB_XML_AF_NONE, NULL, NULL },
+    { NULL, GDB_XML_AF_NONE, NULL, NULL }
 };
 
 static const struct gdb_xml_element btrace_conf_elements[] = {
-  { "btrace-conf", btrace_conf_attributes, btrace_conf_children,
-    GDB_XML_EF_NONE, NULL, NULL },
-  { NULL, NULL, NULL, GDB_XML_EF_NONE, NULL, NULL }
+    { "btrace-conf", btrace_conf_attributes, btrace_conf_children,
+	GDB_XML_EF_NONE, NULL, NULL },
+	{ NULL, NULL, NULL, GDB_XML_EF_NONE, NULL, NULL }
 };
 
 #endif /* defined (HAVE_LIBEXPAT) */
@@ -2897,7 +2897,7 @@ parse_xml_btrace_conf (struct btrace_config *conf, const char *xml)
 #else  /* !defined (HAVE_LIBEXPAT) */
 
   error (_("Cannot process the branch trace configuration.  XML support "
-	   "was disabled at compile time."));
+      "was disabled at compile time."));
 
 #endif  /* !defined (HAVE_LIBEXPAT) */
 }
@@ -3146,7 +3146,7 @@ btrace_find_insn_by_number (struct btrace_insn_iterator *it,
   unsigned int upper, lower;
 
   if (btinfo->functions.empty ())
-      return 0;
+    return 0;
 
   lower = 0;
   bfun = &btinfo->functions[lower];
@@ -3418,7 +3418,7 @@ static void
 pt_print_packet (const struct pt_packet *packet)
 {
   switch (packet->type)
-    {
+  {
     default:
       printf_unfiltered (("[??: %x]"), packet->type);
       break;
@@ -3486,7 +3486,7 @@ pt_print_packet (const struct pt_packet *packet)
 
     case ppt_mode:
       switch (packet->payload.mode.leaf)
-	{
+      {
 	default:
 	  printf_unfiltered (("mode %u"), packet->payload.mode.leaf);
 	  break;
@@ -3495,49 +3495,49 @@ pt_print_packet (const struct pt_packet *packet)
 	  printf_unfiltered (("mode.exec%s%s"),
 			     packet->payload.mode.bits.exec.csl
 			     ? (" cs.l") : (""),
-			     packet->payload.mode.bits.exec.csd
-			     ? (" cs.d") : (""));
+				 packet->payload.mode.bits.exec.csd
+				 ? (" cs.d") : (""));
 	  break;
 
 	case pt_mol_tsx:
 	  printf_unfiltered (("mode.tsx%s%s"),
 			     packet->payload.mode.bits.tsx.intx
 			     ? (" intx") : (""),
-			     packet->payload.mode.bits.tsx.abrt
-			     ? (" abrt") : (""));
+				 packet->payload.mode.bits.tsx.abrt
+				 ? (" abrt") : (""));
 	  break;
-	}
+      }
       break;
 
-    case ppt_ovf:
-      printf_unfiltered (("ovf"));
-      break;
+	case ppt_ovf:
+	  printf_unfiltered (("ovf"));
+	  break;
 
-    case ppt_stop:
-      printf_unfiltered (("stop"));
-      break;
+	case ppt_stop:
+	  printf_unfiltered (("stop"));
+	  break;
 
-    case ppt_vmcs:
-      printf_unfiltered (("vmcs %" PRIx64 ""), packet->payload.vmcs.base);
-      break;
+	case ppt_vmcs:
+	  printf_unfiltered (("vmcs %" PRIx64 ""), packet->payload.vmcs.base);
+	  break;
 
-    case ppt_tma:
-      printf_unfiltered (("tma %x %x"), packet->payload.tma.ctc,
-			 packet->payload.tma.fc);
-      break;
+	case ppt_tma:
+	  printf_unfiltered (("tma %x %x"), packet->payload.tma.ctc,
+			     packet->payload.tma.fc);
+	  break;
 
-    case ppt_mtc:
-      printf_unfiltered (("mtc %x"), packet->payload.mtc.ctc);
-      break;
+	case ppt_mtc:
+	  printf_unfiltered (("mtc %x"), packet->payload.mtc.ctc);
+	  break;
 
-    case ppt_cyc:
-      printf_unfiltered (("cyc %" PRIx64 ""), packet->payload.cyc.value);
-      break;
+	case ppt_cyc:
+	  printf_unfiltered (("cyc %" PRIx64 ""), packet->payload.cyc.value);
+	  break;
 
-    case ppt_mnt:
-      printf_unfiltered (("mnt %" PRIx64 ""), packet->payload.mnt.payload);
-      break;
-    }
+	case ppt_mnt:
+	  printf_unfiltered (("mnt %" PRIx64 ""), packet->payload.mnt.payload);
+	  break;
+  }
 }
 
 /* Decode packets into MAINT using DECODER.  */
@@ -3587,7 +3587,7 @@ btrace_maint_decode_pt (struct btrace_maint_info *maint,
 
   if (errcode != -pte_eos)
     warning (_("Failed to synchronize onto the Intel Processor Trace "
-	       "stream: %s."), pt_errstr (pt_errcode (errcode)));
+	"stream: %s."), pt_errstr (pt_errcode (errcode)));
 }
 
 /* Update the packet history in BTINFO.  */
@@ -3628,7 +3628,7 @@ btrace_maint_update_pt_packets (struct btrace_thread_info *btinfo)
       errcode = pt_cpu_errata (&config.errata, &config.cpu);
       if (errcode < 0)
 	error (_("Failed to configure the Intel Processor Trace "
-		 "decoder: %s."), pt_errstr (pt_errcode (errcode)));
+	    "decoder: %s."), pt_errstr (pt_errcode (errcode)));
     }
 
   decoder = pt_pkt_alloc_decoder (&config);
@@ -3636,16 +3636,16 @@ btrace_maint_update_pt_packets (struct btrace_thread_info *btinfo)
     error (_("Failed to allocate the Intel Processor Trace decoder."));
 
   try
-    {
+  {
       btrace_maint_decode_pt (&btinfo->maint, decoder);
-    }
+  }
   catch (const gdb_exception &except)
-    {
+  {
       pt_pkt_free_decoder (decoder);
 
       if (except.reason < 0)
 	throw;
-    }
+  }
 
   pt_pkt_free_decoder (decoder);
 }
@@ -3656,9 +3656,9 @@ btrace_maint_update_pt_packets (struct btrace_thread_info *btinfo)
 static void
 btrace_maint_update_etm_packets (struct btrace_thread_info *btinfo)
 {
-	//todo:implement it
-	//struct btrace_data_etm *etm;
-	//etm = &btinfo->data.variant.etm;
+  //todo:implement it
+  //struct btrace_data_etm *etm;
+  //etm = &btinfo->data.variant.etm;
 }
 #endif /* defined (HAVE_LIBOPENCSD_C_API)  */
 
@@ -3673,7 +3673,7 @@ btrace_maint_update_packets (struct btrace_thread_info *btinfo,
 			     unsigned int *from, unsigned int *to)
 {
   switch (btinfo->data.format)
-    {
+  {
     default:
       *begin = 0;
       *end = 0;
@@ -3706,18 +3706,18 @@ btrace_maint_update_packets (struct btrace_thread_info *btinfo,
 #if defined (HAVE_LIBOPENCSD_C_API)
     case BTRACE_FORMAT_ETM:
       if (btinfo->maint.variant.etm.packets == nullptr)
-    	btinfo->maint.variant.etm.packets = new std::vector<btrace_etm_packet>;
+	btinfo->maint.variant.etm.packets = new std::vector<btrace_etm_packet>;
 
       if (btinfo->maint.variant.etm.packets->empty ())
-    	btrace_maint_update_etm_packets (btinfo);
+	btrace_maint_update_etm_packets (btinfo);
 
       *begin = 0;
       *end = btinfo->maint.variant.etm.packets->size ();
       *from = btinfo->maint.variant.etm.packet_history.begin;
       *to = btinfo->maint.variant.etm.packet_history.end;
-       break;
+      break;
 #endif /* defined (HAVE_LIBOPENCSD_C_API)  */
-    }
+  }
 }
 
 /* Print packets in BTINFO from BEGIN (inclusive) until END (exclusive) and
@@ -3728,14 +3728,14 @@ btrace_maint_print_packets (struct btrace_thread_info *btinfo,
 			    unsigned int begin, unsigned int end)
 {
   switch (btinfo->data.format)
-    {
+  {
     default:
       break;
 
     case BTRACE_FORMAT_BTS:
       {
 	const std::vector<btrace_block> &blocks
-	  = *btinfo->data.variant.bts.blocks;
+	= *btinfo->data.variant.bts.blocks;
 	unsigned int blk;
 
 	for (blk = begin; blk < end; ++blk)
@@ -3756,7 +3756,7 @@ btrace_maint_print_packets (struct btrace_thread_info *btinfo,
     case BTRACE_FORMAT_PT:
       {
 	const std::vector<btrace_pt_packet> &packets
-	  = *btinfo->maint.variant.pt.packets;
+	= *btinfo->maint.variant.pt.packets;
 	unsigned int pkt;
 
 	for (pkt = begin; pkt < end; ++pkt)
@@ -3779,7 +3779,7 @@ btrace_maint_print_packets (struct btrace_thread_info *btinfo,
       }
       break;
 #endif /* defined (HAVE_LIBIPT)  */
-    }
+  }
 }
 
 /* Read a number from an argument string.  */
@@ -3995,7 +3995,7 @@ maint_info_btrace_cmd (const char *args, int from_tty)
 		     btrace_format_string (conf->format));
 
   switch (conf->format)
-    {
+  {
     default:
       break;
 
@@ -4017,32 +4017,32 @@ maint_info_btrace_cmd (const char *args, int from_tty)
 	btrace_maint_update_pt_packets (btinfo);
 	printf_unfiltered (_("Number of packets: %zu.\n"),
 			   ((btinfo->maint.variant.pt.packets == nullptr)
-			    ? 0 : btinfo->maint.variant.pt.packets->size ()));
+			       ? 0 : btinfo->maint.variant.pt.packets->size ()));
       }
       break;
 #endif /* defined (HAVE_LIBIPT)  */
 #if defined (HAVE_LIBOPENCSD_C_API)
     case BTRACE_FORMAT_ETM:
       {
-        printf_unfiltered (_("Version: %u.%u.%u.\n"), OCSD_VER_MAJOR,
-                 OCSD_VER_MINOR, OCSD_VER_PATCH);
+	printf_unfiltered (_("Version: %u.%u.%u.\n"), OCSD_VER_MAJOR,
+			   OCSD_VER_MINOR, OCSD_VER_PATCH);
 
-        btrace_maint_update_etm_packets (btinfo);
-        printf_unfiltered (_("Number of packets: %zu.\n"),
-                   ((btinfo->maint.variant.etm.packets == nullptr)
-                    ? 0 : btinfo->maint.variant.etm.packets->size ()));
+	btrace_maint_update_etm_packets (btinfo);
+	printf_unfiltered (_("Number of packets: %zu.\n"),
+			   ((btinfo->maint.variant.etm.packets == nullptr)
+			       ? 0 : btinfo->maint.variant.etm.packets->size ()));
       }
       break;
 #endif /* defined (HAVE_LIBOPENCSD_C_API) */
-    }
+  }
 }
 
 /* The "maint show btrace pt skip-pad" show value function. */
 
 static void
 show_maint_btrace_pt_skip_pad  (struct ui_file *file, int from_tty,
-				  struct cmd_list_element *c,
-				  const char *value)
+				struct cmd_list_element *c,
+				const char *value)
 {
   fprintf_filtered (file, _("Skip PAD packets is %s.\n"), value);
 }
@@ -4089,9 +4089,9 @@ Show Intel Processor Trace specific variables."),
 Set whether PAD packets should be skipped in the btrace packet history."), _("\
 Show whether PAD packets should be skipped in the btrace packet history."),_("\
 When enabled, PAD packets are ignored in the btrace packet history."),
-			   NULL, show_maint_btrace_pt_skip_pad,
-			   &maint_btrace_pt_set_cmdlist,
-			   &maint_btrace_pt_show_cmdlist);
+NULL, show_maint_btrace_pt_skip_pad,
+&maint_btrace_pt_set_cmdlist,
+&maint_btrace_pt_show_cmdlist);
 
   add_cmd ("packet-history", class_maintenance, maint_btrace_packet_history_cmd,
 	   _("Print the raw branch tracing data.\n\
@@ -4102,18 +4102,18 @@ Two arguments with comma between specify starting and ending packets to \
 print.\n\
 Preceded with '+'/'-' the second argument specifies the distance from the \
 first."),
-	   &maint_btrace_cmdlist);
+&maint_btrace_cmdlist);
 
   add_cmd ("clear-packet-history", class_maintenance,
 	   maint_btrace_clear_packet_history_cmd,
 	   _("Clears the branch tracing packet history.\n\
 Discards the raw branch tracing data but not the execution history data."),
-	   &maint_btrace_cmdlist);
+&maint_btrace_cmdlist);
 
   add_cmd ("clear", class_maintenance, maint_btrace_clear_cmd,
 	   _("Clears the branch tracing data.\n\
 Discards the raw branch tracing data and the execution history data.\n\
 The next 'record' command will fetch the branch tracing data anew."),
-	   &maint_btrace_cmdlist);
+&maint_btrace_cmdlist);
 
 }
