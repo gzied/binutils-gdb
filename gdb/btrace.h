@@ -283,21 +283,6 @@ struct btrace_pt_packet
 };
 
 #endif /* defined (HAVE_LIBIPT)  */
-#if defined (HAVE_LIBOPENCSD_C_API)
-/* A packet.  */
-struct btrace_etm_packet
-{
-  /* The offset in the trace stream.  */
-  uint64_t offset;
-
-  /* The decode error code.  */
-  //enum etm_error_code errcode;
-
-  /* The decoded packet.  Only valid if ERRCODE == etm_ok.  */
-  //struct etm_packet packet;
-};
-
-#endif /* defined (HAVE_LIBOPENCSD_C_API)  */
 
 /* Branch trace iteration state for "maintenance btrace packet-history".  */
 struct btrace_maint_packet_history
@@ -337,18 +322,6 @@ struct btrace_maint_info
       struct btrace_maint_packet_history packet_history;
     } pt;
 #endif /* defined (HAVE_LIBIPT)  */
-#if defined (HAVE_LIBOPENCSD_C_API)
-    /* BTRACE.DATA.FORMAT == BTRACE_FORMAT_ETM  */
-    struct
-    {
-      /* A vector of decoded packets.  */
-      std::vector<btrace_etm_packet> *packets;
-
-      /* The packet history iterator.
-      We are iterating over the above PACKETS vector.  */
-      struct btrace_maint_packet_history packet_history;
-    } etm;
-#endif /* defined (HAVE_LIBOPENCSD_C_API)  */
   } variant;
 };
 

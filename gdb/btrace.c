@@ -1645,59 +1645,44 @@ static ocsd_datapath_resp_t cs_etm_trace_element_callback(
     const uint8_t trace_chan_id,
     const ocsd_generic_trace_elem *elem)
 {
+  char str_buffer[128];
+  if(ocsd_gen_elem_str(elem, str_buffer,128) == OCSD_OK)
+    DEBUG("ETM trace_element: index= %d, channel= 0x%x, %s\n",indx, trace_chan_id, str_buffer);
   ocsd_datapath_resp_t resp = OCSD_RESP_CONT;
   switch (elem->elem_type) {
     case OCSD_GEN_TRC_ELEM_UNKNOWN:
-      DEBUG("ETM trace_element: index= %d, channel= 0x%x, type= OCSD_GEN_TRC_ELEM_UNKNOWN", indx, trace_chan_id);
       break;
     case OCSD_GEN_TRC_ELEM_EO_TRACE:
-      DEBUG("ETM trace_element: index= %d, channel= 0x%x, type= OCSD_GEN_TRC_ELEM_EO_TRACE", indx, trace_chan_id);
       break;
     case OCSD_GEN_TRC_ELEM_NO_SYNC:
-      DEBUG("ETM trace_element: index= %d, channel= 0x%x, type= OCSD_GEN_TRC_ELEM_NO_SYNC", indx, trace_chan_id);
       break;
     case OCSD_GEN_TRC_ELEM_TRACE_ON:
-      DEBUG("ETM trace_element: index= %d, channel= 0x%x, type= OCSD_GEN_TRC_ELEM_TRACE_ON", indx, trace_chan_id);
       break;
     case OCSD_GEN_TRC_ELEM_INSTR_RANGE:
-      DEBUG("ETM trace_element: index= %d, channel= 0x%x, type= OCSD_GEN_TRC_ELEM_INSTR_RANGE, start address= 0x%" PRIx64 ", end address = 0x%" PRIx64 "", indx, trace_chan_id, elem->st_addr,elem->en_addr);
-      //print_trc_elem_instr_range(trace_chan_id, elem);
       cs_etm_update_branch_trace(context, elem);
       break;
     case OCSD_GEN_TRC_ELEM_EXCEPTION:
-      DEBUG("ETM trace_element: index= %d, channel= 0x%x, type= OCSD_GEN_TRC_ELEM_EXCEPTION, exception number= %d", indx, trace_chan_id, elem-> exception_number);
-      //print_trc_elem_exception(trace_chan_id, elem);
       cs_etm_update_branch_trace(context, elem);
       break;
     case OCSD_GEN_TRC_ELEM_EXCEPTION_RET:
-      DEBUG("ETM trace_element: index= %d, channel= 0x%x, type= OCSD_GEN_TRC_ELEM_EXCEPTION_RET", indx, trace_chan_id);
       break;
     case OCSD_GEN_TRC_ELEM_TIMESTAMP:
-      DEBUG("ETM trace_element: index= %d, channel= 0x%x, type= OCSD_GEN_TRC_ELEM_TIMESTAMP", indx, trace_chan_id);
       break;
     case OCSD_GEN_TRC_ELEM_PE_CONTEXT:
-      DEBUG("ETM trace_element: index= %d, channel= 0x%x, type= OCSD_GEN_TRC_ELEM_PE_CONTEXT", indx, trace_chan_id);
       break;
     case OCSD_GEN_TRC_ELEM_ADDR_NACC:
-      DEBUG("ETM trace_element: index= %d, channel= 0x%x, type= OCSD_GEN_TRC_ELEM_ADDR_NACC", indx, trace_chan_id);
       break;
     case OCSD_GEN_TRC_ELEM_CYCLE_COUNT:
-      DEBUG("ETM trace_element: index= %d, channel= 0x%x, type= OCSD_GEN_TRC_ELEM_CYCLE_COUNT", indx, trace_chan_id);
       break;
     case OCSD_GEN_TRC_ELEM_ADDR_UNKNOWN:
-      DEBUG("ETM trace_element: index= %d, channel= 0x%x, type= OCSD_GEN_TRC_ELEM_ADDR_UNKNOWN", indx, trace_chan_id);
       break;
     case OCSD_GEN_TRC_ELEM_EVENT:
-      DEBUG("ETM trace_element: index= %d, channel= 0x%x, type= OCSD_GEN_TRC_ELEM_EVENT", indx, trace_chan_id);
       break;
     case OCSD_GEN_TRC_ELEM_SWTRACE:
-      DEBUG("ETM trace_element: index= %d, channel= 0x%x, type= OCSD_GEN_TRC_ELEM_SWTRACE", indx, trace_chan_id);
       break;
     case OCSD_GEN_TRC_ELEM_CUSTOM:
-      DEBUG("ETM trace_element: index= %d, channel= 0x%x, type= OCSD_GEN_TRC_ELEM_CUSTOM", indx, trace_chan_id);
       break;
     default:
-      DEBUG("ETM trace_element: index= %d, channel= 0x%x, type= %d not handled", indx, trace_chan_id, elem->elem_type);
       break;
   }
   return (resp);
@@ -2287,15 +2272,6 @@ btrace_maint_clear (struct btrace_thread_info *btinfo)
       btinfo->maint.variant.pt.packet_history.end = 0;
       break;
 #endif /* defined (HAVE_LIBIPT)  */
-#if defined (HAVE_LIBOPENCSD_C_API)
-    case BTRACE_FORMAT_ETM:
-      delete btinfo->maint.variant.etm.packets;
-
-      btinfo->maint.variant.etm.packets = NULL;
-      btinfo->maint.variant.etm.packet_history.begin = 0;
-      btinfo->maint.variant.etm.packet_history.end = 0;
-      break;
-#endif /* defined (HAVE_LIBOPENCSD_C_API) */
   }
 }
 
@@ -3531,17 +3507,6 @@ btrace_maint_update_pt_packets (struct btrace_thread_info *btinfo)
 
 #endif /* !defined (HAVE_LIBIPT)  */
 
-#if defined (HAVE_LIBOPENCSD_C_API)
-static void
-btrace_maint_update_etm_packets (struct btrace_thread_info *btinfo)
-{
-  //todo:implement it
-  //struct btrace_data_etm *etm;
-  //etm = &btinfo->data.variant.etm;
-}
-#endif /* defined (HAVE_LIBOPENCSD_C_API)  */
-
-
 /* Update the packet maintenance information for BTINFO and store the
    low and high bounds into BEGIN and END, respectively.
    Store the current iterator state into FROM and TO.  */
@@ -3582,20 +3547,6 @@ btrace_maint_update_packets (struct btrace_thread_info *btinfo,
       *to = btinfo->maint.variant.pt.packet_history.end;
       break;
 #endif /* defined (HAVE_LIBIPT)  */
-#if defined (HAVE_LIBOPENCSD_C_API)
-    case BTRACE_FORMAT_ETM:
-      if (btinfo->maint.variant.etm.packets == nullptr)
-	btinfo->maint.variant.etm.packets = new std::vector<btrace_etm_packet>;
-
-      if (btinfo->maint.variant.etm.packets->empty ())
-	btrace_maint_update_etm_packets (btinfo);
-
-      *begin = 0;
-      *end = btinfo->maint.variant.etm.packets->size ();
-      *from = btinfo->maint.variant.etm.packet_history.begin;
-      *to = btinfo->maint.variant.etm.packet_history.end;
-      break;
-#endif /* defined (HAVE_LIBOPENCSD_C_API)  */
   }
 }
 
@@ -3905,11 +3856,6 @@ maint_info_btrace_cmd (const char *args, int from_tty)
       {
 	printf_unfiltered (_("Version: %u.%u.%u.\n"), OCSD_VER_MAJOR,
 			   OCSD_VER_MINOR, OCSD_VER_PATCH);
-
-	btrace_maint_update_etm_packets (btinfo);
-	printf_unfiltered (_("Number of packets: %zu.\n"),
-			   ((btinfo->maint.variant.etm.packets == nullptr)
-			       ? 0 : btinfo->maint.variant.etm.packets->size ()));
       }
       break;
 #endif /* defined (HAVE_LIBOPENCSD_C_API) */
