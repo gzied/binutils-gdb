@@ -1557,128 +1557,7 @@ static void cs_etm_get_etmv4_config(struct cs_etm_trace_params *params,
   config->core_prof = profile_CortexA;// to be amended to use params->cpu settings
 }
 
-/*static void print_trc_elem_common(const uint8_t trace_chan_id, const ocsd_generic_trace_elem *elem)
-{
-	printf ("trace_chan_id: %d; ", trace_chan_id);
 
-	switch(elem->isa){
-		case ocsd_isa_aarch64:
-			printf ("isa: CS_ETM_ISA_A64\n");
-			break;
-		case ocsd_isa_arm:
-			printf ("isa: CS_ETM_ISA_A32\n");
-			break;
-		case ocsd_isa_thumb2:
-			printf ("isa: CS_ETM_ISA_T32\n");
-			break;
-		case ocsd_isa_tee:
-			printf ("isa: CS_ETM_ISA_TEE\n");
-			break;
-		case ocsd_isa_jazelle:
-			printf ("isa: CS_ETM_ISA_JAZELLE\n");
-			break;
-		case ocsd_isa_custom:
-			printf ("isa: CS_ETM_ISA_CUSTOM\n");
-			break;
-		case ocsd_isa_unknown:
-		default:
-			printf ("isa: CS_ETM_ISA_UNKNOWN\n");
-	}
-
-	printf("start addr = 0x%llx; ",elem->st_addr);
-	printf("end addr   = 0x%llx\n",elem->en_addr);
-
-
-
-}
-
-
-static void print_trc_elem_instr_range(const uint8_t trace_chan_id, const ocsd_generic_trace_elem *elem)
-{
-  printf ("trace_chan_id: %d; ", trace_chan_id);
-  switch(elem->isa){
-    case ocsd_isa_aarch64:
-      printf ("isa: CS_ETM_ISA_A64\n");
-      break;
-    case ocsd_isa_arm:
-      printf ("isa: CS_ETM_ISA_A32\n");
-      break;
-    case ocsd_isa_thumb2:
-      printf ("isa: CS_ETM_ISA_T32\n");
-      break;
-    case ocsd_isa_tee:
-      printf ("isa: CS_ETM_ISA_TEE\n");
-      break;
-    case ocsd_isa_jazelle:
-      printf ("isa: CS_ETM_ISA_JAZELLE\n");
-      break;
-    case ocsd_isa_custom:
-      printf ("isa: CS_ETM_ISA_CUSTOM\n");
-      break;
-    case ocsd_isa_unknown:
-    default:
-      printf ("isa: CS_ETM_ISA_UNKNOWN\n");
-  }
-  printf("start addr = 0x%lx; ",elem->st_addr);
-  printf("end addr   = 0x%lx; ",elem->en_addr);
-  printf("instructions count = %d;",elem->num_instr_range);
-  switch (elem->last_i_type) {
-    case OCSD_INSTR_BR:
-      printf("last_i_type: OCSD_INSTR_BR; ");
-      break;
-    case OCSD_INSTR_BR_INDIRECT:
-      printf("last_i_type: OCSD_INSTR_BR_INDIRECT; ");
-      break;
-    case OCSD_INSTR_ISB:
-      printf("last_i_type: OCSD_INSTR_ISB; ");
-      break;
-    case OCSD_INSTR_DSB_DMB:
-      printf("last_i_type: OCSD_INSTR_DSB_DMB; ");
-      break;
-    case OCSD_INSTR_WFI_WFE:
-      printf("last_i_type: OCSD_INSTR_WFI_WFE; ");
-      break;
-    case OCSD_INSTR_OTHER:
-      printf("last_i_type: OCSD_INSTR_OTHER; ");
-      break;
-    default:
-      printf("last_i_type: %d; ",elem->last_i_type);
-      break;
-  }
-  switch (elem->last_i_subtype ) {
-    case OCSD_S_INSTR_NONE:
-      printf("last_i_subtype: OCSD_S_INSTR_NONE\n");
-      break;
-    case OCSD_S_INSTR_BR_LINK:
-      printf("last_i_subtype: OCSD_S_INSTR_BR_LINK\n");
-      break;
-    case OCSD_S_INSTR_V8_RET:
-      printf("last_i_subtype: OCSD_S_INSTR_V8_RET\n");
-      break;
-    case OCSD_S_INSTR_V8_ERET:
-      printf("last_i_subtype: OCSD_S_INSTR_V8_ERET\n");
-      break;
-    case OCSD_S_INSTR_V7_IMPLIED_RET:
-      printf("last_i_subtype: OCSD_S_INSTR_V7_IMPLIED_RET\n");
-      break;
-    default:
-      printf("last_i_subtype: %d\n",elem->last_i_subtype);
-      break;
-
-  }
-  printf("last instruction was%s executed; ",elem->last_instr_exec?"":" not" );
-  printf("last instruction size: %d\n", elem->last_instr_sz );
-
-}
-static void print_trc_elem_exception(const uint8_t trace_chan_id, const ocsd_generic_trace_elem *elem)
-{
-  printf ("trace_chan_id: %d; \n", trace_chan_id);
-  printf ("exception number: %d\n",elem-> exception_number);
-  printf("last instruction was%s executed; ",elem->last_instr_exec?"":" not" );
-  printf("last instruction size: %d\n", elem->last_instr_sz );
-}
-
- */
 #define ARM_PS_REGNUM  25		/* Contains processor status */
 static void
 cs_etm_update_branch_trace(const void *context, const ocsd_generic_trace_elem *elem)
@@ -1769,56 +1648,56 @@ static ocsd_datapath_resp_t cs_etm_trace_element_callback(
   ocsd_datapath_resp_t resp = OCSD_RESP_CONT;
   switch (elem->elem_type) {
     case OCSD_GEN_TRC_ELEM_UNKNOWN:
-      //printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_UNKNOWN\n");
+      DEBUG("ETM trace_element: index= %d, channel= 0x%x, type= OCSD_GEN_TRC_ELEM_UNKNOWN", indx, trace_chan_id);
       break;
     case OCSD_GEN_TRC_ELEM_EO_TRACE:
-      //printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_EO_TRACE\n");
+      DEBUG("ETM trace_element: index= %d, channel= 0x%x, type= OCSD_GEN_TRC_ELEM_EO_TRACE", indx, trace_chan_id);
       break;
     case OCSD_GEN_TRC_ELEM_NO_SYNC:
-      //printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_NO_SYNC\n");
+      DEBUG("ETM trace_element: index= %d, channel= 0x%x, type= OCSD_GEN_TRC_ELEM_NO_SYNC", indx, trace_chan_id);
       break;
     case OCSD_GEN_TRC_ELEM_TRACE_ON:
-      //printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_TRACE_ON\n");
+      DEBUG("ETM trace_element: index= %d, channel= 0x%x, type= OCSD_GEN_TRC_ELEM_TRACE_ON", indx, trace_chan_id);
       break;
     case OCSD_GEN_TRC_ELEM_INSTR_RANGE:
-      //printf("--->cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_INSTR_RANGE\n");
+      DEBUG("ETM trace_element: index= %d, channel= 0x%x, type= OCSD_GEN_TRC_ELEM_INSTR_RANGE, start address= 0x%" PRIx64 ", end address = 0x%" PRIx64 "", indx, trace_chan_id, elem->st_addr,elem->en_addr);
       //print_trc_elem_instr_range(trace_chan_id, elem);
       cs_etm_update_branch_trace(context, elem);
       break;
     case OCSD_GEN_TRC_ELEM_EXCEPTION:
-      //printf("--->cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_EXCEPTION\n");
+      DEBUG("ETM trace_element: index= %d, channel= 0x%x, type= OCSD_GEN_TRC_ELEM_EXCEPTION, exception number= %d", indx, trace_chan_id, elem-> exception_number);
       //print_trc_elem_exception(trace_chan_id, elem);
       cs_etm_update_branch_trace(context, elem);
       break;
     case OCSD_GEN_TRC_ELEM_EXCEPTION_RET:
-      //printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_EXCEPTION_RET\n");
+      DEBUG("ETM trace_element: index= %d, channel= 0x%x, type= OCSD_GEN_TRC_ELEM_EXCEPTION_RET", indx, trace_chan_id);
       break;
     case OCSD_GEN_TRC_ELEM_TIMESTAMP:
-      //printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_TIMESTAMP\n");
+      DEBUG("ETM trace_element: index= %d, channel= 0x%x, type= OCSD_GEN_TRC_ELEM_TIMESTAMP", indx, trace_chan_id);
       break;
     case OCSD_GEN_TRC_ELEM_PE_CONTEXT:
-      //printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_PE_CONTEXT\n");
+      DEBUG("ETM trace_element: index= %d, channel= 0x%x, type= OCSD_GEN_TRC_ELEM_PE_CONTEXT", indx, trace_chan_id);
       break;
     case OCSD_GEN_TRC_ELEM_ADDR_NACC:
-      //printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_ADDR_NACC\n");
+      DEBUG("ETM trace_element: index= %d, channel= 0x%x, type= OCSD_GEN_TRC_ELEM_ADDR_NACC", indx, trace_chan_id);
       break;
     case OCSD_GEN_TRC_ELEM_CYCLE_COUNT:
-      //printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_CYCLE_COUNT\n");
+      DEBUG("ETM trace_element: index= %d, channel= 0x%x, type= OCSD_GEN_TRC_ELEM_CYCLE_COUNT", indx, trace_chan_id);
       break;
     case OCSD_GEN_TRC_ELEM_ADDR_UNKNOWN:
-      //printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_ADDR_UNKNOWN\n");
+      DEBUG("ETM trace_element: index= %d, channel= 0x%x, type= OCSD_GEN_TRC_ELEM_ADDR_UNKNOWN", indx, trace_chan_id);
       break;
     case OCSD_GEN_TRC_ELEM_EVENT:
-      //printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_EVENT\n");
+      DEBUG("ETM trace_element: index= %d, channel= 0x%x, type= OCSD_GEN_TRC_ELEM_EVENT", indx, trace_chan_id);
       break;
     case OCSD_GEN_TRC_ELEM_SWTRACE:
-      //printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_SWTRACE\n");
+      DEBUG("ETM trace_element: index= %d, channel= 0x%x, type= OCSD_GEN_TRC_ELEM_SWTRACE", indx, trace_chan_id);
       break;
     case OCSD_GEN_TRC_ELEM_CUSTOM:
-      //printf("cs_etm_decoder_trace_element_callback: elem->elem_type OCSD_GEN_TRC_ELEM_CUSTOM\n");
+      DEBUG("ETM trace_element: index= %d, channel= 0x%x, type= OCSD_GEN_TRC_ELEM_CUSTOM", indx, trace_chan_id);
       break;
     default:
-      //printf("cs_etm_decoder_trace_element_callback: elem->elem_type %d not handledM\n",elem->elem_type);
+      DEBUG("ETM trace_element: index= %d, channel= 0x%x, type= %d not handled", indx, trace_chan_id, elem->elem_type);
       break;
   }
   return (resp);
