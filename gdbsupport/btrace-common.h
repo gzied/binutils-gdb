@@ -45,8 +45,8 @@ struct btrace_block
 
   /* Simple constructor.  */
   btrace_block (CORE_ADDR begin, CORE_ADDR end)
-    : begin (begin),
-      end (end)
+  : begin (begin),
+    end (end)
   {
     /* Nothing.  */
   }
@@ -192,19 +192,19 @@ struct btrace_data_pt
 
 
 struct cs_etmv3_trace_params {
-	uint32_t reg_ctrl;
-	uint32_t reg_trc_id;
-	uint32_t reg_ccer;
-	uint32_t reg_idr;
+  uint32_t reg_ctrl;
+  uint32_t reg_trc_id;
+  uint32_t reg_ccer;
+  uint32_t reg_idr;
 };
 
 struct cs_etmv4_trace_params {
-	uint32_t reg_idr0;
-	uint32_t reg_idr1;
-	uint32_t reg_idr2;
-	uint32_t reg_idr8;
-	uint32_t reg_configr;
-	uint32_t reg_traceidr;
+  uint32_t reg_idr0;
+  uint32_t reg_idr1;
+  uint32_t reg_idr2;
+  uint32_t reg_idr8;
+  uint32_t reg_configr;
+  uint32_t reg_traceidr;
 };
 
 /*
@@ -212,27 +212,27 @@ struct cs_etmv4_trace_params {
  * open source coresight trace decoder library.
  */
 enum {
-	CS_ETM_PROTO_ETMV3 = 1,
-	CS_ETM_PROTO_ETMV4i,
-	CS_ETM_PROTO_ETMV4d,
-	CS_ETM_PROTO_PTM,
+  CS_ETM_PROTO_ETMV3 = 1,
+  CS_ETM_PROTO_ETMV4i,
+  CS_ETM_PROTO_ETMV4d,
+  CS_ETM_PROTO_PTM,
 };
 
 struct cs_etm_trace_params {
-	struct btrace_cpu cpu;
-	int protocol;
-	union {
-		struct cs_etmv3_trace_params etmv3;
-		struct cs_etmv4_trace_params etmv4;
-	};
+  struct btrace_cpu cpu;
+  int protocol;
+  union {
+    struct cs_etmv3_trace_params etmv3;
+    struct cs_etmv4_trace_params etmv4;
+  };
 };
 
 struct cs_etm_decoder_params {
-	uint8_t formatted    :1,
-	        fsyncs       :1,
-	        hsyncs       :1,
-	        frame_aligned:1,
-			__res        :4;
+  uint8_t formatted    :1,
+  fsyncs       :1,
+  hsyncs       :1,
+  frame_aligned:1,
+  __res        :4;
 };
 
 
