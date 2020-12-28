@@ -1201,7 +1201,10 @@ static void fill_etm_trace_params (struct cs_etm_trace_params *etm_trace_params,
   if (cs_etm_is_etmv4 (cpu)== 1)
     {
       etm_trace_params->protocol = CS_ETM_PROTO_ETMV4i;
-      etm_trace_params->etmv4.reg_configr = 0; //todo: check how to get this value and set it
+      /* this is the parameter passed in etm->attr.config in the call to perf_event_open
+       * remapped according to linux/coresight-pmu.h
+       */
+      etm_trace_params->etmv4.reg_configr = 0;
       etm_trace_params->etmv4.reg_idr0 = cs_etm_get_register(cpu, "trcidr/trcidr0");
       etm_trace_params->etmv4.reg_idr1 = cs_etm_get_register(cpu, "trcidr/trcidr1");
       etm_trace_params->etmv4.reg_idr2 = cs_etm_get_register(cpu, "trcidr/trcidr2");
