@@ -40,6 +40,8 @@ if [info exists COMPILE] {
 	} else {
 		standard_testfile i686-tailcall.S
 	}
+} elseif { [istarget "arm*-*-*"] } {
+  standard_testfile arm-tailcall.S
 } else {
     unsupported "target architecture not supported"
     return -1
@@ -47,6 +49,14 @@ if [info exists COMPILE] {
 
 if [prepare_for_testing "failed to prepare" $testfile $srcfile $opts] {
     return -1
+}
+
+if {[istarget "i?86-*-*"] || [istarget "x86_64-*-*"]} {
+    set return_position 4
+    set return_line 38
+} elseif {[istarget "arm*-*-*"]} {
+    set return_position 5
+    set return_line 41
 }
 if ![runto_main] {
     untested "failed to run to main"
@@ -59,6 +69,11 @@ gdb_test_no_output "set record function-call-history-size 0"
 # trace the call to foo
 gdb_test_no_output "record btrace"
 gdb_test "next 2"
+
+# make sure we get out of function epilogue
+if { [istarget "arm*-*-*"] } {
+  gdb_test "stepi"
+}
 
 # show the flat branch trace
 gdb_test "record function-call-history 1" [multi_line \
@@ -77,7 +92,7 @@ gdb_test "record function-call-history /c 1" [multi_line \
   ] "indented"
 
 # go into bar
-gdb_test "record goto 4" ".*bar \\(\\) at .*tailcall.c:24\r\n.*"
+gdb_test "record goto $return_position" ".*bar \\(\\) at .*tailcall.c:24\r\n.*"
 
 # check the backtrace
 gdb_test "backtrace" [multi_line \
@@ -93,13 +108,13 @@ gdb_test "up" "#2\[^\r\n\]*main \\(\\) at tailcall.c:37\r\n.*" "up to main"
 gdb_test "down" "#1\[^\r\n\]*foo \\(\\) at tailcall.c:29\r\n.*" "down to foo"
 
 # test stepping into and out of tailcalls.
-gdb_test "finish" "\[^\r\n\]*main \\(\\) at tailcall.c:38\r\n.*"
+gdb_test "finish" "\[^\r\n\]*main \\(\\) at tailcall.c:$return_line\r\n.*"
 gdb_test "reverse-step" "\[^\r\n\]*bar \\(\\) at tailcall.c:24\r\n.*"
 gdb_test "reverse-finish" "\[^\r\n\]*foo \\(\\) at tailcall.c:29\r\n.*"
 gdb_test "reverse-step" "\[^\r\n\]*main \\(\\) at tailcall.c:37\r\n.*"
-gdb_test "next" "\[^\r\n\]*38.*"
+gdb_test "next" "\[^\r\n\]*$return_line.*"
 gdb_test "reverse-next" "\[^\r\n\]*main \\(\\) at tailcall.c:37\r\n.*"
 gdb_test "step" "\[^\r\n\]*foo \\(\\) at tailcall.c:29\r\n.*"
-gdb_test "finish" "\[^\r\n\]*main \\(\\) at tailcall.c:38\r\n.*"
+gdb_test "finish" "\[^\r\n\]*main \\(\\) at tailcall.c:$return_line\r\n.*"
 gdb_test "reverse-step" "\[^\r\n\]*bar \\(\\) at tailcall.c:24\r\n.*"
-gdb_test "finish" "\[^\r\n\]*main \\(\\) at tailcall.c:38\r\n.*"
+gdb_test "finish" "\[^\r\n\]*main \\(\\) at tailcall.c:$return_line\r\n.*"

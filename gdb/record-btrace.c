@@ -3071,7 +3071,6 @@ cmd_set_record_btrace_cpu_auto (const char *args, int from_tty)
 }
 
 /* The "set record btrace cpu" command.  */
-/* todo: amend for arm coresight*/
 static void
 cmd_set_record_btrace_cpu (const char *args, int from_tty)
 {
@@ -3147,9 +3146,7 @@ cmd_show_record_btrace_cpu (const char *args, int from_tty)
 			       record_btrace_cpu.stepping);
 	  return;
 	case CV_ARM:
-	  printf_unfiltered (_("btrace cpu is 'arm: %u/%u'.\n"),
-			     record_btrace_cpu.family,
-			     record_btrace_cpu.model);
+	  printf_unfiltered ("btrace cpu is 'arm.\n");
 
 	  return;
 
@@ -3193,6 +3190,7 @@ show_record_etm_buffer_size_value (struct ui_file *file, int from_tty,
 }
 
 /* Initialize btrace commands.  */
+
 void _initialize_record_btrace (void);
 void
 _initialize_record_btrace (void)
