@@ -1,3 +1,193 @@
+2020-12-23  H.J. Lu  <hongjiu.lu@intel.com>
+
+	* elf-linker-x86.h (elf_x86_cet_report): Renamed to ...
+	(elf_x86_prop_report): This.
+	(elf_linker_x86_params): Add lam_u48, lam_u57, lam_u48_report
+	and lam_u57_report.
+	* elfxx-x86.c (_bfd_x86_elf_link_setup_gnu_properties): Support
+	GNU_PROPERTY_X86_FEATURE_1_LAM_U48 and
+	GNU_PROPERTY_X86_FEATURE_1_LAM_U57.
+	(_bfd_x86_elf_link_fixup_gnu_properties): Keep LAM features only
+	for 64-bit output.
+
+2020-12-18  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR ld/27091
+	* elflink.c (elf_link_input_bfd): Copy elf_gnu_osabi_retain
+	from input only for relocatable link.
+
+2020-12-18  Alan Modra  <amodra@gmail.com>
+
+	* elf32-microblaze.c (dbg): Delete unused variable.
+	* elf32-nds32.c (relax_group_section_id_list): Make static.
+	* som.c (reloc_queue): Make static.
+	* xtensa-isa.c (xtisa_errno, xtisa_error_msg): Make static.
+
+2020-12-18  Alan Modra  <amodra@gmail.com>
+
+	* archive.c (_bfd_ar_spacepad, _bfd_ar_sizepad): Use auto buf.
+	* coff-mcore.c (coff_mcore_relocate_section): Likewise.
+	* elf32-ppc.c (ppc_elf_unhandled_reloc): Use asprintf in place
+	of fixed size and possibly too small buf for translated message.
+	* elf64-ppc.c (ppc64_elf_unhandled_reloc): Likewise.
+	* elf32-v850.c (v850_elf_check_relocs): Likewise.
+	* ecoff.c (ecoff_type_to_string): Pass in return string buff rather
+	than using static buffer2.  Delete dead code.  Remove unnecessary
+	parentheses.
+	(_bfd_ecoff_print_symbol): Pass auto buff to ecoff_type_to_string.
+	* elf32-rx.c (describe_flags): Pass in return string buf rather
+	than using static buf.
+	(rx_elf_merge_private_bfd_data): Pass buf to describe_flags.
+	(rx_elf_print_private_bfd_data): Likewise.
+	* mach-o.c (cpusubtype): Pass in return string buffer rather than
+	using static buffer.
+	(bfd_mach_o_bfd_print_private_bfd_data): Pass buff to cpusubtype.
+	* opncls.c (separate_debug_file_exists): Make buffer an auto var.
+	(bfd_fill_in_gnu_debuglink_section): Likewise.
+	* peXXigen.c (rsrc_resource_name): Pass in return string buffer
+	rather than using static buffer.
+	(rsrc_sort_entries): Pass buff to rsrc_resource_name.
+	* vms-alpha.c (_bfd_vms_write_emh): Pass tbuf to get_vms_time_string.
+	* vms-misc.c (get_vms_time_string): Pass in return string tbuf
+	rather than using static tbuf.
+	* vms.h (get_vms_time_string): Update prototype.
+
+2020-12-18  Alan Modra  <amodra@gmail.com>
+
+	* coff-z80.c (bfd_howto_type): Make typedef const.
+	* elf32-z80.c (bfd_howto_type): Likewise.
+	* elf32-m32c.c (EncodingTable): Likewise.
+	* elf32-csky.c (csky_arch_for_merge): Likewise.
+	(csky_archs): Use typedef.
+	* elf32-m68hc11.c (m68hc11_direct_relax_table): Make const.
+	(find_relaxable_insn, m68hc11_elf_relax_section): Adjust to suit.
+	* elf32-ppc.c (ppc_alt_plt): Make const.
+	* elf32-rl78.c (relax_addr16): Likewise.
+	* targets.c (_bfd_associated_vector): Likewise.
+	(bfd_target_vector, bfd_associated_vector): Likewise.
+	* libbfd-in.h (bfd_target_vector, bfd_associated_vector): Likewise.
+	* libbfd.h: Regenerate.
+
+2020-12-18  Alan Modra  <amodra@gmail.com>
+
+	* ecoff.c (bfd_debug_section): Init using BFD_FAKE_SECTION.
+	(ecoff_scom_section, ecoff_scom_symbol): Statically init using
+	BFD_FAKE_SECTION and GLOBAL_SYM_INIT.  Delete initialisation code.
+	* elf32-m32r.c (m32r_elf_scom_section, m32r_elf_scom_symbol),
+	* elf32-score.c (score_elf_scom_section, score_elf_scom_symbol),
+	* elf32-score7.c (score_elf_scom_section, score_elf_scom_symbol),
+	* elf32-tic6x.c (tic6x_elf_scom_section, tic6x_elf_scom_symbol),
+	* elf32-v850.c (v850_elf_scom_section, v850_elf_scom_symbol),
+	(v850_elf_tcom_section, v850_elf_tcom_symbol),
+	(v850_elf_zcom_section, v850_elf_zcom_symbol),
+	* elf64-mmix.c (mmix_elf_reg_section, mmix_elf_reg_section_symbol),
+	* elfxx-mips.c (mips_elf_scom_section, mips_elf_scom_symbol): Likewise.
+
+2020-12-16  Alan Modra  <amodra@gmail.com>
+
+	* elfxx-target.h (elfNN_bed): Constify.
+	* bfd.c (bfd_elf_set_pagesize): Delete.
+	(bfd_emul_set_maxpagesize, bfd_emul_set_commonpagesize): Delete.
+	* elf.c (get_program_header_size): Get commonpagesize from
+	link info.
+	(_bfd_elf_map_sections_to_segments): Get maxpagesize from link info.
+	(assign_file_positions_for_load_sections): Likewise.
+	(assign_file_positions_for_non_load_sections): Likewise.
+	(rewrite_elf_program_header): Add maxpagesize param.  Set map_p_align.
+	(copy_private_bfd_data): Don't call bfd_elf_set_maxpagesize.
+	Instead pass maxpagesize to rewrite_elf_program_header.
+	* elf32-nds32.c (relax_range_measurement): Add link_info param.
+	Get maxpagesize from link_info.  Adjust caller.
+	* bfd-in2.h: Regenerate.
+
+2020-12-16  Alan Modra  <amodra@gmail.com>
+
+	* elflink.c (elf_flags_to_names): Constify.
+
+2020-12-16  Alan Modra  <amodra@gmail.com>
+
+	* libxcoff.h (struct xcoff_backend_data_rec): Constify
+	_xcoff_glink_code.
+	(XCOFF_RELOC_FUNCTION_ARGS, XCOFF_COMPLAIN_FUNCTION_ARGS): Delete.
+	(xcoff_reloc_function, xcoff_complain_function): New typedef.
+	(xcoff_calculate_relocation, xcoff_complain_overflow),
+	(xcoff_reloc_type_noop, xcoff_reloc_type_fail),
+	(xcoff_reloc_type_pos, xcoff_reloc_type_neg),
+	(xcoff_reloc_type_rel, xcoff_reloc_type_toc),
+	(xcoff_reloc_type_ba, xcoff_reloc_type_crel): Update declaration.
+	* coff-rs6000.c (xcoff_reloc_type_br): Declare using typedef.
+	(xcoff_complain_overflow_dont_func): Likewise.
+	(xcoff_complain_overflow_bitfield_func): Likewise.
+	(xcoff_complain_overflow_signed_func): Likewise.
+	(xcoff_complain_overflow_unsigned_func): Likewise.
+	(xcoff_calculate_relocation, xcoff_complain_overflow): Constify.
+	(xcoff_glink_code): Constify.
+	* coff64-rs6000.c (xcoff64_reloc_type_br): Declare using typedef.
+	(xcoff64_calculate_relocation, xcoff64_glink_code): Constify.
+
+2020-12-16  Alan Modra  <amodra@gmail.com>
+
+	* elf32-xtensa.c (narrowable, widenable): Constify.
+	* xtensa-modules.c: Constify many arrays.
+
+2020-12-16  Alan Modra  <amodra@gmail.com>
+
+	* elf64-ppc.c (synthetic_opd): Constify.
+
+2020-12-16  Alan Modra  <amodra@gmail.com>
+
+	* arc-plt.h (plt_versions): Constify.
+	* elf32-arc.c (arc_get_plt_version): Constify return pointer,
+	adjust uses throughout.
+
+2020-12-16  Alan Modra  <amodra@gmail.com>
+
+	* coffcode.h (pelength, peheader): Delete static variables.
+	(coff_apply_checksum): Instead, define them as auto vars, and pass..
+	(coff_read_word, coff_compute_checksum): ..to here.  Delete
+	unnecessary forward declarations.
+	* pei-x86_64.c (pdata_count): Delete static variable.
+	(struct pex64_paps): New.
+	(pex64_print_all_pdata_sections, pex64_bfd_print_pdata): Pass
+	a pex64_paps for counting.
+	* peicode.h (jtab): Constify.
+
+2020-12-15  Vivek Das Mohapatra  <vivek@collabora.com>
+
+	* elflink.c (bfd_elf_size_dynamic_sections): Call
+	_bfd_elf_add_dynamic_entry to add a DT_GNU_FLAGS_1 section.
+
+2020-12-14  Alan Modra  <amodra@gmail.com>
+
+	* elf-bfd.h (struct elf_obj_tdata): Add being_created.
+	* elf.c (bfd_section_from_shdr): Delete static vars for loop
+	detection.  Use new tdata variable instead.
+	* elfcode.h (elf_object_p): Allocate being_created.
+
+2020-12-10  Nelson Chu  <nelson.chu@sifive.com>
+
+	* elfxx-riscv.c (riscv_ext_dont_care_version): New function.  Return
+	TRUE if we don't care the versions of the extensions.  These extensions
+	are added to the subset list for special purposes, with the explicit
+	versions or the RISCV_UNKNOWN_VERSION versions.
+	(riscv_parse_add_subset): If we do care the versions of the extension,
+	and the versions are unknown, then report errors for the non-implicit
+	extensions, and return directly for the implicit one.
+	(riscv_arch_str1): Do not output i extension after e, and the extensions
+	which versions are unknown.
+
+2020-12-07  Siddhesh Poyarekar  <siddhesh@sourceware.org>
+
+	PR 26945
+	* opncls.c (bfd_fdopenw): New function.
+	* bfd-in2.h: Regenerate.
+
+2020-12-07  Alan Modra  <amodra@gmail.com>
+
+	* elf32-csky.c (csky_relocate_contents): Correct negate test.
+	* cpu-ns32k.c (_bfd_do_ns32k_reloc_contents): Likewise.
+	* elf32-nds32.c (nds32_relocate_contents): Likewise.
+
 2020-12-05  Maciej W. Rozycki  <macro@linux-mips.org>
 
 	* elf32-vax.c (elf_vax_check_relocs) <R_VAX_GOT32>: Use

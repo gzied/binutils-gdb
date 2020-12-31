@@ -777,7 +777,7 @@ proc gdb_internal_error_resync {} {
 }
 
 
-# gdb_test_multiple COMMAND MESSAGE [ -promp PROMPT_REGEXP] [ -lbl ]
+# gdb_test_multiple COMMAND MESSAGE [ -prompt PROMPT_REGEXP] [ -lbl ]
 #                   EXPECT_ARGUMENTS
 # Send a command to gdb; test the result.
 #
@@ -2417,6 +2417,53 @@ proc save_vars { vars body } {
 
     foreach var $unset_vars {
 	uplevel 1 [list unset -nocomplain $var]
+    }
+
+    if {$code == 1} {
+	global errorInfo errorCode
+	return -code $code -errorinfo $errorInfo -errorcode $errorCode $result
+    } else {
+	return -code $code $result
+    }
+}
+
+# As save_vars, but for variables stored in the board_info for the
+# target board.
+#
+# Usage example:
+#
+#   save_target_board_info { multilib_flags } {
+#       global board
+#       set board [target_info name]
+#       unset_board_info multilib_flags
+#       set_board_info multilib_flags "$multilib_flags"
+#       ...
+#   }
+
+proc save_target_board_info { vars body } {
+    global board board_info
+    set board [target_info name]
+
+    array set saved_target_board_info { }
+    set unset_target_board_info { }
+
+    foreach var $vars {
+	if { [info exists board_info($board,$var)] } {
+	    set saved_target_board_info($var) [board_info $board $var]
+	} else {
+	    lappend unset_target_board_info $var
+	}
+    }
+
+    set code [catch {uplevel 1 $body} result]
+
+    foreach {var value} [array get saved_target_board_info] {
+	unset_board_info $var
+	set_board_info $var $value
+    }
+
+    foreach var $unset_target_board_info {
+	unset_board_info $var
     }
 
     if {$code == 1} {
@@ -4283,8 +4330,13 @@ proc gdb_compile_pthreads {source dest type options} {
 
 # Build a shared library from SOURCES.
 
-proc gdb_compile_shlib {sources dest options} {
+proc gdb_compile_shlib_1 {sources dest options} {
     set obj_options $options
+
+    set ada 0
+    if { [lsearch -exact $options "ada"] >= 0 } {
+	set ada 1
+    }
 
     set info_options ""
     if { [lsearch -exact $options "c++"] >= 0 } {
@@ -4299,17 +4351,21 @@ proc gdb_compile_shlib {sources dest options} {
             lappend obj_options "additional_flags=-qpic"
         }
 	"clang-*" {
-	    if { !([istarget "*-*-cygwin*"]
-		   || [istarget "*-*-mingw*"]) } {
+	    if { [istarget "*-*-cygwin*"]
+		 || [istarget "*-*-mingw*"] } {
+		lappend obj_options "additional_flags=-fPIC"
+	    } else {
 		lappend obj_options "additional_flags=-fpic"
 	    }
 	}
         "gcc-*" {
-            if { !([istarget "powerpc*-*-aix*"]
+            if { [istarget "powerpc*-*-aix*"]
                    || [istarget "rs6000*-*-aix*"]
                    || [istarget "*-*-cygwin*"]
                    || [istarget "*-*-mingw*"]
-                   || [istarget "*-*-pe*"]) } {
+                   || [istarget "*-*-pe*"] } {
+                lappend obj_options "additional_flags=-fPIC"
+	    } else {
                 lappend obj_options "additional_flags=-fpic"
             }
         }
@@ -4318,25 +4374,52 @@ proc gdb_compile_shlib {sources dest options} {
         }
         default {
 	    # don't know what the compiler is...
+	    lappend obj_options "additional_flags=-fPIC"
         }
     }
 
     set outdir [file dirname $dest]
     set objects ""
     foreach source $sources {
-	set sourcebase [file tail $source]
 	if {[file extension $source] == ".o"} {
 	    # Already a .o file.
 	    lappend objects $source
-	} elseif {[gdb_compile $source "${outdir}/${sourcebase}.o" object \
-		       $obj_options] != ""} {
-	    return -1
-	} else {
-	    lappend objects ${outdir}/${sourcebase}.o
+	    continue
 	}
+	
+	set sourcebase [file tail $source]
+
+	if { $ada } {
+	    # Gnatmake doesn't like object name foo.adb.o, use foo.o.
+	    set sourcebase [file rootname $sourcebase]
+	}
+	set object ${outdir}/${sourcebase}.o
+
+	if { $ada } {
+	    # Use gdb_compile_ada_1 instead of gdb_compile_ada to avoid the
+	    # PASS message.
+	    if {[gdb_compile_ada_1 $source $object object \
+		     $obj_options] != ""} {
+		return -1
+	    }
+	} else {
+	    if {[gdb_compile $source $object object \
+		     $obj_options] != ""} {
+		return -1
+	    }
+	}
+
+	lappend objects $object
     }
 
     set link_options $options
+    if { $ada } {
+	# If we try to use gnatmake for the link, it will interpret the
+	# object file as an .adb file.  Remove ada from the options to
+	# avoid it.
+	set idx [lsearch $link_options "ada"]
+	set link_options [lreplace $link_options $idx $idx]
+    }
     if [test_compiler_info "xlc-*"] {
 	lappend link_options "additional_flags=-qmkshrobj"
     } else {
@@ -4378,6 +4461,33 @@ proc gdb_compile_shlib {sources dest options} {
     }
 
     return ""
+}
+
+# Build a shared library from SOURCES.  Ignore target boards PIE-related
+# multilib_flags.
+
+proc gdb_compile_shlib {sources dest options} {
+    global board
+
+    # Ignore PIE-related setting in multilib_flags.
+    set board [target_info name]
+    set multilib_flags_orig [board_info $board multilib_flags]
+    set multilib_flags ""
+    foreach op $multilib_flags_orig {
+	if { $op == "-pie" || $op == "-no-pie" \
+		 || $op == "-fPIE" || $op == "-fno-PIE"} {
+	} else {
+	    append multilib_flags " $op"
+	}
+    }
+
+    save_target_board_info { multilib_flags } {
+	unset_board_info multilib_flags
+	set_board_info multilib_flags "$multilib_flags"
+	set result [gdb_compile_shlib_1 $sources $dest $options]
+    }
+
+    return $result
 }
 
 # This is just like gdb_compile_shlib, above, except that it tries compiling
@@ -6974,7 +7084,11 @@ proc run_on_host { test program args } {
  	return 0
     } else {
 	verbose -log "run_on_host failed: $output"
-	fail $test
+	if { $output == "spawn failed" } {
+	    unsupported $test
+	} else {
+	    fail $test
+	}
 	return -1
     }
 }
@@ -7590,6 +7704,52 @@ gdb_caching_proc have_fuse_ld_gold {
     set flags "additional_flags=-fuse-ld=gold"
     set src { int main() { return 0; } }
     return [gdb_simple_compile $me $src executable $flags]
+}
+
+# Return 1 if compiler supports scalar_storage_order attribute, otherwise
+# return 0.
+gdb_caching_proc supports_scalar_storage_order_attribute {
+    set me "supports_scalar_storage_order_attribute"
+    set src {
+	#include <string.h>
+	struct sle {
+	    int v;
+	} __attribute__((scalar_storage_order("little-endian")));
+	struct sbe {
+	    int v;
+	} __attribute__((scalar_storage_order("big-endian")));
+	struct sle sle;
+	struct sbe sbe;
+	int main () {
+	    sle.v = sbe.v = 0x11223344;
+	    int same = memcmp (&sle, &sbe, sizeof (int)) == 0;
+	    int sso = !same;
+	    return sso;
+	}
+    }
+    if { ![gdb_simple_compile $me $src executable ""] } {
+	return 0
+    }
+
+    set result [remote_exec target $obj]
+    set status [lindex $result 0]
+    set output [lindex $result 1]
+    if { $output != "" } {
+	return 0
+    }
+
+    return $status
+}
+
+# Return 1 if compiler supports __GNUC__, otherwise return 0.
+gdb_caching_proc supports_gnuc {
+    set me "supports_gnuc"
+    set src {
+	#ifndef __GNUC__
+	#error "No gnuc"
+	#endif
+    }
+    return [gdb_simple_compile $me $src object ""]
 }
 
 # Always load compatibility stuff.

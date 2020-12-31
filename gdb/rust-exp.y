@@ -2540,7 +2540,7 @@ rust_parser::convert_ast_to_expression (const struct rust_op *operation,
 /* The parser as exposed to gdb.  */
 
 int
-rust_parse (struct parser_state *state)
+rust_language::parser (struct parser_state *state) const
 {
   int result;
 
@@ -2732,7 +2732,7 @@ rust_lex_tests (void)
 
   /* Set up dummy "parser", so that rust_type works.  */
   struct parser_state ps (language_def (language_rust), target_gdbarch (),
-			  nullptr, 0, 0, nullptr, 0, nullptr);
+			  nullptr, 0, 0, nullptr, 0, nullptr, false);
   rust_parser parser (&ps);
 
   rust_lex_test_one (&parser, "", 0);

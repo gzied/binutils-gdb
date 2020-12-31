@@ -7178,7 +7178,10 @@ bfd_elf_size_dynamic_sections (bfd *output_bfd,
 	      || !_bfd_elf_add_dynamic_entry (info, DT_SYMTAB, 0)
 	      || !_bfd_elf_add_dynamic_entry (info, DT_STRSZ, strsize)
 	      || !_bfd_elf_add_dynamic_entry (info, DT_SYMENT,
-					      bed->s->sizeof_sym))
+					      bed->s->sizeof_sym)
+	      || (info->gnu_flags_1
+		  && !_bfd_elf_add_dynamic_entry (info, DT_GNU_FLAGS_1,
+						  info->gnu_flags_1)))
 	    return FALSE;
 	}
     }
@@ -10803,7 +10806,9 @@ elf_link_input_bfd (struct elf_final_link_info *flinfo, bfd *input_bfd)
       || bed->elf_osabi == ELFOSABI_GNU
       || bed->elf_osabi == ELFOSABI_FREEBSD)
     elf_tdata (output_bfd)->has_gnu_osabi
-      |= elf_tdata (input_bfd)->has_gnu_osabi;
+      |= (elf_tdata (input_bfd)->has_gnu_osabi
+	  & (bfd_link_relocatable (flinfo->info)
+	     ? -1 : ~elf_gnu_osabi_retain));
 
   /* Read the local symbols.  */
   isymbuf = (Elf_Internal_Sym *) symtab_hdr->contents;
@@ -14355,7 +14360,7 @@ typedef struct
   flagword flag_value;
 } elf_flags_to_name_table;
 
-static elf_flags_to_name_table elf_flags_to_names [] =
+static const elf_flags_to_name_table elf_flags_to_names [] =
 {
   { "SHF_WRITE", SHF_WRITE },
   { "SHF_ALLOC", SHF_ALLOC },

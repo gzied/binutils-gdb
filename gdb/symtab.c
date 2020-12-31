@@ -42,6 +42,7 @@
 #include "addrmap.h"
 #include "cli/cli-utils.h"
 #include "cli/cli-style.h"
+#include "cli/cli-cmds.h"
 #include "fnmatch.h"
 #include "hashtab.h"
 #include "typeprint.h"
@@ -1842,7 +1843,8 @@ demangle_for_lookup (const char *name, enum language lang,
     }
   else if (lang == language_go)
     {
-      char *demangled_name = go_demangle (name, 0);
+      char *demangled_name
+	= language_def (language_go)->demangle_symbol (name, 0);
       if (demangled_name != NULL)
 	return storage.set_malloc_ptr (demangled_name);
     }
@@ -6929,10 +6931,13 @@ If zero then the symbol cache is disabled."),
 	   _("Print symbol cache statistics for each program space."),
 	   &maintenanceprintlist);
 
-  add_cmd ("flush-symbol-cache", class_maintenance,
+  add_cmd ("symbol-cache", class_maintenance,
 	   maintenance_flush_symbol_cache,
 	   _("Flush the symbol cache for each program space."),
-	   &maintenancelist);
+	   &maintenanceflushlist);
+  c = add_alias_cmd ("flush-symbol-cache", "flush symbol-cache",
+		     class_maintenance, 0, &maintenancelist);
+  deprecate_cmd (c, "maintenancelist flush symbol-cache");
 
   gdb::observers::executable_changed.attach (symtab_observer_executable_changed);
   gdb::observers::new_objfile.attach (symtab_new_objfile_observer);

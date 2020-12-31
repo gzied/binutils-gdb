@@ -120,17 +120,15 @@ parse_to_comma_and_eval (const char **expp)
   return evaluate_expression (expr.get ());
 }
 
-/* Evaluate an expression in internal prefix form
-   such as is constructed by parse.y.
 
-   See expression.h for info on the format of an expression.  */
+/* See value.h.  */
 
 struct value *
-evaluate_expression (struct expression *exp)
+evaluate_expression (struct expression *exp, struct type *expect_type)
 {
   int pc = 0;
 
-  return evaluate_subexp (nullptr, exp, &pc, EVAL_NORMAL);
+  return evaluate_subexp (expect_type, exp, &pc, EVAL_NORMAL);
 }
 
 /* Evaluate an expression, avoiding all memory references
@@ -692,11 +690,12 @@ eval_skip_value (expression *exp)
 
 value *
 evaluate_subexp_do_call (expression *exp, enum noside noside,
-			 int nargs, value **argvec,
+			 value *callee,
+			 gdb::array_view<value *> argvec,
 			 const char *function_name,
 			 type *default_return_type)
 {
-  if (argvec[0] == NULL)
+  if (callee == NULL)
     error (_("Cannot evaluate function -- may be inlined"));
   if (noside == EVAL_AVOID_SIDE_EFFECTS)
     {
@@ -704,7 +703,7 @@ evaluate_subexp_do_call (expression *exp, enum noside noside,
 	 call an error.  This can happen if somebody tries to turn
 	 a variable into a function call.  */
 
-      type *ftype = value_type (argvec[0]);
+      type *ftype = value_type (callee);
 
       if (ftype->code () == TYPE_CODE_INTERNAL_FUNCTION)
 	{
@@ -716,10 +715,7 @@ evaluate_subexp_do_call (expression *exp, enum noside noside,
 	}
       else if (ftype->code () == TYPE_CODE_XMETHOD)
 	{
-	  type *return_type
-	    = result_type_of_xmethod (argvec[0],
-				      gdb::make_array_view (argvec + 1,
-							    nargs));
+	  type *return_type = result_type_of_xmethod (callee, argvec);
 
 	  if (return_type == NULL)
 	    error (_("Xmethod is missing return type."));
@@ -730,7 +726,7 @@ evaluate_subexp_do_call (expression *exp, enum noside noside,
 	{
 	  if (ftype->is_gnu_ifunc ())
 	    {
-	      CORE_ADDR address = value_address (argvec[0]);
+	      CORE_ADDR address = value_address (callee);
 	      type *resolved_type = find_gnu_ifunc_target_type (address);
 
 	      if (resolved_type != NULL)
@@ -751,16 +747,15 @@ evaluate_subexp_do_call (expression *exp, enum noside noside,
 	error (_("Expression of type other than "
 		 "\"Function returning ...\" used as function"));
     }
-  switch (value_type (argvec[0])->code ())
+  switch (value_type (callee)->code ())
     {
     case TYPE_CODE_INTERNAL_FUNCTION:
       return call_internal_function (exp->gdbarch, exp->language_defn,
-				     argvec[0], nargs, argvec + 1);
+				     callee, argvec.size (), argvec.data ());
     case TYPE_CODE_XMETHOD:
-      return call_xmethod (argvec[0], gdb::make_array_view (argvec + 1, nargs));
+      return call_xmethod (callee, argvec);
     default:
-      return call_function_by_hand (argvec[0], default_return_type,
-				    gdb::make_array_view (argvec + 1, nargs));
+      return call_function_by_hand (callee, default_return_type, argvec);
     }
 }
 
@@ -1165,7 +1160,8 @@ evaluate_funcall (type *expect_type, expression *exp, int *pos,
       /* Nothing to be done; argvec already correctly set up.  */
     }
 
-  return evaluate_subexp_do_call (exp, noside, nargs, argvec,
+  return evaluate_subexp_do_call (exp, noside, argvec[0],
+				  gdb::make_array_view (argvec + 1, nargs),
 				  var_func_name, expect_type);
 }
 
@@ -1386,7 +1382,7 @@ evaluate_subexp_standard (struct type *expect_type,
 	  int element_size = TYPE_LENGTH (check_typedef (element_type));
 	  LONGEST low_bound, high_bound, index;
 
-	  if (get_discrete_bounds (range_type, &low_bound, &high_bound) < 0)
+	  if (!get_discrete_bounds (range_type, &low_bound, &high_bound))
 	    {
 	      low_bound = 0;
 	      high_bound = (TYPE_LENGTH (type) / element_size) - 1;
@@ -1426,7 +1422,7 @@ evaluate_subexp_standard (struct type *expect_type,
 		 || check_type->code () == TYPE_CODE_TYPEDEF)
 	    check_type = TYPE_TARGET_TYPE (check_type);
 
-	  if (get_discrete_bounds (element_type, &low_bound, &high_bound) < 0)
+	  if (!get_discrete_bounds (element_type, &low_bound, &high_bound))
 	    error (_("(power)set type with unknown size"));
 	  memset (valaddr, '\0', TYPE_LENGTH (type));
 	  for (tem = 0; tem < nargs; tem++)
@@ -2146,36 +2142,14 @@ evaluate_subexp_standard (struct type *expect_type,
       (*pos) += 2;
       nargs = longest_to_int (exp->elts[pc + 1].longconst);
       arg1 = evaluate_subexp_with_coercion (exp, pos, noside);
-      while (nargs-- > 0)
+      argvec = XALLOCAVEC (struct value *, nargs);
+      for (ix = 0; ix < nargs; ++ix)
+	argvec[ix] = evaluate_subexp_with_coercion (exp, pos, noside);
+      if (noside == EVAL_SKIP)
+	return arg1;
+      for (ix = 0; ix < nargs; ++ix)
 	{
-	  arg2 = evaluate_subexp_with_coercion (exp, pos, noside);
-	  /* FIXME:  EVAL_SKIP handling may not be correct.  */
-	  if (noside == EVAL_SKIP)
-	    {
-	      if (nargs > 0)
-		continue;
-	      return eval_skip_value (exp);
-	    }
-	  /* FIXME:  EVAL_AVOID_SIDE_EFFECTS handling may not be correct.  */
-	  if (noside == EVAL_AVOID_SIDE_EFFECTS)
-	    {
-	      /* If the user attempts to subscript something that has no target
-		 type (like a plain int variable for example), then report this
-		 as an error.  */
-
-	      type = TYPE_TARGET_TYPE (check_typedef (value_type (arg1)));
-	      if (type != NULL)
-		{
-		  arg1 = value_zero (type, VALUE_LVAL (arg1));
-		  noside = EVAL_SKIP;
-		  continue;
-		}
-	      else
-		{
-		  error (_("cannot subscript something of type `%s'"),
-			 value_type (arg1)->name ());
-		}
-	    }
+	  arg2 = argvec[ix];
 
 	  if (binop_user_defined_p (op, arg1, arg2))
 	    {
@@ -2965,10 +2939,14 @@ evaluate_subexp_for_sizeof (struct expression *exp, int *pos,
 	{
 	  val = evaluate_subexp (nullptr, exp, pos, EVAL_NORMAL);
 	  type = value_type (val);
-	  if (type->code () == TYPE_CODE_ARRAY
-	      && is_dynamic_type (type->index_type ())
-	      && type->bounds ()->high.kind () == PROP_UNDEFINED)
-	    return allocate_optimized_out_value (size_type);
+	  if (type->code () == TYPE_CODE_ARRAY)
+	    {
+	      if (type_not_allocated (type) || type_not_associated (type))
+		return value_zero (size_type, not_lval);
+	      else if (is_dynamic_type (type->index_type ())
+		       && type->bounds ()->high.kind () == PROP_UNDEFINED)
+		return allocate_optimized_out_value (size_type);
+	    }
 	}
       else
 	(*pos) += 4;
@@ -3096,7 +3074,7 @@ evaluate_subexp_for_cast (expression *exp, int *pos,
 /* Parse a type expression in the string [P..P+LENGTH).  */
 
 struct type *
-parse_and_eval_type (char *p, int length)
+parse_and_eval_type (const char *p, int length)
 {
   char *tmp = (char *) alloca (length + 4);
 
@@ -3106,7 +3084,7 @@ parse_and_eval_type (char *p, int length)
   tmp[length + 2] = '0';
   tmp[length + 3] = '\0';
   expression_up expr = parse_expression (tmp);
-  if (expr->elts[0].opcode != UNOP_CAST)
+  if (expr->first_opcode () != UNOP_CAST)
     error (_("Internal error in eval_type."));
   return expr->elts[1].type;
 }

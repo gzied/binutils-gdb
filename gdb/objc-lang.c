@@ -424,7 +424,7 @@ public:
   /* See language.h.  */
 
   const struct op_print *opcode_print_table () const override
-  { return c_op_print_tab; }
+  { return objc_op_print_tab; }
 };
 
 /* Single instance of the class representing the Objective-C language.  */
@@ -1194,10 +1194,10 @@ print_object_command (const char *args, int from_tty)
 
   {
     expression_up expr = parse_expression (args);
-    int pc = 0;
 
-    object = evaluate_subexp (builtin_type (expr->gdbarch)->builtin_data_ptr,
-			      expr.get (), &pc, EVAL_NORMAL);
+    object
+      = evaluate_expression (expr.get (),
+			     builtin_type (expr->gdbarch)->builtin_data_ptr);
   }
 
   /* Validate the address for sanity.  */

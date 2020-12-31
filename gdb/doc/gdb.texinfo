@@ -13542,6 +13542,12 @@ Show maximum number of dcache entries.  @xref{Caching Target Data, info dcache}.
 @kindex show dcache line-size
 Show default size of dcache lines.
 
+@item maint flush dcache
+@cindex dcache, flushing
+@kindex maint flush dcache
+Flush the contents (if any) of the dcache.  This maintainer command is
+useful when debugging the dcache implementation.
+
 @end table
 
 @node Searching Memory
@@ -16218,7 +16224,7 @@ expression may still be impossible for other reasons, such as accessing
 memory that the process does not own (a typical example from many Unix
 systems).
 
-@item show range
+@item show check range
 Show the current setting of the range checker, and whether or not it is
 being set automatically by @value{GDBN}.
 @end table
@@ -19551,12 +19557,16 @@ This is useful when debugging symbol cache issues.
 Print symbol cache usage statistics.
 This helps determine how well the cache is being utilized.
 
+@kindex maint flush symbol-cache
 @kindex maint flush-symbol-cache
 @cindex symbol cache, flushing
-@item maint flush-symbol-cache
-Flush the contents of the symbol cache, all entries are removed.
-This command is useful when debugging the symbol cache.
-It is also useful when collecting performance data.
+@item maint flush symbol-cache
+@itemx maint flush-symbol-cache
+Flush the contents of the symbol cache, all entries are removed.  This
+command is useful when debugging the symbol cache.  It is also useful
+when collecting performance data.  The command @code{maint
+flush-symbol-cache} is deprecated in favor of @code{maint flush
+symbol-cache}..
 
 @end table
 
@@ -37870,6 +37880,15 @@ recent C@t{++}11 compiler, e.g.@: GCC.
 @item GNU make
 @value{GDBN}'s build system relies on features only found in the GNU
 make program.  Other variants of @code{make} will not work.
+
+@item GMP (The GNU Multiple Precision Arithmetic Library)
+@value{GDBN} now uses GMP to perform some of its arithmetics.
+This library may be included with your operating system distribution;
+if it is not, you can get the latest version from
+@url{https://gmplib.org/}. If GMP is installed at an unusual path,
+you can use the @option{--with-libgmp-prefix} option to specify
+its location.
+
 @end table
 
 @heading Tools/Packages Optional for Building @value{GDBN}
@@ -38918,9 +38937,15 @@ The register groups info looks like this:
  restore    internal
 @end smallexample
 
+@kindex maint flush register-cache
 @kindex flushregs
-@item flushregs
-This command forces @value{GDBN} to flush its internal register cache.
+@cindex register cache, flushing
+@item maint flush register-cache
+@itemx flushregs
+Flush the contents of the register cache and as a consequence the
+frame cache.  This command is useful when debugging issues related to
+register fetching, or frame unwinding.  The command @code{flushregs}
+is deprecated in favor of @code{maint flush register-cache}.
 
 @kindex maint print objfiles
 @cindex info for known object files
@@ -39536,9 +39561,10 @@ The remote target both supports and has enabled extended mode.
 @item ?
 @cindex @samp{?} packet
 @anchor{? packet}
-Indicate the reason the target halted.  The reply is the same as for
-step and continue.  This packet has a special interpretation when the
-target is in non-stop mode; see @ref{Remote Non-Stop}.
+This is sent when connection is first established to query the reason
+the target halted.  The reply is the same as for step and continue.
+This packet has a special interpretation when the target is in
+non-stop mode; see @ref{Remote Non-Stop}.
 
 Reply:
 @xref{Stop Reply Packets}, for the reply specifications.

@@ -464,6 +464,8 @@ Sized_relobj_file<size, big_endian>::Sized_relobj_file(
     const elfcpp::Ehdr<size, big_endian>& ehdr)
   : Sized_relobj<size, big_endian>(name, input_file, offset),
     elf_file_(this, ehdr),
+    osabi_(ehdr.get_ei_osabi()),
+    e_type_(ehdr.get_e_type()),
     symtab_shndx_(-1U),
     local_symbol_count_(0),
     output_local_symbol_count_(0),
@@ -481,7 +483,6 @@ Sized_relobj_file<size, big_endian>::Sized_relobj_file(
     deferred_layout_relocs_(),
     output_views_(NULL)
 {
-  this->e_type_ = ehdr.get_e_type();
 }
 
 template<int size, bool big_endian>
@@ -1304,6 +1305,10 @@ Sized_relobj_file<size, big_endian>::layout_gnu_property_section(
     Layout* layout,
     unsigned int shndx)
 {
+  // We ignore Gnu property sections on incremental links.
+  if (parameters->incremental())
+    return;
+
   section_size_type contents_len;
   const unsigned char* pcontents = this->section_contents(shndx,
 							  &contents_len,
@@ -1702,7 +1707,8 @@ Sized_relobj_file<size, big_endian>::do_layout(Symbol_table* symtab,
 	  if (this->is_section_name_included(name)
 	      || layout->keep_input_section (this, name)
 	      || sh_type == elfcpp::SHT_INIT_ARRAY
-	      || sh_type == elfcpp::SHT_FINI_ARRAY)
+	      || sh_type == elfcpp::SHT_FINI_ARRAY
+	      || this->osabi().has_shf_retain(shdr.get_sh_flags()))
 	    {
 	      symtab->gc()->worklist().push_back(Section_id(this, i));
 	    }
@@ -3381,8 +3387,8 @@ make_elf_sized_object(const std::string& name, Input_file* input_file,
 {
   Target* target = select_target(input_file, offset,
 				 ehdr.get_e_machine(), size, big_endian,
-				 ehdr.get_e_ident()[elfcpp::EI_OSABI],
-				 ehdr.get_e_ident()[elfcpp::EI_ABIVERSION]);
+				 ehdr.get_ei_osabi(),
+				 ehdr.get_ei_abiversion());
   if (target == NULL)
     gold_fatal(_("%s: unsupported ELF machine number %d"),
 	       name.c_str(), ehdr.get_e_machine());

@@ -218,23 +218,24 @@ static struct value *assign_aggregate (struct value *, struct value *,
 				       struct expression *,
 				       int *, enum noside);
 
-static void aggregate_assign_from_choices (struct value *, struct value *, 
+static void aggregate_assign_from_choices (struct value *, struct value *,
 					   struct expression *,
-					   int *, LONGEST *, int *,
-					   int, LONGEST, LONGEST);
+					   int *, std::vector<LONGEST> &,
+					   LONGEST, LONGEST);
 
 static void aggregate_assign_positional (struct value *, struct value *,
 					 struct expression *,
-					 int *, LONGEST *, int *, int,
+					 int *, std::vector<LONGEST> &,
 					 LONGEST, LONGEST);
 
 
 static void aggregate_assign_others (struct value *, struct value *,
 				     struct expression *,
-				     int *, LONGEST *, int, LONGEST, LONGEST);
+				     int *, std::vector<LONGEST> &,
+				     LONGEST, LONGEST);
 
 
-static void add_component_interval (LONGEST, LONGEST, LONGEST *, int *, int);
+static void add_component_interval (LONGEST, LONGEST, std::vector<LONGEST> &);
 
 
 static struct value *ada_evaluate_subexp (struct type *, struct expression *,
@@ -984,8 +985,9 @@ ada_fold_name (gdb::string_view name)
     {
       int i;
 
-      for (i = 0; i <= len; i += 1)
+      for (i = 0; i < len; i += 1)
 	fold_buffer[i] = tolower (name[i]);
+      fold_buffer[i] = '\0';
     }
 
   return fold_buffer;
@@ -2112,7 +2114,7 @@ constrained_packed_array_type (struct type *type, long *elt_bits)
 
   if ((check_typedef (index_type)->code () == TYPE_CODE_RANGE
        && is_dynamic_type (check_typedef (index_type)))
-      || get_discrete_bounds (index_type, &low_bound, &high_bound) < 0)
+      || !get_discrete_bounds (index_type, &low_bound, &high_bound))
     low_bound = high_bound = 0;
   if (high_bound < low_bound)
     *elt_bits = TYPE_LENGTH (new_type) = 0;
@@ -2182,7 +2184,7 @@ recursively_update_array_bitsize (struct type *type)
   gdb_assert (type->code () == TYPE_CODE_ARRAY);
 
   LONGEST low, high;
-  if (get_discrete_bounds (type->index_type (), &low, &high) < 0
+  if (!get_discrete_bounds (type->index_type (), &low, &high)
       || low > high)
     return 0;
   LONGEST our_len = high - low + 1;
@@ -2299,7 +2301,7 @@ value_subscript_packed (struct value *arr, int arity, struct value **ind)
 	  LONGEST lowerbound, upperbound;
 	  LONGEST idx;
 
-	  if (get_discrete_bounds (range_type, &lowerbound, &upperbound) < 0)
+	  if (!get_discrete_bounds (range_type, &lowerbound, &upperbound))
 	    {
 	      lim_warning (_("don't know bounds of array"));
 	      lowerbound = upperbound = 0;
@@ -2815,11 +2817,13 @@ ada_value_slice_from_ptr (struct value *array_ptr, struct type *type,
 			       type0->dyn_prop (DYN_PROP_BYTE_STRIDE),
 			       TYPE_FIELD_BITSIZE (type0, 0));
   int base_low =  ada_discrete_type_low_bound (type0->index_type ());
-  LONGEST base_low_pos, low_pos;
+  gdb::optional<LONGEST> base_low_pos, low_pos;
   CORE_ADDR base;
 
-  if (!discrete_position (base_index_type, low, &low_pos)
-      || !discrete_position (base_index_type, base_low, &base_low_pos))
+  low_pos = discrete_position (base_index_type, low);
+  base_low_pos = discrete_position (base_index_type, base_low);
+
+  if (!low_pos.has_value () || !base_low_pos.has_value ())
     {
       warning (_("unable to get positions in slice, use bounds instead"));
       low_pos = low;
@@ -2830,7 +2834,7 @@ ada_value_slice_from_ptr (struct value *array_ptr, struct type *type,
   if (stride == 0)
     stride = TYPE_LENGTH (TYPE_TARGET_TYPE (type0));
 
-  base = value_as_address (array_ptr) + (low_pos - base_low_pos) * stride;
+  base = value_as_address (array_ptr) + (*low_pos - *base_low_pos) * stride;
   return value_at_lazy (slice_type, base);
 }
 
@@ -2846,10 +2850,13 @@ ada_value_slice (struct value *array, int low, int high)
 			      (NULL, TYPE_TARGET_TYPE (type), index_type,
 			       type->dyn_prop (DYN_PROP_BYTE_STRIDE),
 			       TYPE_FIELD_BITSIZE (type, 0));
-  LONGEST low_pos, high_pos;
+  gdb::optional<LONGEST> low_pos, high_pos;
 
-  if (!discrete_position (base_index_type, low, &low_pos)
-      || !discrete_position (base_index_type, high, &high_pos))
+
+  low_pos = discrete_position (base_index_type, low);
+  high_pos = discrete_position (base_index_type, high);
+
+  if (!low_pos.has_value () || !high_pos.has_value ())
     {
       warning (_("unable to get positions in slice, use bounds instead"));
       low_pos = low;
@@ -2857,7 +2864,7 @@ ada_value_slice (struct value *array, int low, int high)
     }
 
   return value_cast (slice_type,
-		     value_slice (array, low, high_pos - low_pos + 1));
+		     value_slice (array, low, *high_pos - *low_pos + 1));
 }
 
 /* If type is a record type in the form of a standard GNAT array
@@ -4000,28 +4007,27 @@ replace_operator_with_call (expression_up *expp, int pc, int nargs,
 			    int oplen, struct symbol *sym,
 			    const struct block *block)
 {
-  /* A new expression, with 6 more elements (3 for funcall, 4 for function
-     symbol, -oplen for operator being replaced).  */
-  struct expression *newexp = (struct expression *)
-    xzalloc (sizeof (struct expression)
-	     + EXP_ELEM_TO_BYTES ((*expp)->nelts + 7 - oplen));
+  /* We want to add 6 more elements (3 for funcall, 4 for function
+     symbol, -OPLEN for operator being replaced) to the
+     expression.  */
   struct expression *exp = expp->get ();
+  int save_nelts = exp->nelts;
+  int extra_elts = 7 - oplen;
+  exp->nelts += extra_elts;
 
-  newexp->nelts = exp->nelts + 7 - oplen;
-  newexp->language_defn = exp->language_defn;
-  newexp->gdbarch = exp->gdbarch;
-  memcpy (newexp->elts, exp->elts, EXP_ELEM_TO_BYTES (pc));
-  memcpy (newexp->elts + pc + 7, exp->elts + pc + oplen,
-	  EXP_ELEM_TO_BYTES (exp->nelts - pc - oplen));
+  if (extra_elts > 0)
+    exp->resize (exp->nelts);
+  memmove (exp->elts + pc + 7, exp->elts + pc + oplen,
+	   EXP_ELEM_TO_BYTES (save_nelts - pc - oplen));
+  if (extra_elts < 0)
+    exp->resize (exp->nelts);
 
-  newexp->elts[pc].opcode = newexp->elts[pc + 2].opcode = OP_FUNCALL;
-  newexp->elts[pc + 1].longconst = (LONGEST) nargs;
+  exp->elts[pc].opcode = exp->elts[pc + 2].opcode = OP_FUNCALL;
+  exp->elts[pc + 1].longconst = (LONGEST) nargs;
 
-  newexp->elts[pc + 3].opcode = newexp->elts[pc + 6].opcode = OP_VAR_VALUE;
-  newexp->elts[pc + 4].block = block;
-  newexp->elts[pc + 5].symbol = sym;
-
-  expp->reset (newexp);
+  exp->elts[pc + 3].opcode = exp->elts[pc + 6].opcode = OP_VAR_VALUE;
+  exp->elts[pc + 4].block = block;
+  exp->elts[pc + 5].symbol = sym;
 }
 
 /* Type-class predicates */
@@ -5804,7 +5810,7 @@ ada_lookup_encoded_symbol (const char *name, const struct block *block,
      ada_lookup_name_info would re-encode/fold it again, and that
      would e.g., incorrectly lowercase object renaming names like
      "R28b" -> "r28b".  */
-  std::string verbatim = std::string ("<") + name + '>';
+  std::string verbatim = add_angle_brackets (name);
 
   gdb_assert (info != NULL);
   *info = ada_lookup_symbol (verbatim.c_str (), block, domain);
@@ -6032,6 +6038,13 @@ advance_wild_match (const char **namep, const char *name0, char target0)
 	      name += 2;
 	      break;
 	    }
+	  else if (t1 == '_' && name[2] == 'B' && name[3] == '_')
+	    {
+	      /* Names like "pkg__B_N__name", where N is a number, are
+		 block-local.  We can handle these by simply skipping
+		 the "B_" here.  */
+	      name += 4;
+	    }
 	  else
 	    return 0;
 	}
@@ -6074,28 +6087,6 @@ wild_match (const char *name, const char *patn)
       if (!advance_wild_match (&name, name0, *patn))
 	return false;
     }
-}
-
-/* Returns true iff symbol name SYM_NAME matches SEARCH_NAME, ignoring
-   any trailing suffixes that encode debugging information or leading
-   _ada_ on SYM_NAME (see is_name_suffix commentary for the debugging
-   information that is ignored).  */
-
-static bool
-full_match (const char *sym_name, const char *search_name)
-{
-  size_t search_name_len = strlen (search_name);
-
-  if (strncmp (sym_name, search_name, search_name_len) == 0
-      && is_name_suffix (sym_name + search_name_len))
-    return true;
-
-  if (startswith (sym_name, "_ada_")
-      && strncmp (sym_name + 5, search_name, search_name_len) == 0
-      && is_name_suffix (sym_name + search_name_len + 5))
-    return true;
-
-  return false;
 }
 
 /* Add symbols from BLOCK matching LOOKUP_NAME in DOMAIN to vector
@@ -8927,15 +8918,15 @@ pos_atr (struct value *arg)
 {
   struct value *val = coerce_ref (arg);
   struct type *type = value_type (val);
-  LONGEST result;
 
   if (!discrete_type_p (type))
     error (_("'POS only defined on discrete types"));
 
-  if (!discrete_position (type, value_as_long (val), &result))
+  gdb::optional<LONGEST> result = discrete_position (type, value_as_long (val));
+  if (!result.has_value ())
     error (_("enumeration value is invalid: can't find 'POS"));
 
-  return result;
+  return *result;
 }
 
 static struct value *
@@ -9481,34 +9472,6 @@ ada_value_equal (struct value *arg1, struct value *arg2)
   return value_equal (arg1, arg2);
 }
 
-/* Total number of component associations in the aggregate starting at
-   index PC in EXP.  Assumes that index PC is the start of an
-   OP_AGGREGATE.  */
-
-static int
-num_component_specs (struct expression *exp, int pc)
-{
-  int n, m, i;
-
-  m = exp->elts[pc + 1].longconst;
-  pc += 3;
-  n = 0;
-  for (i = 0; i < m; i += 1)
-    {
-      switch (exp->elts[pc].opcode) 
-	{
-	default:
-	  n += 1;
-	  break;
-	case OP_CHOICES:
-	  n += exp->elts[pc + 1].longconst;
-	  break;
-	}
-      ada_evaluate_subexp (NULL, exp, &pc, EVAL_SKIP);
-    }
-  return n;
-}
-
 /* Assign the result of evaluating EXP starting at *POS to the INDEXth 
    component of LHS (a simple array or a record), updating *POS past
    the expression, assuming that LHS is contained in CONTAINER.  Does
@@ -9562,9 +9525,6 @@ assign_aggregate (struct value *container,
   struct type *lhs_type;
   int n = exp->elts[*pos+1].longconst;
   LONGEST low_index, high_index;
-  int num_specs;
-  LONGEST *indices;
-  int max_indices, num_indices;
   int i;
 
   *pos += 3;
@@ -9598,32 +9558,27 @@ assign_aggregate (struct value *container,
   else
     error (_("Left-hand side must be array or record."));
 
-  num_specs = num_component_specs (exp, *pos - 3);
-  max_indices = 4 * num_specs + 4;
-  indices = XALLOCAVEC (LONGEST, max_indices);
+  std::vector<LONGEST> indices (4);
   indices[0] = indices[1] = low_index - 1;
   indices[2] = indices[3] = high_index + 1;
-  num_indices = 4;
 
   for (i = 0; i < n; i += 1)
     {
       switch (exp->elts[*pos].opcode)
 	{
 	  case OP_CHOICES:
-	    aggregate_assign_from_choices (container, lhs, exp, pos, indices, 
-					   &num_indices, max_indices,
+	    aggregate_assign_from_choices (container, lhs, exp, pos, indices,
 					   low_index, high_index);
 	    break;
 	  case OP_POSITIONAL:
 	    aggregate_assign_positional (container, lhs, exp, pos, indices,
-					 &num_indices, max_indices,
 					 low_index, high_index);
 	    break;
 	  case OP_OTHERS:
 	    if (i != n-1)
 	      error (_("Misplaced 'others' clause"));
-	    aggregate_assign_others (container, lhs, exp, pos, indices, 
-				     num_indices, low_index, high_index);
+	    aggregate_assign_others (container, lhs, exp, pos, indices,
+				     low_index, high_index);
 	    break;
 	  default:
 	    error (_("Internal error: bad aggregate clause"));
@@ -9635,15 +9590,14 @@ assign_aggregate (struct value *container,
 	      
 /* Assign into the component of LHS indexed by the OP_POSITIONAL
    construct at *POS, updating *POS past the construct, given that
-   the positions are relative to lower bound LOW, where HIGH is the 
-   upper bound.  Record the position in INDICES[0 .. MAX_INDICES-1]
-   updating *NUM_INDICES as needed.  CONTAINER is as for
+   the positions are relative to lower bound LOW, where HIGH is the
+   upper bound.  Record the position in INDICES.  CONTAINER is as for
    assign_aggregate.  */
 static void
 aggregate_assign_positional (struct value *container,
 			     struct value *lhs, struct expression *exp,
-			     int *pos, LONGEST *indices, int *num_indices,
-			     int max_indices, LONGEST low, LONGEST high) 
+			     int *pos, std::vector<LONGEST> &indices,
+			     LONGEST low, LONGEST high)
 {
   LONGEST ind = longest_to_int (exp->elts[*pos + 1].longconst) + low;
   
@@ -9651,7 +9605,7 @@ aggregate_assign_positional (struct value *container,
     warning (_("Extra components in aggregate ignored."));
   if (ind <= high)
     {
-      add_component_interval (ind, ind, indices, num_indices, max_indices);
+      add_component_interval (ind, ind, indices);
       *pos += 3;
       assign_component (container, lhs, ind, exp, pos);
     }
@@ -9662,13 +9616,12 @@ aggregate_assign_positional (struct value *container,
 /* Assign into the components of LHS indexed by the OP_CHOICES
    construct at *POS, updating *POS past the construct, given that
    the allowable indices are LOW..HIGH.  Record the indices assigned
-   to in INDICES[0 .. MAX_INDICES-1], updating *NUM_INDICES as
-   needed.  CONTAINER is as for assign_aggregate.  */
+   to in INDICES.  CONTAINER is as for assign_aggregate.  */
 static void
 aggregate_assign_from_choices (struct value *container,
 			       struct value *lhs, struct expression *exp,
-			       int *pos, LONGEST *indices, int *num_indices,
-			       int max_indices, LONGEST low, LONGEST high) 
+			       int *pos, std::vector<LONGEST> &indices,
+			       LONGEST low, LONGEST high)
 {
   int j;
   int n_choices = longest_to_int (exp->elts[*pos+1].longconst);
@@ -9728,8 +9681,7 @@ aggregate_assign_from_choices (struct value *container,
       if (lower <= upper && (lower < low || upper > high))
 	error (_("Index in component association out of bounds."));
 
-      add_component_interval (lower, upper, indices, num_indices,
-			      max_indices);
+      add_component_interval (lower, upper, indices);
       while (lower <= upper)
 	{
 	  int pos1;
@@ -9744,17 +9696,18 @@ aggregate_assign_from_choices (struct value *container,
 /* Assign the value of the expression in the OP_OTHERS construct in
    EXP at *POS into the components of LHS indexed from LOW .. HIGH that
    have not been previously assigned.  The index intervals already assigned
-   are in INDICES[0 .. NUM_INDICES-1].  Updates *POS to after the 
-   OP_OTHERS clause.  CONTAINER is as for assign_aggregate.  */
+   are in INDICES.  Updates *POS to after the OP_OTHERS clause.
+   CONTAINER is as for assign_aggregate.  */
 static void
 aggregate_assign_others (struct value *container,
 			 struct value *lhs, struct expression *exp,
-			 int *pos, LONGEST *indices, int num_indices,
+			 int *pos, std::vector<LONGEST> &indices,
 			 LONGEST low, LONGEST high) 
 {
   int i;
   int expr_pc = *pos + 1;
   
+  int num_indices = indices.size ();
   for (i = 0; i < num_indices - 2; i += 2)
     {
       LONGEST ind;
@@ -9770,22 +9723,22 @@ aggregate_assign_others (struct value *container,
   ada_evaluate_subexp (NULL, exp, pos, EVAL_SKIP);
 }
 
-/* Add the interval [LOW .. HIGH] to the sorted set of intervals 
-   [ INDICES[0] .. INDICES[1] ],..., [ INDICES[*SIZE-2] .. INDICES[*SIZE-1] ],
-   modifying *SIZE as needed.  It is an error if *SIZE exceeds
-   MAX_SIZE.  The resulting intervals do not overlap.  */
+/* Add the interval [LOW .. HIGH] to the sorted set of intervals
+   [ INDICES[0] .. INDICES[1] ],...  The resulting intervals do not
+   overlap.  */
 static void
 add_component_interval (LONGEST low, LONGEST high, 
-			LONGEST* indices, int *size, int max_size)
+			std::vector<LONGEST> &indices)
 {
   int i, j;
 
-  for (i = 0; i < *size; i += 2) {
+  int size = indices.size ();
+  for (i = 0; i < size; i += 2) {
     if (high >= indices[i] && low <= indices[i + 1])
       {
 	int kh;
 
-	for (kh = i + 2; kh < *size; kh += 2)
+	for (kh = i + 2; kh < size; kh += 2)
 	  if (high < indices[kh])
 	    break;
 	if (low < indices[i])
@@ -9793,18 +9746,16 @@ add_component_interval (LONGEST low, LONGEST high,
 	indices[i + 1] = indices[kh - 1];
 	if (high > indices[i + 1])
 	  indices[i + 1] = high;
-	memcpy (indices + i + 2, indices + kh, *size - kh);
-	*size -= kh - i - 2;
+	memcpy (indices.data () + i + 2, indices.data () + kh, size - kh);
+	indices.resize (kh - i - 2);
 	return;
       }
     else if (high < indices[i])
       break;
   }
 	
-  if (*size == max_size)
-    error (_("Internal error: miscounted aggregate components."));
-  *size += 2;
-  for (j = *size-1; j >= i+2; j -= 1)
+  indices.resize (indices.size () + 2);
+  for (j = size - 1; j >= i + 2; j -= 1)
     indices[j] = indices[j - 2];
   indices[i] = low;
   indices[i + 1] = high;
@@ -11346,14 +11297,16 @@ scan_discrim_bound (const char *str, int k, struct value *dval, LONGEST * px,
   return 1;
 }
 
-/* Value of variable named NAME in the current environment.  If
-   no such variable found, then if ERR_MSG is null, returns 0, and
+/* Value of variable named NAME.  Only exact matches are considered.
+   If no such variable found, then if ERR_MSG is null, returns 0, and
    otherwise causes an error with message ERR_MSG.  */
 
 static struct value *
 get_var_value (const char *name, const char *err_msg)
 {
-  lookup_name_info lookup_name (name, symbol_name_match_type::FULL);
+  std::string quoted_name = add_angle_brackets (name);
+
+  lookup_name_info lookup_name (quoted_name, symbol_name_match_type::FULL);
 
   std::vector<struct block_symbol> syms;
   int nsyms = ada_lookup_symbol_list_worker (lookup_name,
@@ -12250,7 +12203,7 @@ should_stop_exception (const struct bp_location *bl)
 static void
 check_status_exception (bpstat bs)
 {
-  bs->stop = should_stop_exception (bs->bp_location_at);
+  bs->stop = should_stop_exception (bs->bp_location_at.get ());
 }
 
 /* Implement the PRINT_IT method in the breakpoint_ops structure
@@ -13599,7 +13552,41 @@ do_full_match (const char *symbol_search_name,
 	       const lookup_name_info &lookup_name,
 	       completion_match_result *comp_match_res)
 {
-  return full_match (symbol_search_name, ada_lookup_name (lookup_name));
+  if (startswith (symbol_search_name, "_ada_"))
+    symbol_search_name += 5;
+
+  const char *lname = lookup_name.ada ().lookup_name ().c_str ();
+  int uscore_count = 0;
+  while (*lname != '\0')
+    {
+      if (*symbol_search_name != *lname)
+	{
+	  if (*symbol_search_name == 'B' && uscore_count == 2
+	      && symbol_search_name[1] == '_')
+	    {
+	      symbol_search_name += 2;
+	      while (isdigit (*symbol_search_name))
+		++symbol_search_name;
+	      if (symbol_search_name[0] == '_'
+		  && symbol_search_name[1] == '_')
+		{
+		  symbol_search_name += 2;
+		  continue;
+		}
+	    }
+	  return false;
+	}
+
+      if (*symbol_search_name == '_')
+	++uscore_count;
+      else
+	uscore_count = 0;
+
+      ++symbol_search_name;
+      ++lname;
+    }
+
+  return is_name_suffix (symbol_search_name);
 }
 
 /* symbol_name_matcher_ftype for exact (verbatim) matches.  */
@@ -14137,16 +14124,17 @@ public:
      A null CONTEXT_TYPE indicates that a non-void return type is
      preferred.  May change (expand) *EXP.  */
 
-  void post_parser (expression_up *expp, int void_context_p, int completing,
-		    innermost_block_tracker *tracker) const override
+  void post_parser (expression_up *expp, struct parser_state *ps)
+    const override
   {
     struct type *context_type = NULL;
     int pc = 0;
 
-    if (void_context_p)
+    if (ps->void_context_p)
       context_type = builtin_type ((*expp)->gdbarch)->builtin_void;
 
-    resolve_subexp (expp, &pc, 1, context_type, completing, tracker);
+    resolve_subexp (expp, &pc, 1, context_type, ps->parse_completion,
+		    ps->block_tracker);
   }
 
   /* See language.h.  */

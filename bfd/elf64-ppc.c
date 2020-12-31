@@ -1715,10 +1715,12 @@ ppc64_elf_unhandled_reloc (bfd *abfd, arelent *reloc_entry, asymbol *symbol,
 
   if (error_message != NULL)
     {
-      static char buf[60];
-      sprintf (buf, "generic linker can't handle %s",
-	       reloc_entry->howto->name);
-      *error_message = buf;
+      static char *message;
+      free (message);
+      if (asprintf (&message, _("generic linker can't handle %s"),
+		    reloc_entry->howto->name) < 0)
+	message = NULL;
+      *error_message = message;
     }
   return bfd_reloc_dangerous;
 }
@@ -2056,7 +2058,7 @@ get_opd_info (asection * sec)
 
 /* Parameters for the qsort hook.  */
 static bfd_boolean synthetic_relocatable;
-static asection *synthetic_opd;
+static const asection *synthetic_opd;
 
 /* qsort comparison function for ppc64_elf_get_synthetic_symtab.  */
 

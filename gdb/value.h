@@ -905,7 +905,14 @@ extern int using_struct_return (struct gdbarch *gdbarch,
 				struct value *function,
 				struct type *value_type);
 
-extern struct value *evaluate_expression (struct expression *exp);
+/* Evaluate the expression EXP.  If set, EXPECT_TYPE is passed to the
+   outermost operation's evaluation.  This is ignored by most
+   operations, but may be used, e.g., to determine the type of an
+   otherwise untyped symbol.  The caller should not assume that the
+   returned value has this type.  */
+
+extern struct value *evaluate_expression (struct expression *exp,
+					  struct type *expect_type = nullptr);
 
 extern struct value *evaluate_type (struct expression *exp);
 
@@ -939,7 +946,7 @@ extern struct value *parse_and_eval (const char *exp);
 
 extern struct value *parse_to_comma_and_eval (const char **expp);
 
-extern struct type *parse_and_eval_type (char *p, int length);
+extern struct type *parse_and_eval_type (const char *p, int length);
 
 extern CORE_ADDR parse_and_eval_address (const char *exp);
 

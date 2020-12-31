@@ -588,6 +588,8 @@ bfd *bfd_openr (const char *filename, const char *target);
 
 bfd *bfd_fdopenr (const char *filename, const char *target, int fd);
 
+bfd *bfd_fdopenw (const char *filename, const char *target, int fd);
+
 bfd *bfd_openstreamr (const char * filename, const char * target,
     void * stream);
 
@@ -7222,11 +7224,7 @@ bfd_boolean bfd_alt_mach_code (bfd *abfd, int alternative);
 
 bfd_vma bfd_emul_get_maxpagesize (const char *);
 
-void bfd_emul_set_maxpagesize (const char *, bfd_vma);
-
 bfd_vma bfd_emul_get_commonpagesize (const char *, bfd_boolean);
-
-void bfd_emul_set_commonpagesize (const char *, bfd_vma);
 
 char *bfd_demangle (bfd *, const char *, int);
 

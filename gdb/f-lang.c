@@ -947,8 +947,10 @@ evaluate_subexp_f (struct type *expect_type, struct expression *exp,
 	    argvec[tem] = 0;	/* signal end of arglist */
 	    if (noside == EVAL_SKIP)
 	      return eval_skip_value (exp);
-	    return evaluate_subexp_do_call (exp, noside, nargs, argvec, NULL,
-					    expect_type);
+	    return evaluate_subexp_do_call (exp, noside, argvec[0],
+					    gdb::make_array_view (argvec + 1,
+								  nargs),
+					    NULL, expect_type);
 	  }
 
 	default:
@@ -1389,6 +1391,10 @@ fortran_adjust_dynamic_array_base_address_hack (struct type *type,
 {
   gdb_assert (type->code () == TYPE_CODE_ARRAY);
 
+  /* We can't adjust the base address for arrays that have no content.  */
+  if (type_not_allocated (type) || type_not_associated (type))
+    return address;
+
   int ndimensions = calc_f77_array_dims (type);
   LONGEST total_offset = 0;
 
@@ -1404,7 +1410,7 @@ fortran_adjust_dynamic_array_base_address_hack (struct type *type,
       tmp_type = check_typedef (tmp_type);
       struct type *range_type = tmp_type->index_type ();
       LONGEST lowerbound, upperbound, stride;
-      if (get_discrete_bounds (range_type, &lowerbound, &upperbound) < 0)
+      if (!get_discrete_bounds (range_type, &lowerbound, &upperbound))
 	error ("failed to get range bounds");
 
       /* Figure out the stride for this dimension.  */

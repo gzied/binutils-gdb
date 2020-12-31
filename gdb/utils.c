@@ -1579,6 +1579,14 @@ gdb_flush (struct ui_file *stream)
   stream->flush ();
 }
 
+/* See utils.h.  */
+
+int
+get_chars_per_line ()
+{
+  return chars_per_line;
+}
+
 /* Indicate that if the next sequence of characters overflows the line,
    a newline should be inserted here rather than when it hits the end.
    If INDENT is non-null, it is a string to be printed to indent the
@@ -1768,6 +1776,12 @@ fputs_maybe_filtered (const char *linebuffer, struct ui_file *stream,
 	      /* Note that we don't consider this a character, so we
 		 don't increment chars_printed here.  */
 	      lineptr += skip_bytes;
+	    }
+	  else if (*lineptr == '\r')
+	    {
+	      wrap_buffer.push_back (*lineptr);
+	      chars_printed = 0;
+	      lineptr++;
 	    }
 	  else
 	    {
@@ -2169,22 +2183,6 @@ fprintf_unfiltered (struct ui_file *stream, const char *format, ...)
   va_end (args);
 }
 
-/* Like fprintf_filtered, but prints its result indented.
-   Called as fprintfi_filtered (spaces, stream, format, ...);  */
-
-void
-fprintfi_filtered (int spaces, struct ui_file *stream, const char *format,
-		   ...)
-{
-  va_list args;
-
-  va_start (args, format);
-  print_spaces_filtered (spaces, stream);
-
-  vfprintf_filtered (stream, format, args);
-  va_end (args);
-}
-
 /* See utils.h.  */
 
 void
@@ -2246,20 +2244,6 @@ printf_unfiltered (const char *format, ...)
 
   va_start (args, format);
   vfprintf_unfiltered (gdb_stdout, format, args);
-  va_end (args);
-}
-
-/* Like printf_filtered, but prints it's result indented.
-   Called as printfi_filtered (spaces, format, ...);  */
-
-void
-printfi_filtered (int spaces, const char *format, ...)
-{
-  va_list args;
-
-  va_start (args, format);
-  print_spaces_filtered (spaces, gdb_stdout);
-  vfprintf_filtered (gdb_stdout, format, args);
   va_end (args);
 }
 

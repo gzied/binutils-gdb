@@ -1,3 +1,815 @@
+2020-12-27  Tom Tromey  <tom@tromey.com>
+
+	* eval.c (evaluate_subexp_standard) <case MULTI_SUBSCRIPT>:
+	Simplify.
+
+2020-12-24  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	PR gdb/27059
+	* eval.c (evaluate_subexp_for_sizeof): Handle not allocated and
+	not associated arrays.
+	* f-lang.c (fortran_adjust_dynamic_array_base_address_hack): Don't
+	adjust arrays that are not allocated/associated.
+	* gdbtypes.c (resolve_dynamic_range): Update header comment.  Add
+	new parameter which is used to sometimes set dynamic properties to
+	undefined.
+	(resolve_dynamic_array_or_string): Update header comment.  Add new
+	parameter which is used to guard evaluating dynamic properties.
+	Resolve allocated/associated properties first.
+
+2020-12-24  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* gdbtypes (recursive_dump_type): Include allocated and associated
+	properties.
+
+2020-12-24  Lancelot SIX  <lsix@lancelotsix.com>
+
+	* gdbtypes.c (is_scalar_type_recursive): Prevent comparison
+	between uninitialized values.
+
+2020-12-23  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* expprint.c (print_subexp_standard): Replace uses of
+	LA_PRINT_STRING.
+	* f-valprint.c (f_language::value_print_inner): Likewise.
+	* guile/scm-pretty-print.c (ppscm_print_string_repr): Likewise.
+	* p-valprint.c (pascal_language::value_print_inner): Likewise.
+	* python/py-prettyprint.c (print_string_repr): Likewise.
+
+2020-12-23  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* rust-exp.y (rust_parse): Rename to...
+	(rust_language::parser): ...this.
+	* rust-lang.c (-rust_printstr): Rename to...
+	(rust_language::printstr): ...this.
+	(rust_value_print_inner): Delete declaration.
+	(val_print_struct): Rename to...
+	(rust_language::val_print_struct): ...this.  Update calls to
+	member functions.
+	(rust_print_enum): Rename to...
+	(rust_language::print_enum): ...this.  Update calls to member
+	functions.
+	(rust_value_print_inner): Rename to...
+	(rust_language::value_print_inner): ...this.  Update calls to
+	member functions.
+	(exp_descriptor_rust): Rename to...
+	(rust_language::exp_descriptor_tab): ...this.
+	(class rust_language): Move to rust-lang.h.
+	(rust_language::language_arch_info): Implementation moved to here
+	from class declaration.
+	(rust_language::print_type): Likewise.
+	(rust_language::emitchar): Likewise.
+	(rust_language::is_string_type_p): Likewise.
+	* rust-lang.h: Add 'demangle.h', 'language.h', 'value.h', and
+	'c-lang.h' includes.
+	(rust_parse): Delete declaration.
+	(class rust_language): Class declaration moved here from
+	rust-lang.c.
+
+2020-12-23  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* objc-lang.c (objc_language::opcode_print_table): Return
+	objc_op_print_tab.
+
+2020-12-23  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* p-exp.y (exp): Update call to pascal_is_string_type.
+	(pascal_parse): Rename to...
+	(pascal_language::parser): ...this.
+	* p-lang.c (is_pascal_string_type): Rename to...
+	(pascal_is_string_type): ...this.
+	(pascal_one_char): Rename to...
+	(pascal_language::print_one_char): ...this.
+	(pascal_printchar): Rename to...
+	(pascal_language::printchar): ...this.  Update call to
+	print_one_char member function.
+	(pascal_op_print_tab): Rename to...
+	(pascal_language::op_print_tab): ...this.
+	(class pascal_language): Moved to p-lang.h.
+	(pascal_language::language_arch_info): Function implementation
+	moved out of class declaration.
+	(pascal_language::printstr): Likewise.
+	* p-lang.h (pascal_parse): Delete declaration.
+	(pascal_is_string_type): Declare.
+	(pascal_print_type): Delete declaration.
+	(pascal_print_typedef): Delete declaration.
+	(pascal_value_print_inner): Delete declaration.
+	(pascal_value_print): Delete declaration.
+	(pascal_type_print_method_args): Delete declaration.
+	(is_pascal_string_type): Delete declaration.
+	(pascal_printchar): Delete declaration.
+	(pascal_builtin_types): Delete declaration.
+	(pascal_type_print_base): Delete declaration.
+	(pascal_type_print_varspec_prefix): Delete declaration.
+	(class pascal_language): Moved here from p-lang.c.
+	* p-typeprint.c (pascal_type_print_varspec_suffix): Delete
+	declaration.
+	(pascal_type_print_derivation_info): Delete declaration.
+	(pascal_print_type): Rename to...
+	(pascal_language::print_type): ...this.  Update calls to member
+	functions.
+	(pascal_print_typedef): Rename to...
+	(pascal_language::print_typedef): ...this.  Update calls to member
+	functions.
+	(pascal_type_print_derivation_info): Rename to...
+	(pascal_language::type_print_derivation_info): ...this.
+	(pascal_type_print_method_args): Rename to...
+	(pascal_language::type_print_method_args): ...this.
+	(pascal_type_print_varspec_prefix): Rename to...
+	(pascal_language::type_print_varspec_prefix): ...this.  Update
+	calls to member functions.
+	(pascal_print_func_args): Rename to...
+	(pascal_language::print_func_args): ...this.  Update calls to
+	member functions.
+	(pascal_type_print_func_varspec_suffix): Rename to...
+	(pascal_language::type_print_func_varspec_suffix): ...this.
+	Update calls to member functions.
+	(pascal_type_print_varspec_suffix): Rename to...
+	(pascal_language::type_print_varspec_suffix): ...this.  Update
+	calls to member functions.
+	(pascal_type_print_base): Rename to...
+	(pascal_language::type_print_base): ...this.  Update calls to
+	member functions.
+	* p-valprint.c (pascal_value_print_inner): Rename to...
+	(pascal_language::value_print_inner): ...this.  Update calls to
+	member functions.
+	(pascal_value_print): Rename to...
+	(pascal_language::value_print): ...this.  Update calls to member
+	functions.
+
+2020-12-23  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* go-exp.y (go_parse): Rename to...
+	(go_language::parser): ...this.
+	* go-lang.c (go_demangle): Rename to...
+	(go_language::demangle_symbol): ...this.
+	(go_language::expression_ops): Implementation moved here out of
+	class declaration.
+	(go_op_print_tab): Rename to...
+	(go_language::op_print_tab): ...this, update comment.
+	(class go_language): Declaration moved to go-lang.h.
+	(go_language::language_arch_info): Implementation moved here out
+	of class declaration.
+	* go-lang.h (go_parse): Delete declaration.
+	(go_demangle): Delete declaration.
+	(go_print_type): Delete declaration.
+	(go_value_print_inner): Delete declaration.
+	(class go_language): Declaration moved here from go-lang.c.
+	* go-typeprint.c (go_print_type): Rename to...
+	(go_language::print_type): ...this.
+	* go-valprint.c (go_value_print_inner): Rename to...
+	(go_language::value_print_inner): ...this.
+	* symtab.c (demangle_for_lookup): Call demangle_symbol method on
+	the go_language object.
+
+2020-12-23  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* c-lang.c (language_defn::printchar): Call emitchar, not
+	LA_EMIT_CHAR.
+	* f-lang.h (f_language::printchar): Likewise.
+	* language.h (LA_EMIT_CHAR): Delete macro.
+	* rust-lang.c (rust_language::printchar): Call emitchar, not
+	LA_EMIT_CHAR.
+
+2020-12-23  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* c-lang.c (c_printchar): Rename to...
+	(language_defn::printchar): ...this.
+	* c-lang.h (c_printchar): Delete declaration.
+	* language.c (language_defn::printchar): Delete this
+	implementation.  Is now implemented in c-lang.c.
+
+2020-12-23  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* dwarf2/read.c (dwarf2_compute_name): Call methods on C++
+	language object instead of calling global functions directly.
+
+2020-12-23  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* valprint.c (print_char_chars): Delete definition.
+	* valprint.h (print_char_chars): Delete declaration.
+
+2020-12-23  Samuel Thibault  <samuel.thibault@ens-lyon.org>
+
+	* i386-gnu-tdep.c (I386_GNU_UCONTEXT_T_THREAD_STATE_OFFSET): New
+	macro.
+	(i386_gnu_sigcontext_addr): Detect between legacy and siginfo from the
+	second parameter, which is a small sigcode in the legacy case, and a
+	pointer in the siginfo case.
+
+	* MAINTAINERS (Write After Approval): Add myself.
+
+2020-12-22  Shahab Vahedi  <shahab@synopsys.com>
+
+	* frame.c: Remove trailing white spaces.
+	* frame.h: Likewise.
+
+2020-12-22  Shahab Vahedi  <shahab@synopsys.com>
+
+	* arc-linux-tdep.c: Replace "regnum" with "REGNUM" in comments.
+
+2020-12-22  Anton Kolesov  <anton.kolesov@synopsys.com>
+
+	* Makefile.in (ALLDEPFILES): Add arc-linux-nat.c.
+	* configure.host (host to gdb names): Add arc*-*-linux*.
+	* configure.nat (gdb_host_cpu): Add arc.
+	* arc-linux-nat.c: New.
+
+2020-12-22  Shahab Vahedi  <shahab@synopsys.com>
+
+	* arc-linux-tdep.c (supply_register): New.
+	(arc_linux_supply_gregset, arc_linux_supply_v2_regset,
+	arc_linux_collect_v2_regset): Consider REGNUM.
+
+2020-12-22  Anton Kolesov  <anton.kolesov@synopsys.com>
+
+	* arc-linux-tdep.c (arc_linux_sc_reg_offsets): New static variable.
+	(arc_linux_is_sigtramp): New function.
+	(arc_linux_sigcontext_addr): Likewise.
+	(arc_linux_init_osabi): Use them.
+
+2020-12-22  Anton Kolesov  <anton.kolesov@synopsys.com>
+
+	* arc-tdep.c (arc_make_sigtramp_frame_cache): New function.
+	(arc_sigtramp_frame_this_id): Likewise.
+	(arc_sigtramp_frame_prev_register): Likewise.
+	(arc_sigtramp_frame_sniffer): Likewise.
+	(arc_siftramp_frame_unwind): New global variable.
+	(arc_gdbarch_init): Use sigtramp capabilities.
+	(arc_dump_tdep): Print sigtramp fields.
+	* arc-tdep.h (gdbarch_tdep): Add sigtramp fields.
+
+2020-12-21  Tom Tromey  <tom@tromey.com>
+
+	* expression.h (enum noside): Move earlier.
+
+2020-12-21  Peter Waller  <p@pwaller.net>
+
+	* interps.c (interpreter_exec_cmd): Restore streams pointers.
+
+2020-12-21  Markus Metzger  <markus.t.metzger@intel.com>
+
+	* record.c (require_record_target): Rephrase error message.
+	(info_record_command): Likewise.
+
+2020-12-19  Hannes Domani  <ssbssa@yahoo.de>
+
+	PR exp/27070
+	* gdbtypes.c (check_types_equal): Don't compare types of enum fields.
+
+2020-12-19  Bernd Edlinger  <bernd.edlinger@hotmail.de>
+
+	* configure.ac: Move the static libs vs. source-highlight
+	error message to a better place.
+	* configure: Regenerate.
+
+2020-12-18  Hannes Domani  <ssbssa@yahoo.de>
+
+	* gdb-gdb.py.in: Fix main_type field name.
+
+2020-12-18  Hannes Domani  <ssbssa@yahoo.de>
+
+	* python/py-value.c (valpy_format_string): Implement address keyword.
+
+2020-12-18  Hannes Domani  <ssbssa@yahoo.de>
+
+	* python/py-type.c (typy_get_composite): Add TYPE_CODE_METHOD.
+
+2020-12-18  Jameson Nash  <vtjnash@gmail.com>
+
+	* coffread.c (linetab_offset): Change type to file_ptr.
+	(linetab_size): Likewise.
+	(enter_linenos): Change parameter type to file_ptr.
+	(init_lineno): Likewise.
+	(init_stringtab): Likewise.
+	(coff_symtab_read): Likewise.
+	(coff_symfile_read): Change variable types to file_ptr.
+
+2020-12-17  Tom Tromey  <tromey@adacore.com>
+
+	* printcmd.c (print_variable_and_value): Don't use n_spaces.
+
+2020-12-17  Tom Tromey  <tromey@adacore.com>
+
+	* gdbtypes.c (print_args, dump_fn_fieldlists, print_cplus_stuff)
+	(print_gnat_stuff, print_fixed_point_type_info)
+	(recursive_dump_type): Update.
+	* go32-nat.c (go32_sysinfo, display_descriptor): Update.
+	* c-typeprint.c (c_type_print_base_struct_union)
+	(c_type_print_base_1): Update.
+	* rust-lang.c (rust_internal_print_type): Update.
+	* f-typeprint.c (f_language::f_type_print_base): Update.
+	* utils.h (fprintfi_filtered, printfi_filtered): Remove.
+	* m2-typeprint.c (m2_record_fields): Update.
+	* p-typeprint.c (pascal_type_print_base): Update.
+	* compile/compile-loc2c.c (push, pushf, unary, binary)
+	(do_compile_dwarf_expr_to_c): Update.
+	* utils.c (fprintfi_filtered, printfi_filtered): Remove.
+
+2020-12-16  Tom Tromey  <tom@tromey.com>
+
+	* rust-exp.y (rust_lex_tests): Update.
+	* parser-defs.h (parser_state): Add void_p parameter.
+	<void_context_p>: New member.
+	* parse.c (parse_exp_in_context): Update.
+	* language.h (language_defn::post_parser): Remove void_context_p,
+	completing, tracker parameters.  Add parser state.
+	* ada-lang.c (ada_language::post_parser): Update.
+
+2020-12-16  Tom Tromey  <tom@tromey.com>
+
+	* parse.c (parse_exp_1, parse_expression_for_completion): Update.
+	(parse_exp_in_context): Change void_context_p to bool.
+	* language.h (struct language_defn) <post_parser>: Change
+	void_context_p to bool.
+	* ada-lang.c (class ada_language) <post_parser>: Update.
+
+2020-12-16  Tom Tromey  <tom@tromey.com>
+	    Tom Tromey  <tromey@redhat.com>
+	    Tom de Vries  <tdevries@suse.de>
+
+	* utils.h (get_chars_per_line): Declare.
+	* utils.c (get_chars_per_line): New function.
+	(fputs_maybe_filtered): Handle '\r'.
+	* ui-out.h (ui_out::progress_meter): New class.
+	(ui_out::progress, ui_out::do_progress_start)
+	(ui_out::do_progress_notify, ui_out::do_progress_end): New
+	methods.
+	* ui-out.c (do_progress_end)
+	(make_cleanup_ui_out_progress_begin_end, ui_out_progress): New
+	functions.
+	* mi/mi-out.h (mi_ui_out::do_progress_start)
+	(mi_ui_out::do_progress_notify, mi_ui_out::do_progress_end): New
+	methods.
+	* cli-out.h (struct cli_ui_out) <do_progress_start,
+	do_progress_notify, do_progress_end>: New methods.
+	<enum meter_stat, struct cli_progress_info>: New.
+	<m_meters>: New member.
+	* cli-out.c (cli_ui_out::do_progress_start)
+	(cli_ui_out::do_progress_notify, cli_ui_out::do_progress_end): New
+	methods.
+
+2020-12-16  Luis Machado  <luis.machado@linaro.org>
+
+	* aarch64-tdep.c (aarch64_record_data_proc_simd_fp): Record FPSR.
+
+2020-12-16  Luis Machado  <luis.machado@linaro.org>
+
+	* aarch64-linux-nat.c
+	(aarch64_linux_nat_target::stopped_data_address): Handle the TBI.
+
+2020-12-15  Rae Kim  <rae.kim@gmail.com>
+
+	* cli/cli-script.c (do_document_command): Rename from
+	document_command. Handle multi-line input.
+	(multi_line_command_p): Handle document_control.
+	(build_command_line): Likewise.
+	(execute_control_command_1): Likewise.
+	(process_next_line): Likewise.
+	(document_command): Call do_document_command.
+	* cli/cli-script.h (enum command_control_type): Add
+	document_control.
+
+2020-12-15  Tom Tromey  <tom@tromey.com>
+
+	* stap-probe.c (stap_probe::evaluate_argument): Use
+	evaluate_expression.
+	* dtrace-probe.c (dtrace_probe::evaluate_argument): Use
+	evaluate_expression.
+	* value.h (evaluate_expression): Add expect_type parameter.
+	* objc-lang.c (print_object_command): Call evaluate_expression.
+	* eval.c (evaluate_expression): Add expect_type parameter.
+
+2020-12-15  Tom Tromey  <tom@tromey.com>
+
+	* varobj.c (varobj_create): Use first_opcode.
+	* value.c (init_if_undefined_command): Use first_opcode.
+	* typeprint.c (whatis_exp): Use first_opcode.
+	* tracepoint.c (validate_actionline): Use first_opcode.
+	(encode_actions_1): Use first_opcode.
+	* stack.c (return_command): Use first_opcode.
+	* expression.h (struct expression) <first_opcode>: New method.
+	* eval.c (parse_and_eval_type): Use first_opcode.
+	* dtrace-probe.c (dtrace_process_dof_probe): Use first_opcode.
+
+2020-12-15  Tom Tromey  <tom@tromey.com>
+
+	* f-lang.c (evaluate_subexp_f): Update.
+	* expression.h (evaluate_subexp_do_call): Update.
+	* eval.c (evaluate_subexp_do_call): Add callee parameter.  Replace
+	nargs, argvec with array_view.
+	(evaluate_funcall): Update.
+
+2020-12-15  Tom Tromey  <tom@tromey.com>
+
+	* ada-lang.c (num_component_specs): Remove.
+	(assign_aggregate): Update.
+	(aggregate_assign_positional, aggregate_assign_from_choices)
+	(aggregate_assign_others, add_component_interval): Change
+	arguments.
+
+2020-12-15  Tom Tromey  <tromey@adacore.com>
+
+	* cli/cli-decode.c (deprecated_cmd_warning): Use title style for
+	command names.
+
+2020-12-14  Tom Tromey  <tom@tromey.com>
+
+	* dtrace-probe.c (dtrace_process_dof_probe): Use value_type.
+	* typeprint.c (whatis_exp): Always use evaluate_type.
+	(maintenance_print_type): Likewise.  Simplify.
+
+2020-12-14  Tom Tromey  <tromey@adacore.com>
+
+	* dictionary.c (language_defn::search_name_hash): Ignore "B".
+	* ada-lang.c (advance_wild_match): Ignore "B".
+	(full_match): Remove.
+	(do_full_match): Rewrite.
+
+2020-12-14  Tom Tromey  <tromey@adacore.com>
+
+	* ada-lang.c (get_var_value): Only consider exact matches.
+
+2020-12-14  Tom Tromey  <tromey@adacore.com>
+
+	* dwarf2/read.c (rewrite_array_type): New function.
+        (quirk_ada_thick_pointer_struct): Use rewrite_array_type.
+
+2020-12-14  Tom Tromey  <tromey@adacore.com>
+
+	* valarith.c (fixed_point_binop): Call error on division by zero.
+
+2020-12-13  Tom Tromey  <tom@tromey.com>
+
+	* gdbtypes.c (safe_parse_type): Make argument const.
+	* value.h (parse_and_eval_type): Make argument const.
+	* eval.c (parse_and_eval_type): Make argument const.
+
+2020-12-13  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* NEWS: Mention new commands.
+	* target-dcache.c: Add 'cli/cli-cmds.h' include.
+	(maint_flush_dcache_command): New function.
+	(_initialize_target_dcache): Create new 'maint flush dcache'
+	command.
+
+2020-12-13  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* NEWS: Mention new commands, and that the old commands are now
+	deprecated.
+	* cli/cli-cmds.c (maintenanceflushlist): Define.
+	* cli/cli-cmds.h (maintenanceflushlist): Declare.
+	* maint.c (_initialize_maint_cmds): Initialise
+	maintenanceflushlist.
+	* regcache.c: Add 'cli/cli-cmds.h' include.
+	(reg_flush_command): Add header comment.
+	(_initialize_regcache): Create new 'maint flush register-cache'
+	command, make 'flushregs' an alias.
+	* symtab.c: Add 'cli/cli-cmds.h' include.
+	(_initialize_symtab): Create new 'maint flush symbol-cache'
+	command, make old command an alias.
+
+2020-12-11  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* cli/cli-decode.c (deprecated_cmd_warning): Ignore the prefix
+	result from lookup_cmd_composition_1, use the prefixes from both
+	the command and the alias instead.
+	(lookup_cmd_composition_1): Initial prefix command is the based on
+	the search list being passed in.  Simplify the logic for tracking
+	the prefix command.  Replace a use of alloca with a local
+	std::string.
+
+2020-12-11  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* cli/cli-decode.c (deprecated_cmd_warning): Use nullptr instead
+	of NULL.  Don't print message piece by piece, but sentence at a
+	time to allow internationalisation.  Some whitespace cleanup.
+
+2020-12-11  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	PR cli/15104
+	* cli/cli-decode.c (lookup_cmd_1): Pass command list to
+	deprecated_cmd_warning.
+	(deprecated_cmd_warning): Take extra parameter, call
+	lookup_cmd_composition_1 and pass new parameter through.
+	(lookup_cmd_composition_1): New function, takes implementation of
+	lookup_cmd_composition but with extra parameter.
+	(lookup_cmd_composition): Now calls lookup_cmd_composition_1
+	passing in cmdlist.
+	* command.h (deprecated_cmd_warning): Add extra parameter to
+	declaration.
+	* top.c (execute_command): Pass cmdlist to deprecated_cmd_warning.
+
+2020-12-11  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* cli/cli-decode.c (lookup_cmd_1): Move header comment into
+	command.h, add extra parameter, and use this to guard giving a
+	warning.
+	* command.h (lookup_cmd_1): Add comment from cli/cli-decode.c,
+	include argument names in declaration, add new argument.
+	* completer.c (complete_line_internal_1): Remove unneeded
+	brackets, pass extra argument to lookup_cmd_1.
+
+2020-12-11  Simon Marchi  <simon.marchi@polymtl.ca>
+
+	* infrun.h (debug_infrun): Make a bool.
+	* infrun.c (debug_infrun): Make a bool.
+	(_initialize_infrun): Use add_setshow_boolean_cmd to define "set
+	debug infrun".
+
+2020-12-11  Simon Marchi  <simon.marchi@polymtl.ca>
+
+	* displaced-stepping.h (displaced_debug_printf): Use
+	debug_prefixed_printf_cond.
+	* dwarf2/read.c (dwarf_read_debug_printf): Likewise.
+	(dwarf_read_debug_printf_v): Likewise.
+	* infrun.h (infrun_debug_printf): Likewise.
+	* linux-nat.c (linux_nat_debug_printf): Likewise.
+
+2020-12-11  Tom Tromey  <tom@tromey.com>
+
+	* p-exp.y (intvar): Remove global.
+	(DOLLAR_VARIABLE): Change type.
+	(start): Update.
+	(exp): Call write_dollar_variable here...
+	(yylex): ... not here.
+	* m2-exp.y (DOLLAR_VARIABLE): Change type.
+	(variable): Call write_dollar_variable here...
+	(yylex): ... not here.
+	* f-exp.y (DOLLAR_VARIABLE): Change type.
+	(exp): Call write_dollar_variable here...
+	(yylex): ... not here.
+
+2020-12-11  Tom Tromey  <tom@tromey.com>
+
+	* varobj.c (varobj_create): Update.
+	(install_variable): Return void.
+
+2020-12-11  Tom Tromey  <tom@tromey.com>
+
+	* varobj.c (instantiate_pretty_printer): Use gdbpy_ref.
+
+2020-12-11  Tom Tromey  <tom@tromey.com>
+
+	* varobj.c (varobj_clear_saved_item): Remove.
+	(update_dynamic_varobj_children): Update.
+	(varobj::~varobj): Don't call varobj_clear_saved_item.
+
+2020-12-11  Tom Tromey  <tom@tromey.com>
+
+	* varobj.c (install_dynamic_child, varobj_clear_saved_item)
+	(update_dynamic_varobj_children, create_child)
+	(create_child_with_value): Update.
+	* varobj-iter.h (struct varobj_item) <value>: Now a
+	value_ref_ptr.
+	* python/py-varobj.c (py_varobj_iter::next): Call release_value.
+
+2020-12-11  Tom Tromey  <tom@tromey.com>
+
+	* varobj.c (struct varobj_dynamic) <child_iter>: Now unique_ptr.
+	(varobj_get_iterator): Return unique_ptr.
+	(update_dynamic_varobj_children, install_visualizer)
+	(varobj::~varobj): Update.
+	* python/python-internal.h (py_varobj_get_iterator): Return
+	unique_ptr.
+	* python/py-varobj.c (py_varobj_get_iterator): Return unique_ptr.
+
+2020-12-11  Tom Tromey  <tom@tromey.com>
+
+	* varobj.c (struct varobj_dynamic) <saved_item>: Now unique_ptr.
+	(varobj_clear_saved_item, update_dynamic_varobj_children):
+	Update.
+
+2020-12-11  Tom Tromey  <tom@tromey.com>
+
+	* varobj.c (update_dynamic_varobj_children): Update.
+	* varobj-iter.h (struct varobj_iter) <next>: Change return type.
+	* python/py-varobj.c (struct py_varobj_iter) <next>: Change return
+	type.
+	(py_varobj_iter::next): Likewise.
+
+2020-12-11  Tom Tromey  <tom@tromey.com>
+
+	* varobj.c (update_dynamic_varobj_children, install_visualizer)
+	(varobj::~varobj): Update.
+	* varobj-iter.h (struct varobj_iter): Change to interface class.
+	(struct varobj_iter_ops): Remove.
+	(varobj_iter_next, varobj_iter_delete): Remove.
+	* python/py-varobj.c (struct py_varobj_iter): Derive from
+	varobj_iter.  Add constructor, destructor.  Rename members.
+	(py_varobj_iter::~py_varobj_iter): Rename from
+	py_varobj_iter_dtor.
+	(py_varobj_iter::next): Rename from py_varobj_iter_next.
+	(py_varobj_iter_ops): Remove.
+	(py_varobj_iter): Rename from py_varobj_iter_ctor.
+	(py_varobj_iter_new): Remove.
+	(py_varobj_get_iterator): Update.
+
+2020-12-11  Tom Tromey  <tom@tromey.com>
+
+	* varobj.h (all_root_varobjs): Take a function_view.
+	* varobj.c (all_root_varobjs): Take a function_view.
+	(varobj_invalidate_iter): Remove unused parameter.
+	(varobj_invalidate): Update.
+	* mi/mi-cmd-var.c (struct mi_cmd_var_update): Remove.
+	(mi_cmd_var_update_iter): Change parameters.
+
+2020-12-11  Tom Tromey  <tom@tromey.com>
+
+	* varobj.c (struct varobj_root) <next>: Remove.
+	(struct vlist): Remove.
+	(rootlist): Now a std::list.
+	(install_variable, uninstall_variable, all_root_varobjs): Update.
+
+2020-12-11  Tom Tromey  <tom@tromey.com>
+
+	* varobj.c (VAROBJ_TABLE_SIZE): Remove.
+	(varobj_table): Now htab_t.
+	(varobj_get_handle, install_variable, uninstall_variable):
+	Update.
+	(hash_varobj, eq_varobj_and_string): New functions.
+	(hash_varobj): Update.
+
+2020-12-11  Tom Tromey  <tom@tromey.com>
+
+	* inline-frame.c (stopped_by_user_bp_inline_frame): Update.
+	* ada-lang.c (check_status_exception): Update.
+	* breakpoint.c (free_bp_location): Remove.
+	(decref_bp_location): Use bp_location_ref_policy.
+	(bpstats::bpstats): Don't call incref_bp_location.
+	(bpstats::~bpstats): Remove.
+	(bpstats::bpstats): Update.
+	(bpstat_check_watchpoint, bpstat_check_breakpoint_conditions)
+	(bp_location::bp_location): Update.
+	(incref_bp_location): Remove.
+	(bkpt_print_it): Update.
+	* breakpoint.h (class bp_location): Derive from
+	refcounted_object.
+	(struct bpstats): Remove destructor.
+	<bp_location_at>: Now a bp_location_ref_ptr.
+	<refc>: Remove.
+	(bp_location_ref_ptr): New typedef.
+	(struct bp_location_ref_policy): New.
+
+2020-12-11  Tom Tromey  <tom@tromey.com>
+
+	* thread.c (class scoped_inc_dec_ref): Remove.
+	(tp_array_compar_ascending, tp_array_compar_descending): Change
+	parameter types.
+	(thread_apply_all_command): Use thread_info_ref.
+
+2020-12-11  Tom Tromey  <tom@tromey.com>
+
+	* infrun.c (struct stop_context) <thread>: Now a thread_info_ref.
+	(stop_context::stop_context): Update.
+	(stop_context::~stop_context): Remove.
+
+2020-12-11  Tom Tromey  <tom@tromey.com>
+
+	* inferior.c (current_inferior_): Change type.
+	(current_inferior, set_current_inferior, initialize_inferiors):
+	Update.
+
+2020-12-11  Tom Tromey  <tom@tromey.com>
+
+	* gdbthread.h (class enable_thread_stack_temporaries) <m_thr>:
+	Change type.
+
+2020-12-11  Tom Tromey  <tromey@adacore.com>
+
+	* ada-tasks.c (struct ada_tasks_pspace_data) <cpu_id_offset>: New
+	field.
+	(ada_get_tcb_types_info): Look for __gnat_gdb_cpu_first_id.
+	(read_atcb): Use cpu_id_offset.
+
+2020-12-10  Kevin Buettner  <kevinb@redhat.com>
+
+	* ada-lang.c (ada_fold_name): Fix off-by-one error.
+
+2020-12-10  Luis Machado  <luis.machado@linaro.org>
+
+	* breakpoint.c (should_be_inserted): Don't output newline.
+
+2020-12-10  Luis Machado  <luis.machado@linaro.org>
+
+	* aarch64-linux-tdep.c (aarch64_linux_restore_vreg) New function.
+	(aarch64_linux_sigframe_init): Call aarch64_linux_restore_vreg.
+	* aarch64-tdep.h (V_REGISTER_SIZE): Move to ...
+	* arch/aarch64.h: ... here.
+	* nat/aarch64-sve-linux-ptrace.c: Include endian.h.
+	(aarch64_maybe_swab128): New function.
+	(aarch64_sve_regs_copy_to_reg_buf)
+	(aarch64_sve_regs_copy_from_reg_buf): Adjust FPSIMD entries.
+	* trad-frame.c (trad_frame_reset_saved_regs): Initialize
+	the data field.
+	(TF_REG_VALUE_BYTES): New enum value.
+	(trad_frame_value_bytes_p): New function.
+	(trad_frame_set_value_bytes): New function.
+	(trad_frame_set_reg_value_bytes): New function.
+	(trad_frame_get_prev_register): Handle register values saved as bytes.
+	* trad-frame.h (trad_frame_set_reg_value_bytes): New prototype.
+	(struct trad_frame_saved_reg) <data>: New field.
+	(trad_frame_set_value_bytes): New prototype.
+	(trad_frame_value_bytes_p): New prototype.
+
+2020-12-07  Mihails Strasuns  <mihails.strasuns@intel.com>
+
+	* jit.c (mem_bfd*, bfd_open_from_target_memory): Removed.
+	* gdb_bfd.h (gdb_bfd_open_from_target_memory): New function.
+	* gdb_bfd.c (mem_bfd*, gdb_bfd_open_from_target_memory): New functions.	
+
+2020-12-09  Tom Tromey  <tromey@adacore.com>
+
+	* ada-lang.c (ada_lookup_encoded_symbol): Use add_angle_brackets.
+
+2020-12-09  Tom Tromey  <tromey@adacore.com>
+
+	* dwarf2/read.c (get_dwarf2_rational_constant): Change "numerator"
+	and "denominator" to gdb_mpz.  Handle block forms.
+	(get_dwarf2_unsigned_rational_constant): Change "numerator" and
+	"denominator" to gdb_mpz.
+	(finish_fixed_point_type): Update.
+	(has_zero_over_zero_small_attribute): Update.
+
+2020-12-09  Tom Tromey  <tromey@adacore.com>
+
+	* expprint.c (op_name): Update.
+	* expression.h (enum exp_opcode): Update.
+	* std-operator.def: Add more opcodes.
+	* ada-operator.def, fortran-operator.def: Remove, moving contents
+	into std-operator.def.
+
+2020-12-09  Simon Marchi  <simon.marchi@polymtl.ca>
+
+	* gdbtypes.c (get_discrete_low_bound, get_discrete_high_bound):
+	Return {} instead of false.
+	(get_discrete_bounds): Compute high bound only if low bound is
+	valid.
+
+2020-12-09  Simon Marchi  <simon.marchi@efficios.com>
+
+	PR 26875, PR 26901
+	* gdbtypes.c (get_discrete_low_bound): Make non-static.
+	(get_discrete_high_bound): Make non-static.
+	* gdbtypes.h (get_discrete_low_bound): New declaration.
+	(get_discrete_high_bound): New declaration.
+	* valarith.c (value_subscript): Only fetch high bound if
+	necessary.
+
+2020-12-09  Simon Marchi  <simon.marchi@efficios.com>
+
+	* gdbtypes.c (get_discrete_bounds): Implement with
+	get_discrete_low_bound and get_discrete_high_bound.
+	(get_discrete_low_bound): New.
+	(get_discrete_high_bound): New.
+
+2020-12-09  Simon Marchi  <simon.marchi@efficios.com>
+
+	* gdbtypes.h (get_discrete_bounds): Return bool, adjust all
+	callers.
+	* gdbtypes.c (get_discrete_bounds): Return bool.
+
+2020-12-09  Simon Marchi  <simon.marchi@efficios.com>
+
+	* ada-lang.c (ada_value_slice_from_ptr): Adjust.
+	(ada_value_slice): Adjust.
+	(pos_atr): Adjust.
+	* gdbtypes.c (get_discrete_bounds): Adjust.
+	(discrete_position): Return optional.
+	* gdbtypes.h (discrete_position): Return optional.
+
+2020-12-07  Tom Tromey  <tromey@adacore.com>
+
+	* maint.c (_initialize_maint_cmds): Use expression command
+	completer for "maint print type".
+
+2020-12-07  Tankut Baris Aktemur  <tankut.baris.aktemur@intel.com>
+
+	* completer.c (complete_explicit_location): Also add keywords
+	that start with '-' to the completion list.
+
+2020-12-07  Tankut Baris Aktemur  <tankut.baris.aktemur@intel.com>
+
+	* linespec.c (linespec_lexer_lex_keyword): The "-force-condition"
+	keyword may be followed by any keyword.
+	* breakpoint.c (find_condition_and_thread): Advance 'tok' by
+	'toklen' in the case for "-force-condition".
+
+2020-12-07  Tankut Baris Aktemur  <tankut.baris.aktemur@intel.com>
+
+	* main.c (catch_command_errors): Add a flag parameter; invoke
+	`bpstat_do_actions` if the flag is set.
+	(execute_cmdargs): Update a call to `catch_command_errors`.
+
+2020-12-07  Tom de Vries  <tdevries@suse.de>
+
+	* ada-lang.c (replace_operator_with_call): Handle shrink resize.
+
+2020-12-06  Tom Tromey  <tom@tromey.com>
+
+	PR ada/26999
+	* ada-lang.c (replace_operator_with_call): Rewrite.
+
 2020-12-06  Giancarlo Frix  <gfrix@rocketsoftware.com>  (tiny change)
 
 	PR breakpoints/27009

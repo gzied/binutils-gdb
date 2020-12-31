@@ -1036,88 +1036,170 @@ has_static_range (const struct range_bounds *bounds)
 	  && bounds->stride.kind () == PROP_CONST);
 }
 
+/* See gdbtypes.h.  */
 
-/* Set *LOWP and *HIGHP to the lower and upper bounds of discrete type
-   TYPE.
-
-   Return 1 if type is a range type with two defined, constant bounds.
-   Else, return 0 if it is discrete (and bounds will fit in LONGEST).
-   Else, return -1.  */
-
-int
-get_discrete_bounds (struct type *type, LONGEST *lowp, LONGEST *highp)
+gdb::optional<LONGEST>
+get_discrete_low_bound (struct type *type)
 {
   type = check_typedef (type);
   switch (type->code ())
     {
     case TYPE_CODE_RANGE:
-      /* This function currently only works for ranges with two defined,
-	 constant bounds.  */
-      if (type->bounds ()->low.kind () != PROP_CONST
-	  || type->bounds ()->high.kind () != PROP_CONST)
-	return -1;
+      {
+	/* This function only works for ranges with a constant low bound.  */
+	if (type->bounds ()->low.kind () != PROP_CONST)
+	  return {};
 
-      *lowp = type->bounds ()->low.const_val ();
-      *highp = type->bounds ()->high.const_val ();
+	LONGEST low = type->bounds ()->low.const_val ();
 
-      if (TYPE_TARGET_TYPE (type)->code () == TYPE_CODE_ENUM)
-	{
-	  if (!discrete_position (TYPE_TARGET_TYPE (type), *lowp, lowp)
-	      || ! discrete_position (TYPE_TARGET_TYPE (type), *highp, highp))
-	    return 0;
-	}
-      return 1;
+	if (TYPE_TARGET_TYPE (type)->code () == TYPE_CODE_ENUM)
+	  {
+	    gdb::optional<LONGEST> low_pos
+	      = discrete_position (TYPE_TARGET_TYPE (type), low);
+
+	    if (low_pos.has_value ())
+	      low = *low_pos;
+	  }
+
+	return low;
+      }
+
     case TYPE_CODE_ENUM:
-      if (type->num_fields () > 0)
-	{
-	  /* The enums may not be sorted by value, so search all
-	     entries.  */
-	  int i;
+      {
+	if (type->num_fields () > 0)
+	  {
+	    /* The enums may not be sorted by value, so search all
+	       entries.  */
+	    LONGEST low = TYPE_FIELD_ENUMVAL (type, 0);
 
-	  *lowp = *highp = TYPE_FIELD_ENUMVAL (type, 0);
-	  for (i = 0; i < type->num_fields (); i++)
-	    {
-	      if (TYPE_FIELD_ENUMVAL (type, i) < *lowp)
-		*lowp = TYPE_FIELD_ENUMVAL (type, i);
-	      if (TYPE_FIELD_ENUMVAL (type, i) > *highp)
-		*highp = TYPE_FIELD_ENUMVAL (type, i);
-	    }
+	    for (int i = 0; i < type->num_fields (); i++)
+	      {
+		if (TYPE_FIELD_ENUMVAL (type, i) < low)
+		  low = TYPE_FIELD_ENUMVAL (type, i);
+	      }
 
-	  /* Set unsigned indicator if warranted.  */
-	  if (*lowp >= 0)
-	    type->set_is_unsigned (true);
-	}
-      else
-	{
-	  *lowp = 0;
-	  *highp = -1;
-	}
-      return 0;
+	    /* Set unsigned indicator if warranted.  */
+	    if (low >= 0)
+	      type->set_is_unsigned (true);
+
+	    return low;
+	  }
+	else
+	  return 0;
+      }
+
     case TYPE_CODE_BOOL:
-      *lowp = 0;
-      *highp = 1;
       return 0;
+
     case TYPE_CODE_INT:
       if (TYPE_LENGTH (type) > sizeof (LONGEST))	/* Too big */
-	return -1;
+	return {};
+
       if (!type->is_unsigned ())
-	{
-	  *lowp = -(1 << (TYPE_LENGTH (type) * TARGET_CHAR_BIT - 1));
-	  *highp = -*lowp - 1;
-	  return 0;
-	}
+	return -(1 << (TYPE_LENGTH (type) * TARGET_CHAR_BIT - 1));
+
       /* fall through */
     case TYPE_CODE_CHAR:
-      *lowp = 0;
-      /* This round-about calculation is to avoid shifting by
-	 TYPE_LENGTH (type) * TARGET_CHAR_BIT, which will not work
-	 if TYPE_LENGTH (type) == sizeof (LONGEST).  */
-      *highp = 1 << (TYPE_LENGTH (type) * TARGET_CHAR_BIT - 1);
-      *highp = (*highp - 1) | *highp;
       return 0;
+
     default:
-      return -1;
+      return {};
     }
+}
+
+/* See gdbtypes.h.  */
+
+gdb::optional<LONGEST>
+get_discrete_high_bound (struct type *type)
+{
+  type = check_typedef (type);
+  switch (type->code ())
+    {
+    case TYPE_CODE_RANGE:
+      {
+	/* This function only works for ranges with a constant high bound.  */
+	if (type->bounds ()->high.kind () != PROP_CONST)
+	  return {};
+
+	LONGEST high = type->bounds ()->high.const_val ();
+
+	if (TYPE_TARGET_TYPE (type)->code () == TYPE_CODE_ENUM)
+	  {
+	    gdb::optional<LONGEST> high_pos
+	      = discrete_position (TYPE_TARGET_TYPE (type), high);
+
+	    if (high_pos.has_value ())
+	      high = *high_pos;
+	  }
+
+	return high;
+      }
+
+    case TYPE_CODE_ENUM:
+      {
+	if (type->num_fields () > 0)
+	  {
+	    /* The enums may not be sorted by value, so search all
+	       entries.  */
+	    LONGEST high = TYPE_FIELD_ENUMVAL (type, 0);
+
+	    for (int i = 0; i < type->num_fields (); i++)
+	      {
+		if (TYPE_FIELD_ENUMVAL (type, i) > high)
+		  high = TYPE_FIELD_ENUMVAL (type, i);
+	      }
+
+	    return high;
+	  }
+	else
+	  return -1;
+      }
+
+    case TYPE_CODE_BOOL:
+      return 1;
+
+    case TYPE_CODE_INT:
+      if (TYPE_LENGTH (type) > sizeof (LONGEST))	/* Too big */
+	return {};
+
+      if (!type->is_unsigned ())
+	{
+	  LONGEST low = -(1 << (TYPE_LENGTH (type) * TARGET_CHAR_BIT - 1));
+	  return -low - 1;
+	}
+
+      /* fall through */
+    case TYPE_CODE_CHAR:
+      {
+	/* This round-about calculation is to avoid shifting by
+	   TYPE_LENGTH (type) * TARGET_CHAR_BIT, which will not work
+	   if TYPE_LENGTH (type) == sizeof (LONGEST).  */
+	LONGEST high = 1 << (TYPE_LENGTH (type) * TARGET_CHAR_BIT - 1);
+	return (high - 1) | high;
+      }
+
+    default:
+      return {};
+    }
+}
+
+/* See gdbtypes.h.  */
+
+bool
+get_discrete_bounds (struct type *type, LONGEST *lowp, LONGEST *highp)
+{
+  gdb::optional<LONGEST> low = get_discrete_low_bound (type);
+  if (!low.has_value ())
+    return false;
+
+  gdb::optional<LONGEST> high = get_discrete_high_bound (type);
+  if (!high.has_value ())
+    return false;
+
+  *lowp = *low;
+  *highp = *high;
+
+  return true;
 }
 
 /* See gdbtypes.h  */
@@ -1128,13 +1210,11 @@ get_array_bounds (struct type *type, LONGEST *low_bound, LONGEST *high_bound)
   struct type *index = type->index_type ();
   LONGEST low = 0;
   LONGEST high = 0;
-  int res;
 
   if (index == NULL)
     return false;
 
-  res = get_discrete_bounds (index, &low, &high);
-  if (res == -1)
+  if (!get_discrete_bounds (index, &low, &high))
     return false;
 
   if (low_bound)
@@ -1160,8 +1240,8 @@ get_array_bounds (struct type *type, LONGEST *low_bound, LONGEST *high_bound)
    in which case the value of POS is unmodified.
 */
 
-int
-discrete_position (struct type *type, LONGEST val, LONGEST *pos)
+gdb::optional<LONGEST>
+discrete_position (struct type *type, LONGEST val)
 {
   if (type->code () == TYPE_CODE_RANGE)
     type = TYPE_TARGET_TYPE (type);
@@ -1173,19 +1253,14 @@ discrete_position (struct type *type, LONGEST val, LONGEST *pos)
       for (i = 0; i < type->num_fields (); i += 1)
 	{
 	  if (val == TYPE_FIELD_ENUMVAL (type, i))
-	    {
-	      *pos = i;
-	      return 1;
-	    }
+	    return i;
 	}
+
       /* Invalid enumeration value.  */
-      return 0;
+      return {};
     }
   else
-    {
-      *pos = val;
-      return 1;
-    }
+    return val;
 }
 
 /* If the array TYPE has static bounds calculate and update its
@@ -1216,8 +1291,9 @@ update_static_array_size (struct type *type)
       if (stride == 0)
 	stride = range_type->bit_stride ();
 
-      if (get_discrete_bounds (range_type, &low_bound, &high_bound) < 0)
+      if (!get_discrete_bounds (range_type, &low_bound, &high_bound))
 	low_bound = high_bound = 0;
+
       element_type = check_typedef (TYPE_TARGET_TYPE (type));
       /* Be careful when setting the array length.  Ada arrays can be
 	 empty arrays with the high_bound being smaller than the low_bound.
@@ -1413,8 +1489,9 @@ create_set_type (struct type *result_type, struct type *domain_type)
     {
       LONGEST low_bound, high_bound, bit_length;
 
-      if (get_discrete_bounds (domain_type, &low_bound, &high_bound) < 0)
+      if (!get_discrete_bounds (domain_type, &low_bound, &high_bound))
 	low_bound = high_bound = 0;
+
       bit_length = high_bound - low_bound + 1;
       TYPE_LENGTH (result_type)
 	= (bit_length + TARGET_CHAR_BIT - 1) / TARGET_CHAR_BIT;
@@ -2100,11 +2177,20 @@ static struct type *resolve_dynamic_type_internal
 
 /* Given a dynamic range type (dyn_range_type) and a stack of
    struct property_addr_info elements, return a static version
-   of that type.  */
+   of that type.
+
+   When RESOLVE_P is true then the returned static range is created by
+   actually evaluating any dynamic properties within the range type, while
+   when RESOLVE_P is false the returned static range has all of the bounds
+   and stride information set to undefined.  The RESOLVE_P set to false
+   case will be used when evaluating a dynamic array that is not
+   allocated, or not associated, i.e. the bounds information might not be
+   initialized yet.  */
 
 static struct type *
 resolve_dynamic_range (struct type *dyn_range_type,
-		       struct property_addr_info *addr_stack)
+		       struct property_addr_info *addr_stack,
+		       bool resolve_p = true)
 {
   CORE_ADDR value;
   struct type *static_range_type, *static_target_type;
@@ -2113,13 +2199,13 @@ resolve_dynamic_range (struct type *dyn_range_type,
   gdb_assert (dyn_range_type->code () == TYPE_CODE_RANGE);
 
   const struct dynamic_prop *prop = &dyn_range_type->bounds ()->low;
-  if (dwarf2_evaluate_property (prop, NULL, addr_stack, &value))
+  if (resolve_p && dwarf2_evaluate_property (prop, NULL, addr_stack, &value))
     low_bound.set_const_val (value);
   else
     low_bound.set_undefined ();
 
   prop = &dyn_range_type->bounds ()->high;
-  if (dwarf2_evaluate_property (prop, NULL, addr_stack, &value))
+  if (resolve_p && dwarf2_evaluate_property (prop, NULL, addr_stack, &value))
     {
       high_bound.set_const_val (value);
 
@@ -2132,7 +2218,7 @@ resolve_dynamic_range (struct type *dyn_range_type,
 
   bool byte_stride_p = dyn_range_type->bounds ()->flag_is_byte_stride;
   prop = &dyn_range_type->bounds ()->stride;
-  if (dwarf2_evaluate_property (prop, NULL, addr_stack, &value))
+  if (resolve_p && dwarf2_evaluate_property (prop, NULL, addr_stack, &value))
     {
       stride.set_const_val (value);
 
@@ -2165,11 +2251,16 @@ resolve_dynamic_range (struct type *dyn_range_type,
 
 /* Resolves dynamic bound values of an array or string type TYPE to static
    ones.  ADDR_STACK is a stack of struct property_addr_info to be used if
-   needed during the dynamic resolution.  */
+   needed during the dynamic resolution.
+
+   When RESOLVE_P is true then the dynamic properties of TYPE are
+   evaluated, otherwise the dynamic properties of TYPE are not evaluated,
+   instead we assume the array is not allocated/associated yet.  */
 
 static struct type *
 resolve_dynamic_array_or_string (struct type *type,
-				 struct property_addr_info *addr_stack)
+				 struct property_addr_info *addr_stack,
+				 bool resolve_p = true)
 {
   CORE_ADDR value;
   struct type *elt_type;
@@ -2185,29 +2276,44 @@ resolve_dynamic_array_or_string (struct type *type,
 
   type = copy_type (type);
 
-  elt_type = type;
-  range_type = check_typedef (elt_type->index_type ());
-  range_type = resolve_dynamic_range (range_type, addr_stack);
-
-  /* Resolve allocated/associated here before creating a new array type, which
-     will update the length of the array accordingly.  */
+  /* Resolve the allocated and associated properties before doing anything
+     else.  If an array is not allocated or not associated then (at least
+     for Fortran) there is no guarantee that the data to define the upper
+     bound, lower bound, or stride will be correct.  If RESOLVE_P is
+     already false at this point then this is not the first dimension of
+     the array and a more outer dimension has already marked this array as
+     not allocated/associated, as such we just ignore this property.  This
+     is fine as GDB only checks the allocated/associated on the outer most
+     dimension of the array.  */
   prop = TYPE_ALLOCATED_PROP (type);
-  if (prop != NULL && dwarf2_evaluate_property (prop, NULL, addr_stack, &value))
-    prop->set_const_val (value);
+  if (prop != NULL && resolve_p
+      && dwarf2_evaluate_property (prop, NULL, addr_stack, &value))
+    {
+      prop->set_const_val (value);
+      if (value == 0)
+	resolve_p = false;
+    }
 
   prop = TYPE_ASSOCIATED_PROP (type);
-  if (prop != NULL && dwarf2_evaluate_property (prop, NULL, addr_stack, &value))
-    prop->set_const_val (value);
+  if (prop != NULL && resolve_p
+      && dwarf2_evaluate_property (prop, NULL, addr_stack, &value))
+    {
+      prop->set_const_val (value);
+      if (value == 0)
+	resolve_p = false;
+    }
 
-  ary_dim = check_typedef (TYPE_TARGET_TYPE (elt_type));
+  range_type = check_typedef (type->index_type ());
+  range_type = resolve_dynamic_range (range_type, addr_stack, resolve_p);
 
+  ary_dim = check_typedef (TYPE_TARGET_TYPE (type));
   if (ary_dim != NULL && ary_dim->code () == TYPE_CODE_ARRAY)
-    elt_type = resolve_dynamic_array_or_string (ary_dim, addr_stack);
+    elt_type = resolve_dynamic_array_or_string (ary_dim, addr_stack, resolve_p);
   else
     elt_type = TYPE_TARGET_TYPE (type);
 
   prop = type->dyn_prop (DYN_PROP_BYTE_STRIDE);
-  if (prop != NULL)
+  if (prop != NULL && resolve_p)
     {
       if (dwarf2_evaluate_property (prop, NULL, addr_stack, &value))
 	{
@@ -2925,7 +3031,7 @@ check_typedef (struct type *type)
    occurs, silently return a void type.  */
 
 static struct type *
-safe_parse_type (struct gdbarch *gdbarch, char *p, int length)
+safe_parse_type (struct gdbarch *gdbarch, const char *p, int length)
 {
   struct ui_file *saved_gdb_stderr;
   struct type *type = NULL; /* Initialize to keep gcc happy.  */
@@ -3588,9 +3694,11 @@ is_scalar_type_recursive (struct type *t)
       LONGEST low_bound, high_bound;
       struct type *elt_type = check_typedef (TYPE_TARGET_TYPE (t));
 
-      get_discrete_bounds (t->index_type (), &low_bound, &high_bound);
-
-      return high_bound == low_bound && is_scalar_type_recursive (elt_type);
+      if (get_discrete_bounds (t->index_type (), &low_bound, &high_bound))
+	return (high_bound == low_bound
+		&& is_scalar_type_recursive (elt_type));
+      else
+	return 0;
     }
   /* Are we dealing with a struct with one element?  */
   else if (t->code () == TYPE_CODE_STRUCT && t->num_fields () == 1)
@@ -4098,7 +4206,9 @@ check_types_equal (struct type *type1, struct type *type2,
 	    case FIELD_LOC_KIND_ENUMVAL:
 	      if (FIELD_ENUMVAL (*field1) != FIELD_ENUMVAL (*field2))
 		return false;
-	      break;
+	      /* Don't compare types of enum fields, because they don't
+		 have a type.  */
+	      continue;
 	    case FIELD_LOC_KIND_PHYSADDR:
 	      if (FIELD_STATIC_PHYSADDR (*field1)
 		  != FIELD_STATIC_PHYSADDR (*field2))
@@ -4752,8 +4862,8 @@ print_args (struct field *args, int nargs, int spaces)
 
       for (i = 0; i < nargs; i++)
 	{
-	  printfi_filtered (spaces, "[%d] name '%s'\n", i,
-			    args[i].name != NULL ? args[i].name : "<NULL>");
+	  printf_filtered ("%*s[%d] name '%s'\n", spaces, "", i,
+			   args[i].name != NULL ? args[i].name : "<NULL>");
 	  recursive_dump_type (args[i].type (), spaces + 2);
 	}
     }
@@ -4778,15 +4888,15 @@ dump_fn_fieldlists (struct type *type, int spaces)
   int overload_idx;
   struct fn_field *f;
 
-  printfi_filtered (spaces, "fn_fieldlists ");
+  printf_filtered ("%*sfn_fieldlists ", spaces, "");
   gdb_print_host_address (TYPE_FN_FIELDLISTS (type), gdb_stdout);
   printf_filtered ("\n");
   for (method_idx = 0; method_idx < TYPE_NFN_FIELDS (type); method_idx++)
     {
       f = TYPE_FN_FIELDLIST1 (type, method_idx);
-      printfi_filtered (spaces + 2, "[%d] name '%s' (",
-			method_idx,
-			TYPE_FN_FIELDLIST_NAME (type, method_idx));
+      printf_filtered ("%*s[%d] name '%s' (", spaces + 2, "",
+		       method_idx,
+		       TYPE_FN_FIELDLIST_NAME (type, method_idx));
       gdb_print_host_address (TYPE_FN_FIELDLIST_NAME (type, method_idx),
 			      gdb_stdout);
       printf_filtered (_(") length %d\n"),
@@ -4795,13 +4905,13 @@ dump_fn_fieldlists (struct type *type, int spaces)
 	   overload_idx < TYPE_FN_FIELDLIST_LENGTH (type, method_idx);
 	   overload_idx++)
 	{
-	  printfi_filtered (spaces + 4, "[%d] physname '%s' (",
-			    overload_idx,
-			    TYPE_FN_FIELD_PHYSNAME (f, overload_idx));
+	  printf_filtered ("%*s[%d] physname '%s' (",
+			   spaces + 4, "", overload_idx,
+			   TYPE_FN_FIELD_PHYSNAME (f, overload_idx));
 	  gdb_print_host_address (TYPE_FN_FIELD_PHYSNAME (f, overload_idx),
 				  gdb_stdout);
 	  printf_filtered (")\n");
-	  printfi_filtered (spaces + 8, "type ");
+	  printf_filtered ("%*stype ", spaces + 8, "");
 	  gdb_print_host_address (TYPE_FN_FIELD_TYPE (f, overload_idx), 
 				  gdb_stdout);
 	  printf_filtered ("\n");
@@ -4809,34 +4919,34 @@ dump_fn_fieldlists (struct type *type, int spaces)
 	  recursive_dump_type (TYPE_FN_FIELD_TYPE (f, overload_idx),
 			       spaces + 8 + 2);
 
-	  printfi_filtered (spaces + 8, "args ");
+	  printf_filtered ("%*sargs ", spaces + 8, "");
 	  gdb_print_host_address (TYPE_FN_FIELD_ARGS (f, overload_idx), 
 				  gdb_stdout);
 	  printf_filtered ("\n");
 	  print_args (TYPE_FN_FIELD_ARGS (f, overload_idx),
 		      TYPE_FN_FIELD_TYPE (f, overload_idx)->num_fields (),
 		      spaces + 8 + 2);
-	  printfi_filtered (spaces + 8, "fcontext ");
+	  printf_filtered ("%*sfcontext ", spaces + 8, "");
 	  gdb_print_host_address (TYPE_FN_FIELD_FCONTEXT (f, overload_idx),
 				  gdb_stdout);
 	  printf_filtered ("\n");
 
-	  printfi_filtered (spaces + 8, "is_const %d\n",
-			    TYPE_FN_FIELD_CONST (f, overload_idx));
-	  printfi_filtered (spaces + 8, "is_volatile %d\n",
-			    TYPE_FN_FIELD_VOLATILE (f, overload_idx));
-	  printfi_filtered (spaces + 8, "is_private %d\n",
-			    TYPE_FN_FIELD_PRIVATE (f, overload_idx));
-	  printfi_filtered (spaces + 8, "is_protected %d\n",
-			    TYPE_FN_FIELD_PROTECTED (f, overload_idx));
-	  printfi_filtered (spaces + 8, "is_stub %d\n",
-			    TYPE_FN_FIELD_STUB (f, overload_idx));
-	  printfi_filtered (spaces + 8, "defaulted %d\n",
-			    TYPE_FN_FIELD_DEFAULTED (f, overload_idx));
-	  printfi_filtered (spaces + 8, "is_deleted %d\n",
-			    TYPE_FN_FIELD_DELETED (f, overload_idx));
-	  printfi_filtered (spaces + 8, "voffset %u\n",
-			    TYPE_FN_FIELD_VOFFSET (f, overload_idx));
+	  printf_filtered ("%*sis_const %d\n", spaces + 8, "",
+			   TYPE_FN_FIELD_CONST (f, overload_idx));
+	  printf_filtered ("%*sis_volatile %d\n", spaces + 8, "",
+			   TYPE_FN_FIELD_VOLATILE (f, overload_idx));
+	  printf_filtered ("%*sis_private %d\n", spaces + 8, "",
+			   TYPE_FN_FIELD_PRIVATE (f, overload_idx));
+	  printf_filtered ("%*sis_protected %d\n", spaces + 8, "",
+			   TYPE_FN_FIELD_PROTECTED (f, overload_idx));
+	  printf_filtered ("%*sis_stub %d\n", spaces + 8, "",
+			   TYPE_FN_FIELD_STUB (f, overload_idx));
+	  printf_filtered ("%*sdefaulted %d\n", spaces + 8, "",
+			   TYPE_FN_FIELD_DEFAULTED (f, overload_idx));
+	  printf_filtered ("%*sis_deleted %d\n", spaces + 8, "",
+			   TYPE_FN_FIELD_DELETED (f, overload_idx));
+	  printf_filtered ("%*svoffset %u\n", spaces + 8, "",
+			   TYPE_FN_FIELD_VOFFSET (f, overload_idx));
 	}
     }
 }
@@ -4844,21 +4954,22 @@ dump_fn_fieldlists (struct type *type, int spaces)
 static void
 print_cplus_stuff (struct type *type, int spaces)
 {
-  printfi_filtered (spaces, "vptr_fieldno %d\n", TYPE_VPTR_FIELDNO (type));
-  printfi_filtered (spaces, "vptr_basetype ");
+  printf_filtered ("%*svptr_fieldno %d\n", spaces, "",
+		   TYPE_VPTR_FIELDNO (type));
+  printf_filtered ("%*svptr_basetype ", spaces, "");
   gdb_print_host_address (TYPE_VPTR_BASETYPE (type), gdb_stdout);
   puts_filtered ("\n");
   if (TYPE_VPTR_BASETYPE (type) != NULL)
     recursive_dump_type (TYPE_VPTR_BASETYPE (type), spaces + 2);
 
-  printfi_filtered (spaces, "n_baseclasses %d\n",
-		    TYPE_N_BASECLASSES (type));
-  printfi_filtered (spaces, "nfn_fields %d\n",
-		    TYPE_NFN_FIELDS (type));
+  printf_filtered ("%*sn_baseclasses %d\n", spaces, "",
+		   TYPE_N_BASECLASSES (type));
+  printf_filtered ("%*snfn_fields %d\n", spaces, "",
+		   TYPE_NFN_FIELDS (type));
   if (TYPE_N_BASECLASSES (type) > 0)
     {
-      printfi_filtered (spaces, "virtual_field_bits (%d bits at *",
-			TYPE_N_BASECLASSES (type));
+      printf_filtered ("%*svirtual_field_bits (%d bits at *",
+		       spaces, "", TYPE_N_BASECLASSES (type));
       gdb_print_host_address (TYPE_FIELD_VIRTUAL_BITS (type), 
 			      gdb_stdout);
       printf_filtered (")");
@@ -4871,9 +4982,8 @@ print_cplus_stuff (struct type *type, int spaces)
     {
       if (TYPE_FIELD_PRIVATE_BITS (type) != NULL)
 	{
-	  printfi_filtered (spaces, 
-			    "private_field_bits (%d bits at *",
-			    type->num_fields ());
+	  printf_filtered ("%*sprivate_field_bits (%d bits at *",
+			   spaces, "", type->num_fields ());
 	  gdb_print_host_address (TYPE_FIELD_PRIVATE_BITS (type), 
 				  gdb_stdout);
 	  printf_filtered (")");
@@ -4883,9 +4993,8 @@ print_cplus_stuff (struct type *type, int spaces)
 	}
       if (TYPE_FIELD_PROTECTED_BITS (type) != NULL)
 	{
-	  printfi_filtered (spaces, 
-			    "protected_field_bits (%d bits at *",
-			    type->num_fields ());
+	  printf_filtered ("%*sprotected_field_bits (%d bits at *",
+			   spaces, "", type->num_fields ());
 	  gdb_print_host_address (TYPE_FIELD_PROTECTED_BITS (type), 
 				  gdb_stdout);
 	  printf_filtered (")");
@@ -4899,8 +5008,8 @@ print_cplus_stuff (struct type *type, int spaces)
       dump_fn_fieldlists (type, spaces);
     }
 
-  printfi_filtered (spaces, "calling_convention %d\n",
-		    TYPE_CPLUS_CALLING_CONVENTION (type));
+  printf_filtered ("%*scalling_convention %d\n", spaces, "",
+		   TYPE_CPLUS_CALLING_CONVENTION (type));
 }
 
 /* Print the contents of the TYPE's type_specific union, assuming that
@@ -4912,10 +5021,10 @@ print_gnat_stuff (struct type *type, int spaces)
   struct type *descriptive_type = TYPE_DESCRIPTIVE_TYPE (type);
 
   if (descriptive_type == NULL)
-    printfi_filtered (spaces + 2, "no descriptive type\n");
+    printf_filtered ("%*sno descriptive type\n", spaces + 2, "");
   else
     {
-      printfi_filtered (spaces + 2, "descriptive type\n");
+      printf_filtered ("%*sdescriptive type\n", spaces + 2, "");
       recursive_dump_type (descriptive_type, spaces + 4);
     }
 }
@@ -4926,8 +5035,8 @@ print_gnat_stuff (struct type *type, int spaces)
 static void
 print_fixed_point_type_info (struct type *type, int spaces)
 {
-  printfi_filtered (spaces + 2, "scaling factor: %s\n",
-		    type->fixed_point_scaling_factor ().str ().c_str ());
+  printf_filtered ("%*sscaling factor: %s\n", spaces + 2, "",
+		   type->fixed_point_scaling_factor ().str ().c_str ());
 }
 
 static struct obstack dont_print_type_obstack;
@@ -4976,7 +5085,7 @@ recursive_dump_type (struct type *type, int spaces)
 	{
 	  if (type == first_dont_print[i])
 	    {
-	      printfi_filtered (spaces, "type node ");
+	      printf_filtered ("%*stype node ", spaces, "");
 	      gdb_print_host_address (type, gdb_stdout);
 	      printf_filtered (_(" <same as already seen type>\n"));
 	      return;
@@ -4986,14 +5095,14 @@ recursive_dump_type (struct type *type, int spaces)
       obstack_ptr_grow (&dont_print_type_obstack, type);
     }
 
-  printfi_filtered (spaces, "type node ");
+  printf_filtered ("%*stype node ", spaces, "");
   gdb_print_host_address (type, gdb_stdout);
   printf_filtered ("\n");
-  printfi_filtered (spaces, "name '%s' (",
-		    type->name () ? type->name () : "<NULL>");
+  printf_filtered ("%*sname '%s' (", spaces, "",
+		   type->name () ? type->name () : "<NULL>");
   gdb_print_host_address (type->name (), gdb_stdout);
   printf_filtered (")\n");
-  printfi_filtered (spaces, "code 0x%x ", type->code ());
+  printf_filtered ("%*scode 0x%x ", spaces, "", type->code ());
   switch (type->code ())
     {
     case TYPE_CODE_UNDEF:
@@ -5076,36 +5185,37 @@ recursive_dump_type (struct type *type, int spaces)
       break;
     }
   puts_filtered ("\n");
-  printfi_filtered (spaces, "length %s\n", pulongest (TYPE_LENGTH (type)));
+  printf_filtered ("%*slength %s\n", spaces, "",
+		   pulongest (TYPE_LENGTH (type)));
   if (TYPE_OBJFILE_OWNED (type))
     {
-      printfi_filtered (spaces, "objfile ");
+      printf_filtered ("%*sobjfile ", spaces, "");
       gdb_print_host_address (TYPE_OWNER (type).objfile, gdb_stdout);
     }
   else
     {
-      printfi_filtered (spaces, "gdbarch ");
+      printf_filtered ("%*sgdbarch ", spaces, "");
       gdb_print_host_address (TYPE_OWNER (type).gdbarch, gdb_stdout);
     }
   printf_filtered ("\n");
-  printfi_filtered (spaces, "target_type ");
+  printf_filtered ("%*starget_type ", spaces, "");
   gdb_print_host_address (TYPE_TARGET_TYPE (type), gdb_stdout);
   printf_filtered ("\n");
   if (TYPE_TARGET_TYPE (type) != NULL)
     {
       recursive_dump_type (TYPE_TARGET_TYPE (type), spaces + 2);
     }
-  printfi_filtered (spaces, "pointer_type ");
+  printf_filtered ("%*spointer_type ", spaces, "");
   gdb_print_host_address (TYPE_POINTER_TYPE (type), gdb_stdout);
   printf_filtered ("\n");
-  printfi_filtered (spaces, "reference_type ");
+  printf_filtered ("%*sreference_type ", spaces, "");
   gdb_print_host_address (TYPE_REFERENCE_TYPE (type), gdb_stdout);
   printf_filtered ("\n");
-  printfi_filtered (spaces, "type_chain ");
+  printf_filtered ("%*stype_chain ", spaces, "");
   gdb_print_host_address (TYPE_CHAIN (type), gdb_stdout);
   printf_filtered ("\n");
-  printfi_filtered (spaces, "instance_flags 0x%x", 
-		    (unsigned) type->instance_flags ());
+  printf_filtered ("%*sinstance_flags 0x%x", spaces, "", 
+		   (unsigned) type->instance_flags ());
   if (TYPE_CONST (type))
     {
       puts_filtered (" TYPE_CONST");
@@ -5140,7 +5250,7 @@ recursive_dump_type (struct type *type, int spaces)
     }
   puts_filtered ("\n");
 
-  printfi_filtered (spaces, "flags");
+  printf_filtered ("%*sflags", spaces, "");
   if (type->is_unsigned ())
     {
       puts_filtered (" TYPE_UNSIGNED");
@@ -5189,20 +5299,36 @@ recursive_dump_type (struct type *type, int spaces)
       puts_filtered (" TYPE_NOTTEXT");
     }
   puts_filtered ("\n");
-  printfi_filtered (spaces, "nfields %d ", type->num_fields ());
+  printf_filtered ("%*snfields %d ", spaces, "", type->num_fields ());
+  if (TYPE_ASSOCIATED_PROP (type) != nullptr
+      || TYPE_ALLOCATED_PROP (type) != nullptr)
+    {
+      printf_filtered ("%*s", spaces, "");
+      if (TYPE_ASSOCIATED_PROP (type) != nullptr)
+	{
+	  printf_filtered ("associated ");
+	  dump_dynamic_prop (*TYPE_ASSOCIATED_PROP (type));
+	}
+      if (TYPE_ALLOCATED_PROP (type) != nullptr)
+	{
+	  if (TYPE_ASSOCIATED_PROP (type) != nullptr)
+	    printf_filtered ("  ");
+	  printf_filtered ("allocated ");
+	  dump_dynamic_prop (*TYPE_ALLOCATED_PROP (type));
+	}
+      printf_filtered ("\n");
+    }
   gdb_print_host_address (type->fields (), gdb_stdout);
   puts_filtered ("\n");
   for (idx = 0; idx < type->num_fields (); idx++)
     {
       if (type->code () == TYPE_CODE_ENUM)
-	printfi_filtered (spaces + 2,
-			  "[%d] enumval %s type ",
-			  idx, plongest (TYPE_FIELD_ENUMVAL (type, idx)));
+	printf_filtered ("%*s[%d] enumval %s type ", spaces + 2, "",
+			 idx, plongest (TYPE_FIELD_ENUMVAL (type, idx)));
       else
-	printfi_filtered (spaces + 2,
-			  "[%d] bitpos %s bitsize %d type ",
-			  idx, plongest (TYPE_FIELD_BITPOS (type, idx)),
-			  TYPE_FIELD_BITSIZE (type, idx));
+	printf_filtered ("%*s[%d] bitpos %s bitsize %d type ", spaces + 2, "",
+			 idx, plongest (TYPE_FIELD_BITPOS (type, idx)),
+			 TYPE_FIELD_BITSIZE (type, idx));
       gdb_print_host_address (type->field (idx).type (), gdb_stdout);
       printf_filtered (" name '%s' (",
 		       TYPE_FIELD_NAME (type, idx) != NULL
@@ -5217,7 +5343,7 @@ recursive_dump_type (struct type *type, int spaces)
     }
   if (type->code () == TYPE_CODE_RANGE)
     {
-      printfi_filtered (spaces, "low ");
+      printf_filtered ("%*slow ", spaces, "");
       dump_dynamic_prop (type->bounds ()->low);
       printf_filtered ("  high ");
       dump_dynamic_prop (type->bounds ()->high);
@@ -5227,7 +5353,7 @@ recursive_dump_type (struct type *type, int spaces)
   switch (TYPE_SPECIFIC_FIELD (type))
     {
       case TYPE_SPECIFIC_CPLUS_STUFF:
-	printfi_filtered (spaces, "cplus_stuff ");
+	printf_filtered ("%*scplus_stuff ", spaces, "");
 	gdb_print_host_address (TYPE_CPLUS_SPECIFIC (type), 
 				gdb_stdout);
 	puts_filtered ("\n");
@@ -5235,14 +5361,14 @@ recursive_dump_type (struct type *type, int spaces)
 	break;
 
       case TYPE_SPECIFIC_GNAT_STUFF:
-	printfi_filtered (spaces, "gnat_stuff ");
+	printf_filtered ("%*sgnat_stuff ", spaces, "");
 	gdb_print_host_address (TYPE_GNAT_SPECIFIC (type), gdb_stdout);
 	puts_filtered ("\n");
 	print_gnat_stuff (type, spaces);
 	break;
 
       case TYPE_SPECIFIC_FLOATFORMAT:
-	printfi_filtered (spaces, "floatformat ");
+	printf_filtered ("%*sfloatformat ", spaces, "");
 	if (TYPE_FLOATFORMAT (type) == NULL
 	    || TYPE_FLOATFORMAT (type)->name == NULL)
 	  puts_filtered ("(null)");
@@ -5252,19 +5378,19 @@ recursive_dump_type (struct type *type, int spaces)
 	break;
 
       case TYPE_SPECIFIC_FUNC:
-	printfi_filtered (spaces, "calling_convention %d\n",
-			  TYPE_CALLING_CONVENTION (type));
+	printf_filtered ("%*scalling_convention %d\n", spaces, "",
+			 TYPE_CALLING_CONVENTION (type));
 	/* tail_call_list is not printed.  */
 	break;
 
       case TYPE_SPECIFIC_SELF_TYPE:
-	printfi_filtered (spaces, "self_type ");
+	printf_filtered ("%*sself_type ", spaces, "");
 	gdb_print_host_address (TYPE_SELF_TYPE (type), gdb_stdout);
 	puts_filtered ("\n");
 	break;
 
       case TYPE_SPECIFIC_FIXED_POINT:
-	printfi_filtered (spaces, "fixed_point_info ");
+	printf_filtered ("%*sfixed_point_info ", spaces, "");
 	print_fixed_point_type_info (type, spaces);
 	puts_filtered ("\n");
 	break;
@@ -5274,8 +5400,8 @@ recursive_dump_type (struct type *type, int spaces)
 	{
 	  unsigned bit_size = type->bit_size ();
 	  unsigned bit_off = type->bit_offset ();
-	  printfi_filtered (spaces, " bit size = %u, bit offset = %u\n",
-			    bit_size, bit_off);
+	  printf_filtered ("%*s bit size = %u, bit offset = %u\n", spaces, "",
+			   bit_size, bit_off);
 	}
       break;
     }

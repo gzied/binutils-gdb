@@ -61,19 +61,32 @@ enum exp_opcode : uint8_t
 
 #include "std-operator.def"
 
-    /* First extension operator.  Individual language modules define extra
-       operators in *.def include files below with numbers higher than
-       OP_EXTENDED0.  */
-    OP (OP_EXTENDED0)
-
-/* Language specific operators.  */
-#include "ada-operator.def"
-#include "fortran-operator.def"
-
 #undef OP
 
     /* Existing only to swallow the last comma (',') from last .inc file.  */
     OP_UNUSED_LAST
+  };
+
+/* Values of NOSIDE argument to eval_subexp.  */
+
+enum noside
+  {
+    EVAL_NORMAL,
+    EVAL_SKIP,			/* Only effect is to increment pos.
+				   Return type information where
+				   possible.  */
+    EVAL_AVOID_SIDE_EFFECTS	/* Don't modify any variables or
+				   call any functions.  The value
+				   returned will have the correct
+				   type, and will have an
+				   approximately correct lvalue
+				   type (inaccuracy: anything that is
+				   listed as being in a register in
+				   the function in which it was
+				   declared will be lval_register).
+				   Ideally this would not even read
+				   target memory, but currently it
+				   does in many situations.  */
   };
 
 union exp_element
@@ -99,6 +112,13 @@ struct expression
   DISABLE_COPY_AND_ASSIGN (expression);
 
   void resize (size_t);
+
+  /* Return the opcode for the outermost sub-expression of this
+     expression.  */
+  enum exp_opcode first_opcode () const
+  {
+      return elts[0].opcode;
+  }
 
   /* Language it was entered in.  */
   const struct language_defn *language_defn;
@@ -137,40 +157,19 @@ extern expression_up parse_exp_1 (const char **, CORE_ADDR pc,
 
 /* From eval.c */
 
-/* Values of NOSIDE argument to eval_subexp.  */
-
-enum noside
-  {
-    EVAL_NORMAL,
-    EVAL_SKIP,			/* Only effect is to increment pos.
-				   Return type information where
-				   possible.  */
-    EVAL_AVOID_SIDE_EFFECTS	/* Don't modify any variables or
-				   call any functions.  The value
-				   returned will have the correct
-				   type, and will have an
-				   approximately correct lvalue
-				   type (inaccuracy: anything that is
-				   listed as being in a register in
-				   the function in which it was
-				   declared will be lval_register).
-				   Ideally this would not even read
-				   target memory, but currently it
-				   does in many situations.  */
-  };
-
 extern struct value *evaluate_subexp_standard
   (struct type *, struct expression *, int *, enum noside);
 
-/* Evaluate a function call.  The function to be called is in ARGVEC[0] and
-   the arguments passed to the function are in ARGVEC[1..NARGS].
+/* Evaluate a function call.  The function to be called is in CALLEE and
+   the arguments passed to the function are in ARGVEC.
    FUNCTION_NAME is the name of the function, if known.
    DEFAULT_RETURN_TYPE is used as the function's return type if the return
    type is unknown.  */
 
 extern struct value *evaluate_subexp_do_call (expression *exp,
 					      enum noside noside,
-					      int nargs, value **argvec,
+					      value *callee,
+					      gdb::array_view<value *> argvec,
 					      const char *function_name,
 					      type *default_return_type);
 
