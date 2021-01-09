@@ -35,6 +35,7 @@
 #include "nat/aarch64-linux.h"
 #include "nat/aarch64-linux-hw-point.h"
 #include "nat/aarch64-sve-linux-ptrace.h"
+#include "nat/linux-btrace.h"
 
 #include "elf/external.h"
 #include "elf/common.h"
@@ -83,6 +84,16 @@ public:
 
   /* Override the GNU/Linux post attach hook.  */
   void post_attach (int pid) override;
+
+  /*override branch tracing */
+  struct btrace_target_info *enable_btrace (ptid_t ptid,
+  					    const struct btrace_config *conf) override;
+  void disable_btrace (struct btrace_target_info *tinfo) override;
+  void teardown_btrace (struct btrace_target_info *tinfo) override;
+  enum btrace_error read_btrace (struct btrace_data *data,
+         	                 struct btrace_target_info *btinfo,
+                                 enum btrace_read_type type) override;
+  const struct btrace_config *btrace_conf (const struct btrace_target_info *) override;
 
   /* These three defer to common nat/ code.  */
   void low_new_thread (struct lwp_info *lp) override
@@ -630,6 +641,62 @@ aarch64_linux_nat_target::post_attach (int pid)
      watchpoints when attaching to a target.  */
   aarch64_linux_get_debug_reg_capacity (pid);
   linux_nat_target::post_attach (pid);
+}
+
+/* Enable branch tracing.  */
+
+struct btrace_target_info *
+aarch64_linux_nat_target::enable_btrace (ptid_t ptid,
+				     const struct btrace_config *conf)
+{
+  struct btrace_target_info *tinfo = nullptr;
+  try
+  {
+      tinfo = linux_enable_btrace (ptid, conf);
+  }
+  catch (const gdb_exception_error &exception)
+  {
+      error (_("Could not enable branch tracing for %s: %s"),
+	     target_pid_to_str (ptid).c_str (), exception.what ());
+  }
+
+  return tinfo;
+}
+
+/* Disable branch tracing.  */
+
+void
+aarch64_linux_nat_target::disable_btrace (struct btrace_target_info *tinfo)
+{
+  enum btrace_error errcode = linux_disable_btrace (tinfo);
+
+  if (errcode != BTRACE_ERR_NONE)
+    error (_("Could not disable branch tracing."));
+}
+
+/* Teardown branch tracing.  */
+
+void
+aarch64_linux_nat_target::teardown_btrace (struct btrace_target_info *tinfo)
+{
+  /* Ignore errors.  */
+  linux_disable_btrace (tinfo);
+}
+
+enum btrace_error
+aarch64_linux_nat_target::read_btrace (struct btrace_data *data,
+				   struct btrace_target_info *btinfo,
+				   enum btrace_read_type type)
+{
+  return linux_read_btrace (data, btinfo, type);
+}
+
+/* See to_btrace_conf in target.h.  */
+
+const struct btrace_config *
+aarch64_linux_nat_target::btrace_conf (const struct btrace_target_info *btinfo)
+{
+  return linux_btrace_conf (btinfo);
 }
 
 /* Implement the "read_description" target_ops method.  */

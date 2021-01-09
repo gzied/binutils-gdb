@@ -1194,6 +1194,14 @@ static uint32_t cs_etm_get_register(int cpu, const char *path)
     error (_("Failed to read coresight register from %s."), filename);
   return val;
 }
+
+#define CORESIGHT_ETM_PMU_SEED  0x10
+static inline int coresight_get_trace_id(int cpu)
+{
+  return (CORESIGHT_ETM_PMU_SEED + (cpu * 2));
+}
+
+
 /* PTMs ETMIDR [11:8] set to b0011 */
 #define ETMIDR_PTM_VERSION 0x00000300
 static void fill_etm_trace_params (struct cs_etm_trace_params *etm_trace_params, int cpu)
@@ -1209,7 +1217,8 @@ static void fill_etm_trace_params (struct cs_etm_trace_params *etm_trace_params,
       etm_trace_params->etmv4.reg_idr1 = cs_etm_get_register(cpu, "trcidr/trcidr1");
       etm_trace_params->etmv4.reg_idr2 = cs_etm_get_register(cpu, "trcidr/trcidr2");
       etm_trace_params->etmv4.reg_idr8 = cs_etm_get_register(cpu, "trcidr/trcidr8");
-      etm_trace_params->etmv4.reg_traceidr =cs_etm_get_register(cpu, "mgmt/etmtraceidr");
+      etm_trace_params->etmv4.reg_traceidr = coresight_get_trace_id(cpu);
+      //etm_trace_params->etmv4.reg_traceidr =cs_etm_get_register(cpu, "mgmt/etmtraceidr");
     }
   else
     {
