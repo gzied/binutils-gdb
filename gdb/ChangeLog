@@ -1,3 +1,9 @@
+2021-02-05  Zied Guermazi  <zied.guermazi@trande.de>
+
+	* infrun.c (set_step_over_info): add debug print.
+	* infrun.c (handle_inferior_event): clear step over info.
+	in case TARGET_WAITKIND_NO_HISTORY
+
 2021-02-04  Zied Guermazi  <zied.guermazi@trande.de>
 
 	* nat/linux-btrace.h (btrace_tinfo_etm): New.

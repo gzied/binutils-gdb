@@ -1308,6 +1308,7 @@ set_step_over_info (const address_space *aspace, CORE_ADDR address,
 		    int nonsteppable_watchpoint_p,
 		    int thread)
 {
+  infrun_debug_printf ("infrun: set_step_over_info\n");
   step_over_info.aspace = aspace;
   step_over_info.address = address;
   step_over_info.nonsteppable_watchpoint_p = nonsteppable_watchpoint_p;
@@ -5485,7 +5486,7 @@ handle_inferior_event (struct execution_control_state *ecs)
       delete_just_stopped_threads_single_step_breakpoints ();
       ecs->event_thread->suspend.stop_pc
 	= regcache_read_pc (get_thread_regcache (inferior_thread ()));
-
+      clear_step_over_info ();
       if (handle_stop_requested (ecs))
 	return;
 
