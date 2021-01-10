@@ -1,19 +1,32 @@
+2021-02-03  Zied Guermazi  <zied.guermazi@trande.de>
+
+	* btrace-common.h (cs_etmv3_trace_params): New 
+	* btrace-common.h (cs_etmv4_trace_params): New.
+	* btrace-common.h (cs_etm_trace_params): New.
+	* btrace-common.h (cs_etm_decoder_params): New 
+	* btrace-common.h (btrace_data_etm_config): New.
+	* btrace-common.h (btrace_data_etm): New.
+	* btrace-common.h (btrace_data): add a btrace_data_etm.
+	* btrace-common.cc (btrace_data::fini): handle CoreSight traces.
+	* btrace-common.cc (btrace_data::empty): handle CoreSight traces.
+	* btrace-common.cc (btrace_data_append): handle CoreSight traces.
+
 2021-02-02  Zied Guermazi  <zied.guermazi@trande.de>
 
 	* gdbsupport/btrace-common.h (btrace_format): add BTRACE_FORMAT_ETM 
 	to the enum.
-	* gdbsupport/btrace-common.h (btrace_cpu_vendor): add CV_ARM to the enum.
-	* gdbsupport/btrace-common.h (btrace_config_etm): new struct.
-	* gdbsupport/btrace-common.h (btrace_config): add btrace_config_etm etm.
-	* gdbsupport/btrace-common.cc (btrace_format_string): add BTRACE_FORMAT_ETM.
-	* gdbsupport/btrace-common.cc (btrace_format_short_string): add 
+	* btrace-common.h (btrace_cpu_vendor): add CV_ARM to the enum.
+	* btrace-common.h (btrace_config_etm): new struct.
+	* btrace-common.h (btrace_config): add btrace_config_etm etm.
+	* btrace-common.cc (btrace_format_string): add BTRACE_FORMAT_ETM.
+	* btrace-common.cc (btrace_format_short_string): add 
 	BTRACE_FORMAT_ETM.
 
 2021-02-01  Zied Guermazi  <zied.guermazi@trande.de>
 
-	* gdbsupport/common.m4: check --with-arm-cs configuration
+	* common.m4: check --with-arm-cs configuration
 	flag, perf_event and opencsd_c_api to set compilation flags.
-	* gdbsupport/configure: Regenerated
+	* configure: Regenerated
 
 2021-01-08  Simon Marchi  <simon.marchi@polymtl.ca>
 

@@ -1,4 +1,30 @@
-2021-02-01  Zied Guermazi  <zied.guermazi@trande.de>
+2021-02-03  Zied Guermazi  <zied.guermazi@trande.de>
+
+	* btrace.c (ftrace_remove_last_insn): New.
+	* btrace.c (cs_etm_get_etmv3_config): New.
+	* btrace.c (cs_etm_get_etmv4_config): New.
+	* btrace.c (cs_etm_update_btrace_with_inst_range): New.
+	* btrace.c (cs_etm_update_btrace_with_exception): New.
+	* btrace.c (cs_etm_update_btrace_with_trace_on): New.
+	* btrace.c (cs_etm_trace_element_callback): New.
+	* btrace.c (cs_etm_create_decoder): New.
+	* btrace.c (cs_etm_free_decoder): New.
+	* btrace.c (btrace_etm_readmem_callback): New.
+	* btrace.c (cs_etm_add_mem_access_callback): New.
+	* btrace.c (cs_etm_process_data_block): New.
+	* btrace.c (btrace_print_all): New.
+	* btrace.c (btrace_compute_ftrace_etm): New.
+	* btrace.c (btrace_compute_ftrace_1): add handling of CoreSight traces.
+	* btrace.c (btrace_enable): add error message if ETM unavailable.
+	* btrace.c (btrace_stitch_trace): add handling of CoreSight traces.
+	* btrace.c (maint_info_btrace_cmd): add handling of CoreSight trace 
+	format.
+	* btrace.h (record_btrace_reg_entry): new.
+	* btrace.h (btrace_insn): add a vector of record_btrace_reg_entry.
+	* record-btrace.c (record_btrace_target::fetch_registers): fetch 
+	registers from insn->registers when available
+
+2021-02-02  Zied Guermazi  <zied.guermazi@trande.de>
 
 	* record-btrace.c (record_btrace_print_etm_conf): New.
 	* record-btrace.c (record_btrace_print_conf): handle BTRACE_FORMAT_ETM.
@@ -9,7 +35,7 @@
 	* record-btrace.c (_initialize_record_btrace): add commands for ETM traces.
 	* record.c (record_start): add starting ETM traces.
 
-2021-02-02  Zied Guermazi  <zied.guermazi@trande.de>
+2021-02-01  Zied Guermazi  <zied.guermazi@trande.de>
 
 	* Makefile.in LIBOPENCSD_C_API: set the flag.
 	* config.in LIBOPENCSD_C_API: undefine it if

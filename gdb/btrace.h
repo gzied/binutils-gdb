@@ -34,6 +34,12 @@
 #  include <intel-pt.h>
 #endif
 
+#if defined (HAVE_LIBOPENCSD_C_API)
+#  include <opencsd/c_api/opencsd_c_api.h>
+#  include <opencsd/etmv4/trc_pkt_types_etmv4.h>
+#  include <opencsd/ocsd_if_types.h>
+#endif
+
 #include <vector>
 
 struct thread_info;
@@ -63,6 +69,17 @@ enum btrace_insn_flag
 };
 DEF_ENUM_FLAGS_TYPE (enum btrace_insn_flag, btrace_insn_flags);
 
+/* extend MAX_BTRACE_REGISTER_SIZE if targets with registers 
+bigger than 64 bits are considered  */
+#define MAX_BTRACE_REGISTER_SIZE 8 
+/* a register entry in btrace_insn*/
+struct record_btrace_reg_entry
+{
+  unsigned short num;
+  unsigned short len;
+  gdb_byte buffer[MAX_BTRACE_REGISTER_SIZE * sizeof (gdb_byte )]; 
+};
+
 /* A branch trace instruction.
 
    This represents a single instruction in a branch trace.  */
@@ -73,6 +90,9 @@ struct btrace_insn
 
   /* The size of this instruction in bytes.  */
   gdb_byte size;
+
+  /* a vector of registers */
+  std::vector<record_btrace_reg_entry> registers;
 
   /* The instruction class of this instruction.  */
   enum btrace_insn_class iclass;

@@ -157,7 +157,6 @@ struct btrace_config
 
   /* The ARM CoreSight ETM Trace configuration.  */
   struct btrace_config_etm etm;
-
 };
 
 /* Branch trace in BTS format.  */
@@ -187,6 +186,102 @@ struct btrace_data_pt
 
   /* The size of DATA in bytes.  */
   size_t size;
+};
+
+struct cs_etmv3_trace_params {
+  uint32_t reg_ctrl;
+  uint32_t reg_trc_id;
+  uint32_t reg_ccer;
+  uint32_t reg_idr;
+};
+
+struct cs_etmv4_trace_params {
+  uint32_t reg_idr0;
+  uint32_t reg_idr1;
+  uint32_t reg_idr2;
+  uint32_t reg_idr8;
+  uint32_t reg_configr;
+  uint32_t reg_traceidr;
+};
+
+/* The following enums are indexed starting with 1 to align with the
+   open source coresight trace decoder library (opencsd).  */
+enum {
+  CS_ETM_PROTO_ETMV3 = 1,
+  CS_ETM_PROTO_ETMV4i,
+  CS_ETM_PROTO_ETMV4d,
+  CS_ETM_PROTO_PTM,
+};
+
+/* The following enum must be aligned with the
+   open source coresight trace decoder library (opencsd).  */
+
+/* Core Architecture Version  */
+enum {
+    ARCHITECTURE_UNKNOWN,   /* unknown architecture  */
+    ARCHITECTURE_CUSTOM,    /* None ARM, custom architecture  */
+    ARCHITECTURE_V7,        /* V7 architecture  */
+    ARCHITECTURE_V8,        /* V8 architecture  */
+    ARCHITECTURE_V8r3,      /* V8.3 architecture  */
+};
+
+/* The following enum must be aligned with the
+   open source coresight trace decoder library (opencsd).  */
+
+/* Core Profile  */
+enum {
+    PROFILE_UNKNOWN,     /* Unknown profile  */
+    PROFILE_CORTEX_M,    /* Cortex-M profile  */
+    PROFILE_CORTEX_R,    /* Cortex-R profile  */
+    PROFILE_CORTEX_A,    /* Cortex-A profile  */
+    PROFILE_CUSTOM,      /* None ARM, custom arch profile  */
+};
+
+/* parameters of trace source  */
+struct cs_etm_trace_params {
+  struct btrace_cpu cpu;
+  int arch_ver;
+  int core_profile;
+  int protocol;
+  union {
+    struct cs_etmv3_trace_params etmv3;
+    struct cs_etmv4_trace_params etmv4;
+  };
+};
+
+/* parameters of trace sink/decoder  */
+struct cs_etm_decoder_params {
+  uint8_t formatted    :1,
+  fsyncs           :1,
+  hsyncs           :1,
+  frame_aligned    :1,
+  reset_on_4x_sync :1,
+  __res            :3;
+};
+
+/* Configuration information to go with the etm trace data.  */
+struct btrace_data_etm_config
+{
+  /* The number of cpu (trace sources).  */
+  int    num_cpu;
+  std::vector<struct cs_etm_trace_params> *etm_trace_params;
+  struct cs_etm_decoder_params etm_decoder_params;
+};
+
+/* Branch trace in arm Processor Trace format.  */
+struct btrace_data_etm
+{
+  /* Some configuration information to go with the data.  */
+  struct btrace_data_etm_config config;
+
+  /* The trace data.  */
+  gdb_byte *data;
+
+  /* The size of DATA in bytes.  */
+  size_t size;
+
+  /* trace id for this thread. set to 0xFF to ignore it during parsing  */
+  int trace_id;
 };
 
 /* The branch trace data.  */
@@ -226,6 +321,9 @@ struct btrace_data
 
     /* Format == BTRACE_FORMAT_PT.  */
     struct btrace_data_pt pt;
+    
+    /* Format == BTRACE_FORMAT_ETM.  */
+    struct btrace_data_etm etm;
   } variant;
 
 private:
