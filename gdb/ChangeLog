@@ -1,3 +1,37 @@
+2021-02-04  Zied Guermazi  <zied.guermazi@trande.de>
+
+	* nat/linux-btrace.h (btrace_tinfo_etm): New.
+	* nat/linux-btrace.h (btrace_target_info): add etm.
+	* nat/linux-btrace.c (perf_event_read_available): New.
+	* nat/linux-btrace.c (linux_enable_bts): get page size from sysconf.
+	* nat/linux-btrace.c (linux_enable_pt): get page size from sysconf.
+	* nat/linux-btrace.c (perf_event_etm_event_type): New.
+	* nat/linux-btrace.c (perf_event_etm_event_sink): New.
+	* nat/linux-btrace.c (linux_enable_etm): New.
+	* nat/linux-btrace.c (linux_enable_btrace): add enabling etm traces.
+	* nat/linux-btrace.c (linux_disable_bts): get page size from sysconf.
+	* nat/linux-btrace.c (linux_disable_pt): get page size from sysconf.
+	* nat/linux-btrace.c (linux_disable_etm): New.
+	* nat/linux-btrace.c (linux_disable_btrace): add disabling etm traces.
+	* nat/linux-btrace.c (get_cpu_count): New.
+	* nat/linux-btrace.c (cs_etm_is_etmv4): New.
+	* nat/linux-btrace.c (cs_etm_get_register): New.
+	* nat/linux-btrace.c (coresight_get_trace_id): New.
+	* nat/linux-btrace.c (fill_etm_trace_params): New.
+	* nat/linux-btrace.c (linux_fill_btrace_etm_config): New.
+	* nat/linux-btrace.c (linux_read_etm): New.
+	* nat/linux-btrace.c (linux_read_btrace): add reading etm traces.
+	* arm-linux-nat.c (arm_linux_nat_target::enable_btrace): New.
+	* arm-linux-nat.c (arm_linux_nat_target::disable_btrace): New.
+	* arm-linux-nat.c (arm_linux_nat_target::teardown_btrace): New.
+	* arm-linux-nat.c (arm_linux_nat_target::read_btrace): New.
+	* arm-linux-nat.c (arm_linux_nat_target::btrace_conf): New.
+	* aarch64-linux-nat.c (aarch64_linux_nat_target::enable_btrace): New.
+	* aarch64-linux-nat.c (aarch64_linux_nat_target::disable_btrace): New.
+	* aarch64-linux-nat.c (aarch64_linux_nat_target::teardown_btrace): New.
+	* aarch64-linux-nat.c (aarch64_linux_nat_target::read_btrace): New.
+	* aarch64-linux-nat.c (aarch64_linux_nat_target::btrace_conf): New.
+
 2021-02-03  Zied Guermazi  <zied.guermazi@trande.de>
 
 	* btrace.c (ftrace_remove_last_insn): New.
