@@ -36,7 +36,10 @@ btrace_format_string (enum btrace_format format)
 
     case BTRACE_FORMAT_PT:
       return _("Intel Processor Trace");
-    }
+    
+    case BTRACE_FORMAT_ETM:
+      return _("ARM Processor CoreSight ETM Trace");
+  }
 
   internal_error (__FILE__, __LINE__, _("Unknown branch trace format"));
 }
@@ -56,6 +59,10 @@ btrace_format_short_string (enum btrace_format format)
 
     case BTRACE_FORMAT_PT:
       return "pt";
+    
+    case BTRACE_FORMAT_ETM:
+      return "etm";
+
     }
 
   internal_error (__FILE__, __LINE__, _("Unknown branch trace format"));

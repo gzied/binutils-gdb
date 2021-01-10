@@ -1,3 +1,14 @@
+2021-02-02  Zied Guermazi  <zied.guermazi@trande.de>
+
+	* gdbsupport/btrace-common.h (btrace_format): add BTRACE_FORMAT_ETM 
+	to the enum.
+	* gdbsupport/btrace-common.h (btrace_cpu_vendor): add CV_ARM to the enum.
+	* gdbsupport/btrace-common.h (btrace_config_etm): new struct.
+	* gdbsupport/btrace-common.h (btrace_config): add btrace_config_etm etm.
+	* gdbsupport/btrace-common.cc (btrace_format_string): add BTRACE_FORMAT_ETM.
+	* gdbsupport/btrace-common.cc (btrace_format_short_string): add 
+	BTRACE_FORMAT_ETM.
+
 2021-02-01  Zied Guermazi  <zied.guermazi@trande.de>
 
 	* gdbsupport/common.m4: check --with-arm-cs configuration

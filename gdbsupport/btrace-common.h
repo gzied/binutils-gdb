@@ -63,7 +63,10 @@ enum btrace_format
   BTRACE_FORMAT_BTS,
 
   /* Branch trace is in Intel Processor Trace format.  */
-  BTRACE_FORMAT_PT
+  BTRACE_FORMAT_PT,
+
+  /* Branch trace is ARM CoreSight ETM format.  */
+  BTRACE_FORMAT_ETM
 };
 
 /* An enumeration of cpu vendors.  */
@@ -77,7 +80,10 @@ enum btrace_cpu_vendor
   CV_INTEL,
 
   /* AMD.  */
-  CV_AMD
+  CV_AMD,
+
+  /* ARM. */
+  CV_ARM
 };
 
 /* A cpu identifier.  */
@@ -119,6 +125,18 @@ struct btrace_config_pt
   unsigned int size;
 };
 
+/* An ARM CoreSight ETM Trace configuration.  */
+
+struct btrace_config_etm
+{
+  /* The size of the branch trace buffer in bytes.
+
+     This is unsigned int and not size_t since it is registered as
+     control variable for "set record btrace etm buffer-size".  */
+  unsigned int size;
+  char *sink;
+};
+
 /* A branch tracing configuration.
 
    This describes the requested configuration as well as the actually
@@ -136,6 +154,10 @@ struct btrace_config
 
   /* The Intel Processor Trace format configuration.  */
   struct btrace_config_pt pt;
+
+  /* The ARM CoreSight ETM Trace configuration.  */
+  struct btrace_config_etm etm;
+
 };
 
 /* Branch trace in BTS format.  */

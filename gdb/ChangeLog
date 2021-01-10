@@ -1,5 +1,16 @@
 2021-02-01  Zied Guermazi  <zied.guermazi@trande.de>
 
+	* record-btrace.c (record_btrace_print_etm_conf): New.
+	* record-btrace.c (record_btrace_print_conf): handle BTRACE_FORMAT_ETM.
+	* record-btrace.c (cmd_record_btrace_etm_start): New.
+	* record-btrace.c (cmd_record_btrace_start): handle starting ETM tracing.
+	* record-btrace.c (cmd_show_record_btrace_cpu): extend for ARM cpus.
+	* record-btrace.c (show_record_etm_buffer_size_value): New.
+	* record-btrace.c (_initialize_record_btrace): add commands for ETM traces.
+	* record.c (record_start): add starting ETM traces.
+
+2021-02-02  Zied Guermazi  <zied.guermazi@trande.de>
+
 	* Makefile.in LIBOPENCSD_C_API: set the flag.
 	* config.in LIBOPENCSD_C_API: undefine it if
 	libopenocsd library is available.

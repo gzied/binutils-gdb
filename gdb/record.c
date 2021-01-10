@@ -118,6 +118,8 @@ record_start (const char *method, const char *format, int from_tty)
 	execute_command_to_string ("record btrace bts", from_tty, false);
       else if (strcmp (format, "pt") == 0)
 	execute_command_to_string ("record btrace pt", from_tty, false);
+      else if (strcmp (format, "etm") == 0)
+	execute_command_to_string ("record btrace etm", from_tty, false);
       else
 	error (_("Invalid format."));
     }
@@ -766,8 +768,8 @@ _initialize_record ()
 			     _("Show debugging of record/replay feature."),
 			     _("When enabled, debugging output for "
 			       "record/replay feature is displayed."),
-			     NULL, show_record_debug, &setdebuglist,
-			     &showdebuglist);
+			       NULL, show_record_debug, &setdebuglist,
+			       &showdebuglist);
 
   add_setshow_uinteger_cmd ("instruction-history-size", no_class,
 			    &record_insn_history_size_setshow_var, _("\
