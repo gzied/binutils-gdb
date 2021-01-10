@@ -1,3 +1,9 @@
+2021-02-01  Zied Guermazi  <zied.guermazi@trande.de>
+
+	* gdbsupport/common.m4: check --with-arm-cs configuration
+	flag, perf_event and opencsd_c_api to set compilation flags.
+	* gdbsupport/configure: Regenerated
+
 2021-01-08  Simon Marchi  <simon.marchi@polymtl.ca>
 
 	PR gdb/27157

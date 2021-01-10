@@ -1,3 +1,14 @@
+2021-02-01  Zied Guermazi  <zied.guermazi@trande.de>
+
+	* Makefile.in LIBOPENCSD_C_API: set the flag.
+	* config.in LIBOPENCSD_C_API: undefine it if
+	libopenocsd library is available.
+	* configure: Regenerated.
+	* configure.nat: add nat/linux-btrace.o to the build
+	for aarch64 and arm
+	* top.c (print_gdb_configuration): add --with-arm-cs 
+	or --without-arm-cs according to the configuration.
+
 2021-01-15  Andrew Burgess  <andrew.burgess@embecosm.com>
 
 	* tui/tui.c (tui_is_window_visible): Compare to nullptr, not 0.

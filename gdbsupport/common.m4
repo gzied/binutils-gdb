@@ -186,6 +186,45 @@ AC_DEFUN([GDB_AC_COMMON], [
     fi
   fi
 
+  # ARM CoreSight trace       #
+
+  AC_ARG_WITH(arm_cs,
+    AS_HELP_STRING([--with-arm-cs], [include ARM CoreSight Processor Trace support (auto/yes/no)]),
+    [], [with_arm_cs=auto])
+  AC_MSG_CHECKING([whether to use ARM CoreSight Processor Trace ])
+  AC_MSG_RESULT([$with_arm_cs])
+
+  if test "${with_arm_cs}" = no; then
+    AC_MSG_WARN([ARM CoreSight Processor Trace support disabled; CoreSight Tracing will be unavailable.])
+    HAVE_LIBOPENCSD=no
+  else
+    AC_PREPROC_IFELSE([AC_LANG_SOURCE([[
+  #include <linux/perf_event.h>
+  #ifndef PERF_ATTR_SIZE_VER5
+  # error
+  #endif
+    ]])], [perf_event=yes], [perf_event=no])
+    if test "$perf_event" != yes; then
+      if test "$" = yes; then
+        AC_MSG_ERROR([linux/perf_event.h missing or too old])
+      else
+        AC_MSG_WARN([linux/perf_event.h missing or too old; CoreSight Tracing will be unavailable.])
+      fi
+    fi
+
+    AC_LIB_HAVE_LINKFLAGS([opencsd_c_api], [], [#include "opencsd/c_api/opencsd_c_api.h"], [ocsd_get_version();])
+    if test "$HAVE_LIBOPENCSD_C_API" != yes; then
+      if test "$" = yes; then
+        AC_MSG_ERROR([libopencsd_c_api is missing or unusable])
+      else
+        AC_MSG_WARN([libopencsd_c_api is missing or unusable; CoreSight Tracing will be unavailable.])
+      fi
+    else
+      LIBS="$LIBS $LIBOPENCSD_C_API"
+    fi
+  fi
+
+
   BFD_SYS_PROCFS_H
   if test "$ac_cv_header_sys_procfs_h" = yes; then
     BFD_HAVE_SYS_PROCFS_TYPE(gregset_t)
