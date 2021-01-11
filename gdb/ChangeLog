@@ -1,3 +1,36 @@
+2021-02-07  Zied Guermazi  <zied.guermazi@trande.de>
+
+	* testsuite/lib/gdb.exp (skip_btrace_tests): enable btrace tests
+	for arm.
+	* testsuite/gdb.btrace/buffer-size.exp: enable btrace tests
+	and adapt test for arm.
+	* testsuite/gdb.btrace/delta.exp (check_trace): enable btrace tests
+	and adapt test for arm.
+	* testsuite/gdb.btrace/instruction_history.exp: enable btrace tests
+	and adapt tests for arm.
+	* testsuite/gdb.btrace/instruction_history.S: renamed to
+	x86-instruction_history.S
+	* testsuite/gdb.btrace/aarch64-instruction_history.S: New.
+	* testsuite/gdb.btrace/arm-instruction_history.S: New
+	* testsuite/gdb.btrace/non-stop.exp: enable btrace tests
+	and adapt tests for arm.
+	* testsuite/gdb.btrace/reconnect.exp: enable btrace tests
+	and adapt tests for arm.
+	* testsuite/gdb.btrace/record_goto.exp: enable btrace tests
+	and adapt tests for arm.
+	* testsuite/gdb.btrace/aarch64-record_goto.S: New.
+	* testsuite/gdb.btrace/arm-record_goto.S: New.
+	* testsuite/gdb.btrace/stepi.exp: enable btrace tests
+	and adapt tests for arm.
+	* testsuite/gdb.btrace/tailcall.exp: enable btrace tests
+	and adapt tests for arm.
+	* testsuite/gdb.btrace/aarch64-tailcall.S: New.
+	* testsuite/gdb.btrace/arm-tailcall.S: New.
+	* testsuite/gdb.btrace/tailcall-only.exp: enable btrace tests
+	and adapt tests for arm.
+	* testsuite/gdb.btrace/aarch64-tailcall-only.S: New.
+	* testsuite/gdb.btrace/arm-tailcall-only.S: New.
+
 2021-02-06  Zied Guermazi  <zied.guermazi@trande.de>
 
 	* btrace.c (check_xml_btrace_version): add version 1.1

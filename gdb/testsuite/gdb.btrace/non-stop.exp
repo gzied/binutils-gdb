@@ -31,6 +31,12 @@ save_vars { GDBFLAGS } {
     clean_restart $testfile
 }
 
+if {[istarget "i?86-*-*"] || [istarget "x86_64-*-*"]} {
+    set loop_position 2
+} elseif {[istarget "arm*-*-*"] || [istarget "aarch64*-*-*"]} {
+    set loop_position 3
+}
+
 if ![runto_main] {
     untested "failed to run to main"
     return -1
@@ -111,87 +117,99 @@ gdb_test "thread apply all info rec" ".*"
 gdb_test "info threads" ".*"
 
 with_test_prefix "navigate" {
-    gdb_test "thread apply 1 record goto 2" "$loop_line"
-    gdb_test "thread apply 2 record goto 4" "$loop_line"
+    gdb_test "thread apply 1 record goto $loop_position" "$loop_line"
+    gdb_test "thread apply 2 record goto [expr {$loop_position + 2}]" "$loop_line"
     gdb_test "thread apply 1 info record" \
-        ".*Replay in progress\.  At instruction 2\." "thread 1 at insn 2"
+        ".*Replay in progress\.  At instruction $loop_position\." "thread 1 at insn $loop_position"
     gdb_test "thread apply 2 info record" \
-        ".*Replay in progress\.  At instruction 4\." "thread 2 at insn 4"
+        ".*Replay in progress\.  At instruction [expr {$loop_position + 2}]\." "thread 2 at insn [expr {$loop_position + 2}]"
 
-    gdb_test "thread apply all record goto 5" "$loop_line"
+    gdb_test "thread apply all record goto [expr {$loop_position + 3}]" "$loop_line"
     gdb_test "thread apply 1 info record" \
-        ".*Replay in progress\.  At instruction 5\." "thread 1 at insn 5"
+        ".*Replay in progress\.  At instruction [expr {$loop_position + 3}]\." "thread 1 at insn [expr {$loop_position + 3}]"
     gdb_test "thread apply 2 info record" \
-        ".*Replay in progress\.  At instruction 5\." "thread 2 at insn 5"
+        ".*Replay in progress\.  At instruction [expr {$loop_position + 3}]\." "thread 2 at insn [expr {$loop_position + 3}]"
 }
 
 with_test_prefix "step" {
+    with_test_prefix "fixture" {
+	gdb_test "thread apply 1 record goto [expr {$loop_position + 3}]" ".*"
+	gdb_test "thread apply 2 record goto [expr {$loop_position + 3}]" ".*"
+    }
     with_test_prefix "thread 1" {
         gdb_test "thread apply 1 stepi 2" "$loop_line"
         gdb_test "thread apply 1 info record" \
-            ".*Replay in progress\.  At instruction 7\."
+            ".*Replay in progress\.  At instruction [expr {$loop_position + 5}]\."
         gdb_test "thread apply 2 info record" \
-            ".*Replay in progress\.  At instruction 5\."
+            ".*Replay in progress\.  At instruction [expr {$loop_position + 3}]\."
     }
 
     with_test_prefix "thread 2" {
         gdb_test "thread apply 2 stepi 3" "$loop_line"
         gdb_test "thread apply 1 info record" \
-            ".*Replay in progress\.  At instruction 7\."
+            ".*Replay in progress\.  At instruction [expr {$loop_position + 5}]\."
         gdb_test "thread apply 2 info record" \
-            ".*Replay in progress\.  At instruction 8\."
+            ".*Replay in progress\.  At instruction [expr {$loop_position + 6}]\."
     }
 
     with_test_prefix "all" {
         gdb_cont_to all "stepi 4" "$loop_line" 2
         gdb_test "thread apply 1 info record" \
-            ".*Replay in progress\.  At instruction 11\."
+            ".*Replay in progress\.  At instruction [expr {$loop_position + 9}]\."
         gdb_test "thread apply 2 info record" \
-            ".*Replay in progress\.  At instruction 12\."
+            ".*Replay in progress\.  At instruction [expr {$loop_position + 10}]\."
     }
 }
 
 with_test_prefix "reverse-step" {
+    with_test_prefix "fixture" {
+        gdb_test "thread apply 1 record goto [expr {$loop_position + 9}]" ".*"
+        gdb_test "thread apply 2 record goto [expr {$loop_position + 10}]" ".*"
+    }
     with_test_prefix "thread 1" {
         gdb_test "thread apply 1 reverse-stepi 2" "$loop_line"
         gdb_test "thread apply 1 info record" \
-            ".*Replay in progress\.  At instruction 9\."
+            ".*Replay in progress\.  At instruction [expr {$loop_position + 7}]\."
         gdb_test "thread apply 2 info record" \
-            ".*Replay in progress\.  At instruction 12\."
+            ".*Replay in progress\.  At instruction [expr {$loop_position + 10}]\."
     }
 
     with_test_prefix "thread 2" {
         gdb_test "thread apply 2 reverse-stepi 3" "$loop_line"
         gdb_test "thread apply 1 info record" \
-            ".*Replay in progress\.  At instruction 9\."
+            ".*Replay in progress\.  At instruction [expr {$loop_position + 7}]\."
         gdb_test "thread apply 2 info record" \
-            ".*Replay in progress\.  At instruction 9\."
+            ".*Replay in progress\.  At instruction [expr {$loop_position + 7}]\."
     }
 
     with_test_prefix "all" {
         gdb_cont_to all "reverse-stepi 4" "$loop_line" 2
         gdb_test "thread apply 1 info record" \
-            ".*Replay in progress\.  At instruction 5\."
+            ".*Replay in progress\.  At instruction [expr {$loop_position + 3}]\."
         gdb_test "thread apply 2 info record" \
-            ".*Replay in progress\.  At instruction 5\."
+            ".*Replay in progress\.  At instruction [expr {$loop_position + 3}]\."
     }
 }
 
 with_test_prefix "continue" {
+    with_test_prefix "fixture" {
+	gdb_test "thread apply 1 record goto [expr {$loop_position + 3}]" ".*"
+	gdb_test "thread apply 2 record goto [expr {$loop_position + 3}]" ".*"
+    }
     with_test_prefix "thread 1" {
 	with_test_prefix "continue" {
 	    gdb_cont_to_no_history 1 "continue" 1
 	    gdb_test "thread apply 1 info record" \
 		".*Recorded \[0-9\]+ instructions \[^\\\r\\\n\]*"
 	    gdb_test "thread apply 2 info record" \
-		".*Replay in progress\.  At instruction 5\."
+		".*Replay in progress\.  At instruction [expr {$loop_position + 3}]\."
 	}
 	with_test_prefix "reverse-continue" {
 	    gdb_cont_to_no_history 1 "reverse-continue" 1
 	    gdb_test "thread apply 1 info record" \
 		".*Replay in progress\.  At instruction 1\."
 	    gdb_test "thread apply 2 info record" \
-		".*Replay in progress\.  At instruction 5\."
+		".*Replay in progress\.  At instruction [expr {$loop_position + 3}]\."
 	}
     }
 
