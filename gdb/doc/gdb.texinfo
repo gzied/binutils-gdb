@@ -7439,15 +7439,19 @@ For architecture environments that support process record and replay,
 @kindex record btrace
 @kindex record btrace bts
 @kindex record btrace pt
+@kindex record btrace etm
 @kindex record bts
 @kindex record pt
+@kindex record etm
 @kindex rec
 @kindex rec full
 @kindex rec btrace
 @kindex rec btrace bts
 @kindex rec btrace pt
+@kindex rec btrace etm
 @kindex rec bts
 @kindex rec pt
+@kindex rec etm
 @item record @var{method}
 This command starts the process record and replay target.  The
 recording method can be specified as parameter.  Without a parameter
@@ -7461,7 +7465,7 @@ replay implementation.  This method allows replaying and reverse
 execution.
 
 @item btrace @var{format}
-Hardware-supported instruction recording, supported on Intel
+Hardware-supported instruction recording, supported on Intel and ARM
 processors.  This method does not record data.  Further, the data is
 collected in a ring buffer so old data will be overwritten when the
 buffer is full.  It allows limited reverse execution.  Variables and
@@ -7495,6 +7499,13 @@ Decoding the recorded execution trace, on the other hand, is more
 expensive than decoding @acronym{BTS} trace.  This is mostly due to the
 increased number of instructions to process.  You should increase the
 buffer-size with care.
+
+@item etm
+@cindex ARM CoreSight ETM Trace 
+Use the @dfn{ARM CoreSight ETM Trace} recording format.  In this
+format, the processor stores the execution trace in a compressed form
+that is afterwards decoded by @value{GDBN}.
+
 @end table
 
 Not all recording formats may be available on all processors.
@@ -7642,6 +7653,11 @@ and to read-write memory.  Beware that the accessed memory corresponds
 to the live target and not necessarily to the current replay
 position.
 
+@item set record btrace etm sink @var{sink}
+Set ARM CoreSight ETM sink to collect traces. 
+possible values for @var{sink} can be found by listing the folder 
+/sys/bus/event_source/devices/cs_etm/sinks/
+
 @item set record btrace cpu @var{identifier}
 Set the processor to be used for enabling workarounds for processor
 errata when decoding the trace.
@@ -7705,6 +7721,9 @@ Recorded 84872 instructions in 3189 functions (0 gaps) for thread 1 (...).
 @item show record btrace replay-memory-access
 Show the current setting of @code{replay-memory-access}.
 
+@item show record btrace etm sink 
+show ARM CoreSight ETM sink . 
+
 @item show record btrace cpu
 Show the processor to be used for enabling trace decode errata
 workarounds.
@@ -7756,6 +7775,29 @@ also need longer to process the branch trace data before it can be used.
 Show the current setting of the requested ring buffer size for branch
 tracing in Intel Processor Trace format.
 
+@kindex set record btrace etm
+@item set record btrace etm buffer-size @var{size}
+@itemx set record btrace etm buffer-size unlimited
+Set the requested ring buffer size for branch tracing in ARM 
+CoreSight ETM Trace format.  Default is 16KB.
+
+If @var{size} is a positive number, then @value{GDBN} will try to
+allocate a buffer of at least @var{size} bytes for each new thread
+that uses the btrace recording method and the Intel Processor Trace
+format.  The actually obtained buffer size may differ from the
+requested @var{size}.  Use the @code{info record} command to see the
+actual buffer size for each thread.
+
+If @var{limit} is @code{unlimited} or zero, @value{GDBN} will try to
+allocate a buffer of 4MB.
+
+Bigger buffers mean longer traces.  On the other hand, @value{GDBN} will
+also need longer to process the branch trace data before it can be used.
+
+@item show record btrace etm buffer-size @var{size}
+Show the current setting of the requested ring buffer size for branch
+tracing in ARM CoreSight ETM Trace format.
+
 @kindex info record
 @item info record
 Show various statistics about the recording depending on the recording
@@ -7803,6 +7845,12 @@ Size of the perf ring buffer.
 @end itemize
 
 For the @code{pt} recording format, it also shows:
+@itemize @bullet
+@item
+Size of the perf ring buffer.
+@end itemize
+
+For the @code{etm} recording format, it also shows:
 @itemize @bullet
 @item
 Size of the perf ring buffer.
@@ -38583,6 +38631,17 @@ Newer packets have higher numbers.  The oldest packet has number zero.
 The packet's offset in the trace stream.
 @item Packet opcode and payload
 @end table
+
+@item etm
+For the ARM CoreSight ETM Trace recording format, print a list of
+ARM CoreSight ETM Trace packets.  For each packet, the following
+information is printed:
+
+@table @asis
+@item Packet number
+Newer packets have higher numbers.  The oldest packet has number zero.
+@item Packet opcode and payload
+@end table
 @end table
 
 @kindex maint btrace clear-packet-history
@@ -41614,6 +41673,21 @@ These are the currently defined stub features and their properties:
 @tab @samp{-}
 @tab No
 
+@item @samp{Qbtrace:etm}
+@tab Yes
+@tab @samp{-}
+@tab Yes
+
+@item @samp{Qbtrace-conf:etm:size}
+@tab Yes
+@tab @samp{-}
+@tab Yes
+
+
+@item @samp{Qbtrace-conf:etm:sink}
+@tab Yes
+@tab @samp{-}
+@tab Yes
 @end multitable
 
 These are the currently defined stub features, in more detail:
@@ -41827,6 +41901,15 @@ The remote stub understands the @samp{QThreadEvents} packet.
 
 @item no-resumed
 The remote stub reports the @samp{N} stop reply.
+
+@item Qbtrace:etm
+The remote stub understands the @samp{Qbtrace:etm} packet.
+
+@item Qbtrace-conf:etm:size
+The remote stub understands the @samp{Qbtrace-conf:etm:size} packet.
+
+@item Qbtrace-conf:etm:sink
+The remote stub understands the @samp{Qbtrace-conf:etm:sink} packet.
 
 @end table
 
@@ -42290,6 +42373,40 @@ The ring buffer size has been set.
 A badly formed request or an error was encountered.
 @end table
 
+@item Qbtrace:etm
+Enable branch tracing for the current thread using ARM CoreSight ETM Trace.
+
+Reply:
+@table @samp
+@item OK
+Branch tracing has been enabled.
+@item E.errtext
+A badly formed request or an error was encountered.
+@end table
+
+@item Qbtrace-conf:etm:size=@var{value}
+Set the requested ring buffer size for new threads that use the
+btrace recording method in etm format.
+
+Reply:
+@table @samp
+@item OK
+The ring buffer size has been set.
+@item E.errtext
+A badly formed request or an error was encountered.
+@end table
+
+@item Qbtrace-conf:etm:sink=@var{value}
+Set the requested trace sink for new threads that use the
+btrace recording method in etm format.
+
+Reply:
+@table @samp
+@item OK
+The ring buffer size has been set.
+@item E.errtext
+A badly formed request or an error was encountered.
+@end table
 @end table
 
 @node Architecture-Specific Protocol Details

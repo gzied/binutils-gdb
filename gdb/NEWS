@@ -2,6 +2,7 @@
 	     (Organized release by release)
 
 *** Changes since GDB 10
+* Record btrace now  supports using ARM CoreSight ETM traces.
 
 * Building GDB now requires GMP (The GNU Multiple Precision Arithmetic
   Library).
@@ -34,6 +35,21 @@
   name following a GNAT-specific format).
 
 * New commands
+
+record btrace etm
+record etm
+  Start branch trace recording using ARM CoreSight trace format (ETM).
+
+set|show record btrace etm buffer-size
+  Set and show the size of the ring buffer used for branch tracing in
+  ETM format.
+  The obtained size may differ from the requested size.  Use "info
+  record" to see the obtained buffer size.
+
+set|show record btrace etm sink
+  Set and show the trace sink used for branch tracing in
+  ETM format.
+  use default to revert it to default sink
 
 set debug event-loop
 show debug event-loop
@@ -74,6 +90,20 @@ maintenance flush-symbol-cache
   These commands are deprecated in favor of the new commands
   'maintenance flush register-cache' and 'maintenance flush
   symbol-cache' respectively.
+
+* New remote packets
+
+Qbtrace:etm
+  Enable ARM CoreSight ETM Trace-based branch tracing for the current
+  process.  The remote stub reports support for this packet to GDB's
+  qSupported query.
+
+Qbtrace-conf:etm:size
+  Set the requested ring buffer size for branch tracing in
+  ARM CoreSight ETM Trace format.
+
+Qbtrace-conf:etm:sink
+  Set the trace sink for branch tracing in ARM CoreSight ETM Trace format.
 
 *** Changes in GDB 10
 
