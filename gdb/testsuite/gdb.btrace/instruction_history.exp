@@ -22,7 +22,7 @@ if { [skip_btrace_tests] } {
     return -1
 }
 if { [istarget "i?86-*-*"] || [istarget "x86_64-*-*"] } {
-  standard_testfile instruction_history.c intel_instruction_history.S
+  standard_testfile instruction_history.c x86-instruction_history.S
 } elseif { [istarget "arm*-*-*"] } {
   standard_testfile instruction_history.c arm_instruction_history.S
 } elseif { [istarget "aarch64-*-*"]} {
