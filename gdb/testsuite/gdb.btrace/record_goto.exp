@@ -43,6 +43,8 @@ if [info exists COMPILE] {
 	}
 } elseif {[istarget "arm*-*-*"]} {
 	standard_testfile arm-record_goto.S
+} elseif {[istarget "aarch64*-*-*"]} {
+	standard_testfile aarch64-record_goto.S
 } else {
     unsupported "target architecture not supported"
     return -1
@@ -92,7 +94,7 @@ if {[istarget "i?86-*-*"] || [istarget "x86_64-*-*"]} {
     set sequence_begin(16) 39
     set sequence_end(16) 40
 
-} elseif {[istarget "arm*-*-*"]} {
+} elseif {[istarget "arm*-*-*"] || [istarget "aarch64*-*-*"]} {
     set function_positions(0) 23
     set function_positions(1) 33
     set function_positions(2) 2
@@ -257,7 +259,6 @@ gdb_test "record function-call-history /ci" [multi_line \
   ] "function-call-history from end forwards"
 
 # check that we're filling up the context correctly
-#adapt it for arm, last instruction is  at pos 48
 gdb_test "record instruction-history" [multi_line \
   "[expr {$function_positions(end) - 2}].*" \
   "[expr {$function_positions(end) - 1}].*" \

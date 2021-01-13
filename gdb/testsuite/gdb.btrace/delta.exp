@@ -62,7 +62,7 @@ proc check_trace {} {
     gdb_test "record instruction-history /f 1" \
       "1\t   0x\[0-9a-f\]+ <\\+\[0-9\]+>:\tmov *\\\$0x0,%eax\r"
   }
-  if { [istarget "arm*-*-*"] } {
+  if { [istarget "arm*-*-*"] || [istarget "aarch64-*-*"]} {
     gdb_test "record instruction-history /f 1" \
       "1\t   0x\[0-9a-f\]+ <\\+\[0-9\]+>:\tmovs\tr3, #0\r"
   }

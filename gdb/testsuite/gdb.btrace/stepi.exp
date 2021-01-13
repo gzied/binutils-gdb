@@ -41,6 +41,8 @@ if [info exists COMPILE] {
 	}
 } elseif {[istarget "arm*-*-*"]} {
 	standard_testfile arm-record_goto.S
+} elseif {[istarget "aarch64*-*-*"]} {
+	standard_testfile aarch64-record_goto.S
 } else {
     unsupported "target architecture not supported"
     return -1
@@ -66,7 +68,7 @@ if {[istarget "i?86-*-*"] || [istarget "x86_64-*-*"]} {
     set instruction_position(11) 1
     set instruction_position(12) 2
     set instruction_position(13) 1
-} elseif {[istarget "arm*-*-*"]} {
+} elseif {[istarget "arm*-*-*"] || [istarget "aarch64-*-*"]} {
     set instructions_count 48
     set instruction_position(0) 47
     set instruction_position(1) 48

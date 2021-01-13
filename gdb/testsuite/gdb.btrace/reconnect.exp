@@ -28,7 +28,7 @@ if { [skip_gdbserver_tests] } {
     return -1
 }
 
-if {[istarget "arm*-*-*"]} {
+if {[istarget "arm*-*-*"] || [istarget "aarch64-*-*"]} {
     unsupported "btrace support in gdbserver for arm targets not yet implemented"
     return -1
 }

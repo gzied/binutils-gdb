@@ -23,9 +23,10 @@ if { [skip_btrace_tests] } {
 }
 if { [istarget "i?86-*-*"] || [istarget "x86_64-*-*"] } {
   standard_testfile instruction_history.c intel_instruction_history.S
-}
-if { [istarget "arm*-*-*"] } {
+} elseif { [istarget "arm*-*-*"] } {
   standard_testfile instruction_history.c arm_instruction_history.S
+} elseif { [istarget "aarch64-*-*"]} {
+  standard_testfile instruction_history.c aarch64_instruction_history.S
 }
 
 if [prepare_for_testing "failed to prepare" $testfile "$srcfile $srcfile2" {debug}] {
@@ -82,7 +83,7 @@ if { [istarget "i?86-*-*"] || [istarget "x86_64-*-*"] } {
     "7\t   0x\[0-9a-f\]+ <loop\\+\[0-9\]+>:\tje     0x\[0-9a-f\]+ <loop\\+\[0-9\]+>\r" \
     ]
 }
-if { [istarget "arm*-*-*"] } {
+if { [istarget "arm*-*-*"] || [istarget "aarch64-*-*"]} {
   gdb_test "record instruction-history 3,7" [multi_line \
     "3\t   0x\[0-9a-f\]+ <L1\\+\[0-9\]+>:\tbeq\t0x\[0-9a-f\]+ <L2>" \
     "4\t   0x\[0-9a-f\]+ <L1\\+\[0-9\]+>:\tsubs\tr0, r0, #1" \
@@ -101,7 +102,7 @@ if { [istarget "i?86-*-*"] || [istarget "x86_64-*-*"] } {
     "7\t   0x\[0-9a-f\]+ <\\+\[0-9\]+>:\tje     0x\[0-9a-f\]+ <loop\\+\[0-9\]+>\r" \
     ]
 }
-if { [istarget "arm*-*-*"] } {
+if { [istarget "arm*-*-*"] || [istarget "aarch64-*-*"]} {
   gdb_test "record instruction-history /f 3,+5" [multi_line \
     "3\t   0x\[0-9a-f\]+ <\\+\[0-9\]+>:\tbeq\t0x\[0-9a-f\]+ <L2>" \
     "4\t   0x\[0-9a-f\]+ <\\+\[0-9\]+>:\tsubs\tr0, r0, #1" \
@@ -120,7 +121,7 @@ if { [istarget "i?86-*-*"] || [istarget "x86_64-*-*"] } {
     "7\t   0x\[0-9a-f\]+ <loop\\+\[0-9\]+>:\tje     0x\[0-9a-f\]+ <loop\\+\[0-9\]+>\r" \
     ]
 }
-if { [istarget "arm*-*-*"] } {
+if { [istarget "arm*-*-*"] || [istarget "aarch64-*-*"]} {
   gdb_test "record instruction-history /p 7,-5" [multi_line \
     "3\t   0x\[0-9a-f\]+ <L1\\+\[0-9\]+>:\tbeq\t0x\[0-9a-f\]+ <L2>" \
     "4\t   0x\[0-9a-f\]+ <L1\\+\[0-9\]+>:\tsubs\tr0, r0, #1" \
@@ -139,7 +140,7 @@ if { [istarget "i?86-*-*"] || [istarget "x86_64-*-*"] } {
     "7\t   0x\[0-9a-f\]+ <\\+\[0-9\]+>:\tje     0x\[0-9a-f\]+ <loop\\+\[0-9\]+>\r" \
     ]
 }
-if { [istarget "arm*-*-*"] } {
+if { [istarget "arm*-*-*"] || [istarget "aarch64-*-*"]} {
   gdb_test "record instruction-history /pf 3,7" [multi_line \
     "3\t   0x\[0-9a-f\]+ <\\+\[0-9\]+>:\tbeq\t0x\[0-9a-f\]+ <L2>" \
     "4\t   0x\[0-9a-f\]+ <\\+\[0-9\]+>:\tsubs\tr0, r0, #1" \
@@ -152,7 +153,7 @@ if { [istarget "arm*-*-*"] } {
 if { [istarget "i?86-*-*"] || [istarget "x86_64-*-*"] } {
   gdb_test "record instruction-history 3,3" "3\t   0x\[0-9a-f\]+ <loop\\+\[0-9\]+>:\tje     0x\[0-9a-f\]+ <loop\\+\[0-9\]+>\r"
 }
-if { [istarget "arm*-*-*"] } {
+if { [istarget "arm*-*-*"] || [istarget "aarch64-*-*"]} {
   gdb_test "record instruction-history 3,3" "3\t   0x\[0-9a-f\]+ <L1\\+\[0-9\]+>:\tbeq\t0x\[0-9a-f\]+ <L2>\r"
 }
 

@@ -38,7 +38,7 @@ if { [istarget "i?86-*-*"] || [istarget "x86_64-*-*"]} {
     gdb_test "show record btrace pt buffer-size" "The record/replay pt buffer size is 1\.\r"
 }
 
-if {[istarget "arm*-*-*"]} {
+if {[istarget "arm*-*-*"]|| [istarget "aarch64*-*-*"]} {
     gdb_test_no_output "set record btrace etm buffer-size 1"
     gdb_test "show record btrace etm buffer-size" "The record/replay etm buffer size is 1\.\r"
 }

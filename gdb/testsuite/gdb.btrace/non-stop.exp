@@ -33,7 +33,7 @@ save_vars { GDBFLAGS } {
 
 if {[istarget "i?86-*-*"] || [istarget "x86_64-*-*"]} {
     set loop_position 2
-} elseif {[istarget "arm*-*-*"]} {
+} elseif {[istarget "arm*-*-*"] || [istarget "aarch64-*-*"]} {
     set loop_position 3
 }
 
