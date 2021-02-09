@@ -415,6 +415,18 @@ handle_btrace_enable_pt (struct thread_info *thread)
   thread->btrace = target_enable_btrace (thread->id, &current_btrace_conf);
 }
 
+/* Handle btrace enabling in ARM CoreSight Trace format.  */
+
+static void
+handle_btrace_enable_etm (struct thread_info *thread)
+{
+  if (thread->btrace != NULL)
+    error (_("Btrace already enabled."));
+
+  current_btrace_conf.format = BTRACE_FORMAT_ETM;
+  thread->btrace = target_enable_btrace (thread->id, &current_btrace_conf);
+}
+
 /* Handle btrace disabling.  */
 
 static void
@@ -464,10 +476,12 @@ handle_btrace_general_set (char *own_buf)
 	handle_btrace_enable_bts (thread);
       else if (strcmp (op, "pt") == 0)
 	handle_btrace_enable_pt (thread);
+      else if (strcmp (op, "etm") == 0)
+	handle_btrace_enable_etm (thread);
       else if (strcmp (op, "off") == 0)
 	handle_btrace_disable (thread);
       else
-	error (_("Bad Qbtrace operation.  Use bts, pt, or off."));
+	error (_("Bad Qbtrace operation.  Use bts, pt, etm, or off."));
 
       write_ok (own_buf);
     }
@@ -536,6 +550,21 @@ handle_btrace_conf_general_set (char *own_buf)
 	}
 
       current_btrace_conf.pt.size = (unsigned int) size;
+    }
+  else if (strncmp (op, "etm:size=", strlen ("etm:size=")) == 0)
+    {
+      unsigned long size;
+      char *endp = NULL;
+        
+      errno = 0;
+      size = strtoul (op + strlen ("etm:size="), &endp, 16);
+      if (endp == NULL || *endp != 0 || errno != 0 || size > UINT_MAX)
+        {
+          strcpy (own_buf, "E.Bad size value.");
+          return -1;
+        }
+       
+      current_btrace_conf.etm.size = (unsigned int) size;
     }
   else
     {
@@ -2075,6 +2104,9 @@ supported_btrace_packets (char *buf)
   strcat (buf, ";Qbtrace-conf:bts:size+");
   strcat (buf, ";Qbtrace:pt+");
   strcat (buf, ";Qbtrace-conf:pt:size+");
+  strcat (buf, ";Qbtrace:etm+");
+  strcat (buf, ";Qbtrace-conf:etm:size+");
+  strcat (buf, ";Qbtrace-conf:etm:sink+");
   strcat (buf, ";Qbtrace:off+");
   strcat (buf, ";qXfer:btrace:read+");
   strcat (buf, ";qXfer:btrace-conf:read+");

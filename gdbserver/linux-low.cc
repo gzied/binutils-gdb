@@ -6967,6 +6967,75 @@ linux_low_encode_pt_config (struct buffer *buffer,
   buffer_grow_str (buffer, "</pt-config>\n");
 }
 
+/* Encode ARM CoreSight Processor Trace configuration.  */
+
+static void
+linux_low_encode_etm_config (struct buffer *buffer,
+			    const struct btrace_data_etm_config *config)
+{
+  int architecture;
+  buffer_grow_str (buffer, "<etm-config>\n");
+  buffer_grow_str (buffer, "<source-config>\n");
+  for (int i=0; i< config->num_cpu;i++)
+  {
+    if ((config->etm_trace_params->at(i).protocol == CS_ETM_PROTO_ETMV3)
+        ||(config->etm_trace_params->at(i).protocol == CS_ETM_PROTO_PTM))
+      {
+        architecture = ARCHITECTURE_V7;
+      }
+    else if (config->etm_trace_params->at(i).protocol == CS_ETM_PROTO_ETMV4i)
+      {
+         architecture = ARCHITECTURE_V8;
+      }
+    else
+      {
+        architecture = ARCHITECTURE_UNKNOWN;
+      }
+
+    buffer_xml_printf (buffer,"<cpu-etm-config arch_ver=\"0x%x\" "
+        "core_prof=\"0x%x\" cpu_id=\"0x%x\" protocol=\"0x%x\">\n",
+			  ARCHITECTURE_V7, PROFILE_CORTEX_A,
+			  i, config->etm_trace_params->at(i).protocol);
+    if (architecture == ARCHITECTURE_V7)
+    {
+
+      buffer_xml_printf (buffer, 
+        "<etmv3-config reg_idr=\"0x%x\" reg_ctrl=\"0x%x\" "
+        "reg_ccer=\"0x%x\" reg_trc_id=\"0x%x\"/>\n",
+			  config->etm_trace_params->at(i).etmv3.reg_idr,
+			  config->etm_trace_params->at(i).etmv3.reg_ctrl,
+			  config->etm_trace_params->at(i).etmv3.reg_ccer,
+			  config->etm_trace_params->at(i).etmv3.reg_trc_id);
+    }
+    if (architecture == ARCHITECTURE_V8)
+    {
+      buffer_xml_printf (buffer, 
+        "<etmv4-config reg_idr0=\"0x%x\" reg_idr1=\"0x%x\" "
+        "reg_idr2=\"0x%x\" reg_idr8=\"0x%x\" "
+			  "reg_configr=\"0x%x\" reg_traceidr=\"0x%x\"/>\n",
+			  config->etm_trace_params->at(i).etmv4.reg_idr0,
+			  config->etm_trace_params->at(i).etmv4.reg_idr1,
+			  config->etm_trace_params->at(i).etmv4.reg_idr2,
+			  config->etm_trace_params->at(i).etmv4.reg_idr8,
+			  config->etm_trace_params->at(i).etmv4.reg_configr,
+			  config->etm_trace_params->at(i).etmv4.reg_traceidr);
+    }
+    buffer_xml_printf (buffer,"</cpu-etm-config>\n");
+
+  }
+  buffer_grow_str (buffer,"</source-config>\n");
+  buffer_xml_printf (buffer, 
+    "<sink-config  formatted=\"0x%x\" "
+		"fsyncs=\"0x%x\" hsyncs=\"0x%x\" "
+		"frame_aligned=\"0x%x\" reset_on_4x_sync=\"0x%x\"/>\n",
+		config->etm_decoder_params.formatted,
+		config->etm_decoder_params.fsyncs,
+		config->etm_decoder_params.hsyncs,
+		config->etm_decoder_params.frame_aligned,
+		config->etm_decoder_params.reset_on_4x_sync);
+  buffer_grow_str (buffer,"</etm-config>\n");
+}
+
 /* Encode a raw buffer.  */
 
 static void
@@ -7021,7 +7090,7 @@ linux_process_target::read_btrace (btrace_target_info *tinfo,
 
     case BTRACE_FORMAT_BTS:
       buffer_grow_str (buffer, "<!DOCTYPE btrace SYSTEM \"btrace.dtd\">\n");
-      buffer_grow_str (buffer, "<btrace version=\"1.0\">\n");
+      buffer_grow_str (buffer, "<btrace version=\"1.1\">\n");
 
       for (const btrace_block &block : *btrace.variant.bts.blocks)
 	buffer_xml_printf (buffer, "<block begin=\"0x%s\" end=\"0x%s\"/>\n",
@@ -7032,7 +7101,7 @@ linux_process_target::read_btrace (btrace_target_info *tinfo,
 
     case BTRACE_FORMAT_PT:
       buffer_grow_str (buffer, "<!DOCTYPE btrace SYSTEM \"btrace.dtd\">\n");
-      buffer_grow_str (buffer, "<btrace version=\"1.0\">\n");
+      buffer_grow_str (buffer, "<btrace version=\"1.1\">\n");
       buffer_grow_str (buffer, "<pt>\n");
 
       linux_low_encode_pt_config (buffer, &btrace.variant.pt.config);
@@ -7041,6 +7110,20 @@ linux_process_target::read_btrace (btrace_target_info *tinfo,
 			    btrace.variant.pt.size);
 
       buffer_grow_str (buffer, "</pt>\n");
+      buffer_grow_str0 (buffer, "</btrace>\n");
+      break;
+
+    case BTRACE_FORMAT_ETM:
+      buffer_grow_str (buffer, "<!DOCTYPE btrace SYSTEM \"btrace.dtd\">\n");
+      buffer_grow_str (buffer, "<btrace version=\"1.1\">\n");
+      buffer_grow_str (buffer, "<etm>\n");
+
+      linux_low_encode_etm_config (buffer, &btrace.variant.etm.config);
+
+      linux_low_encode_raw (buffer, btrace.variant.etm.data,
+			    btrace.variant.etm.size);
+
+      buffer_grow_str (buffer, "</etm>\n");
       buffer_grow_str0 (buffer, "</btrace>\n");
       break;
 
@@ -7061,7 +7144,7 @@ linux_process_target::read_btrace_conf (const btrace_target_info *tinfo,
   const struct btrace_config *conf;
 
   buffer_grow_str (buffer, "<!DOCTYPE btrace-conf SYSTEM \"btrace-conf.dtd\">\n");
-  buffer_grow_str (buffer, "<btrace-conf version=\"1.0\">\n");
+  buffer_grow_str (buffer, "<btrace-conf version=\"1.1\">\n");
 
   conf = linux_btrace_conf (tinfo);
   if (conf != NULL)
@@ -7080,6 +7163,20 @@ linux_process_target::read_btrace_conf (const btrace_target_info *tinfo,
 	case BTRACE_FORMAT_PT:
 	  buffer_xml_printf (buffer, "<pt");
 	  buffer_xml_printf (buffer, " size=\"0x%x\"", conf->pt.size);
+	  buffer_xml_printf (buffer, "/>\n");
+	  break;
+
+	case BTRACE_FORMAT_ETM:
+	  buffer_xml_printf (buffer, "<etm");
+	  buffer_xml_printf (buffer, " size=\"0x%x\"", conf->etm.size);
+	  if (conf->etm.sink !=NULL)
+	    {
+	      buffer_xml_printf (buffer, " sink=\"%s\"", conf->etm.sink);
+	    }
+	  else
+	    {
+	      buffer_xml_printf (buffer, " sink=\"default\"");
+	    }
 	  buffer_xml_printf (buffer, "/>\n");
 	  break;
 	}

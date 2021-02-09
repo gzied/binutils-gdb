@@ -4,8 +4,8 @@
      are permitted in any medium without royalty provided the copyright
      notice and this notice are preserved.  -->
 
-<!ELEMENT btrace  (block* | pt)>
-<!ATTLIST btrace  version CDATA   #FIXED "1.0">
+<!ELEMENT btrace  (block* | pt | etm)>
+<!ATTLIST btrace  version (1.0|1.1) #REQUIRED>
 
 <!ELEMENT block        EMPTY>
 <!ATTLIST block        begin  CDATA   #REQUIRED
@@ -20,5 +20,40 @@
               family   CDATA #REQUIRED
               model    CDATA #REQUIRED
               stepping CDATA #REQUIRED>
+
+<!ELEMENT etm (etm-config?, raw?)>
+
+<!ELEMENT etm-config (source-config, sink-config)>
+
+<!ELEMENT source-config   (cpu-etm-config+)>
+<!ATTLIST source-config    trace_id         CDATA #IMPLIED>
+
+<!ELEMENT cpu-etm-config  (etmv3-config|etmv4-config)>
+<!ATTLIST cpu-etm-config   cpu_id           CDATA #REQUIRED
+                           arch_ver         CDATA #REQUIRED
+                           core_prof        CDATA #REQUIRED
+                           protocol         CDATA #REQUIRED>
+
+<!ELEMENT etmv3-config     EMPTY>
+<!ATTLIST etmv3-config     reg_ctrl         CDATA #REQUIRED
+                           reg_trc_id       CDATA #REQUIRED
+                           reg_ccer         CDATA #REQUIRED
+                           reg_idr          CDATA #REQUIRED>
+
+<!ELEMENT etmv4-config     EMPTY>
+<!ATTLIST etmv4-config     reg_idr0         CDATA #REQUIRED
+                           reg_idr1         CDATA #REQUIRED
+                           reg_idr2         CDATA #REQUIRED
+                           reg_idr8         CDATA #REQUIRED
+                           reg_configr      CDATA #REQUIRED
+                           reg_traceidr     CDATA #REQUIRED>
+
+<!ELEMENT sink-config      EMPTY>
+<!ATTLIST sink-config      sink_id           CDATA #IMPLIED
+                           formatted         CDATA #REQUIRED
+                           fsyncs            CDATA #REQUIRED
+                           hsyncs            CDATA #REQUIRED
+                           frame_aligned     CDATA #REQUIRED
+                           reset_on_4x_sync  CDATA #REQUIRED>
 
 <!ELEMENT raw (#PCDATA)>

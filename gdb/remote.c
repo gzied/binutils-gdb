@@ -2167,6 +2167,15 @@ enum {
   /* Support TARGET_WAITKIND_NO_RESUMED.  */
   PACKET_no_resumed,
 
+  /* Support for the Qbtrace-etm packet.  */
+  PACKET_Qbtrace_etm,
+
+  /* Support for the Qbtrace-conf:etm:size packet.  */
+  PACKET_Qbtrace_conf_etm_size,
+
+  /* Support for the Qbtrace-conf:etm:sink packet.  */
+  PACKET_Qbtrace_conf_etm_sink,
+
   PACKET_MAX
 };
 
@@ -5313,6 +5322,12 @@ static const struct protocol_feature remote_protocol_features[] = {
   { "vContSupported", PACKET_DISABLE, remote_supported_packet, PACKET_vContSupported },
   { "QThreadEvents", PACKET_DISABLE, remote_supported_packet, PACKET_QThreadEvents },
   { "no-resumed", PACKET_DISABLE, remote_supported_packet, PACKET_no_resumed },
+  { "Qbtrace:etm", PACKET_DISABLE, remote_supported_packet,
+    PACKET_Qbtrace_etm },
+  { "Qbtrace-conf:etm:size", PACKET_DISABLE, remote_supported_packet,
+    PACKET_Qbtrace_conf_etm_size },
+  { "Qbtrace-conf:etm:sink", PACKET_DISABLE, remote_supported_packet,
+    PACKET_Qbtrace_conf_etm_sink },
 };
 
 static char *remote_support_xml;
@@ -13939,6 +13954,28 @@ remote_target::btrace_sync_conf (const btrace_config *conf)
 
       rs->btrace_config.pt.size = conf->pt.size;
     }
+
+  packet = &remote_protocol_packets[PACKET_Qbtrace_conf_etm_size];
+  if (packet_config_support (packet) == PACKET_ENABLE
+      && conf->etm.size != rs->btrace_config.etm.size)
+    {
+      pos = buf;
+      pos += xsnprintf (pos, endbuf - pos, "%s=0x%x", packet->name,
+                        conf->etm.size);
+
+      putpkt (buf);
+      getpkt (&rs->buf, 0);
+
+      if (packet_ok (buf, packet) == PACKET_ERROR)
+        {
+          if (buf[0] == 'E' && buf[1] == '.')
+            error (_("Failed to configure the trace buffer size: %s"), buf + 2);
+          else
+            error (_("Failed to configure the trace buffer size."));
+        }
+
+      rs->btrace_config.etm.size = conf->etm.size;
+    }
 }
 
 /* Read the current thread's btrace configuration from the target and
@@ -14031,6 +14068,10 @@ remote_target::enable_btrace (ptid_t ptid, const struct btrace_config *conf)
 
       case BTRACE_FORMAT_PT:
 	packet = &remote_protocol_packets[PACKET_Qbtrace_pt];
+	break;
+
+      case BTRACE_FORMAT_ETM:
+	packet = &remote_protocol_packets[PACKET_Qbtrace_etm];
 	break;
     }
 
@@ -14935,6 +14976,15 @@ Show the maximum size of the address (in bits) in a memory packet."), NULL,
 
   add_packet_config_cmd (&remote_protocol_packets[PACKET_no_resumed],
 			 "N stop reply", "no-resumed-stop-reply", 0);
+
+  add_packet_config_cmd (&remote_protocol_packets[PACKET_Qbtrace_etm],
+			 "Qbtrace:etm", "enable-btrace-etm", 0);
+
+  add_packet_config_cmd (&remote_protocol_packets[PACKET_Qbtrace_conf_etm_size],
+			 "Qbtrace-conf:etm:size", "btrace-conf-etm-size", 0);
+
+  add_packet_config_cmd (&remote_protocol_packets[PACKET_Qbtrace_conf_etm_sink],
+			 "Qbtrace-conf:etm:sink", "btrace-conf-etm-sink", 0);
 
   /* Assert that we've registered "set remote foo-packet" commands
      for all packet configs.  */

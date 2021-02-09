@@ -54,12 +54,14 @@ case "${gdbserver_host}" in
 			srv_tgtobj="$srv_tgtobj arch/aarch64.o"
 			srv_tgtobj="$srv_tgtobj linux-aarch64-tdesc.o"
 			srv_tgtobj="$srv_tgtobj nat/aarch64-sve-linux-ptrace.o"
+			srv_tgtobj="${srv_tgtobj} nat/linux-btrace.o"
 			srv_tgtobj="${srv_tgtobj} $srv_linux_obj"
 			srv_linux_regsets=yes
 			srv_linux_thread_db=yes
 			ipa_obj="linux-aarch64-ipa.o"
 			ipa_obj="${ipa_obj} linux-aarch64-tdesc-ipa.o"
 			ipa_obj="${ipa_obj} arch/aarch64-ipa.o"
+			srv_linux_btrace=yes
 			;;
   aarch64*-*-netbsd*)	srv_regobj=""
 			srv_tgtobj="netbsd-low.o netbsd-aarch64-low.o fork-child.o"
@@ -82,6 +84,7 @@ case "${gdbserver_host}" in
 			srv_tgtobj="$srv_tgtobj linux-arm-tdesc.o"
 			srv_tgtobj="$srv_tgtobj linux-aarch32-low.o"
 			srv_tgtobj="$srv_tgtobj linux-aarch32-tdesc.o"
+			srv_tgtobj="${srv_tgtobj} nat/linux-btrace.o"
 			srv_tgtobj="${srv_tgtobj} arch/aarch32.o"
 			srv_tgtobj="${srv_tgtobj} arch/arm.o"
 			srv_tgtobj="${srv_tgtobj} arch/arm-linux.o"
@@ -89,6 +92,7 @@ case "${gdbserver_host}" in
 			srv_linux_usrregs=yes
 			srv_linux_regsets=yes
 			srv_linux_thread_db=yes
+			srv_linux_btrace=yes
 			;;
   i[34567]86-*-cygwin*)	srv_regobj=""
 			srv_tgtobj="x86-low.o nat/x86-dregs.o win32-low.o"

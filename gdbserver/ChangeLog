@@ -1,3 +1,16 @@
+2021-02-06  Zied Guermazi  <zied.guermazi@trande.de>
+
+	* configure.srv: add btrace for aarch64*-*-linux* and arm*-*-linux*.
+	* linux-low.c (linux_low_encode_etm_config): New.
+	* linux-low.c (linux_process_target::read_btrace): encode CoreSight
+	traces and relative decoding parameters.
+	* linux-low.c (linux_process_target::read_btrace_conf): encode 
+	CoreSight configuration.
+	* server.cc (handle_btrace_enable_etm): New.
+	* server.cc (handle_btrace_general_set): add etm handling.
+	* server.cc (handle_btrace_conf_general_set): add etm handling.
+	* server.cc (supported_btrace_packets): add etm related packets.
+
 2021-02-01  Zied Guermazi  <zied.guermazi@trande.de>
 
 	* gdbserver/configure: Regenerated.

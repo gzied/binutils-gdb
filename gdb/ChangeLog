@@ -1,3 +1,25 @@
+2021-02-06  Zied Guermazi  <zied.guermazi@trande.de>
+
+	* btrace.c (check_xml_btrace_version): add version 1.1
+	* btrace.c (parse_xml_btrace_etm_config_source_config_cpu_etmv4_config):
+	New.
+	* btrace.c (parse_xml_btrace_etm_config_source_config_cpu_etmv3_config):
+	New.
+	* btrace.c (parse_xml_btrace_etm_config_source_config_cpu_etm_config):
+	New.
+	* btrace.c (parse_xml_btrace_etm_config_source_config): New.
+	* btrace.c (dump_config): New.
+	* btrace.c (parse_xml_btrace_etm_config_source_config_end): New.
+	* btrace.c (parse_xml_btrace_etm_config_sink_config): New.
+	* btrace.c (parse_xml_btrace_etm_raw): New.
+	* btrace.c (parse_xml_btrace_etm): New.
+	* btrace.c (parse_xml_btrace_conf_etm): New.
+	* btrace.dtd: add etm data and decoding parameters.
+	* btrace-conf.dtd: add etm configuration.
+	* remote.c (remote_target::btrace_sync_conf): add etm configuration.
+	* remote.c(remote_target::enable_btrace): add coresight etm.
+	* remote.c (_initialize_remote): add etm related packets.
+
 2021-02-05  Zied Guermazi  <zied.guermazi@trande.de>
 
 	* infrun.c (set_step_over_info): add debug print.

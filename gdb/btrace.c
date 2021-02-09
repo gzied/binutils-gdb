@@ -2592,7 +2592,7 @@ check_xml_btrace_version (struct gdb_xml_parser *parser,
   const char *version
   = (const char *) xml_find_attribute (attributes, "version")->value.get ();
 
-  if (strcmp (version, "1.0") != 0)
+  if ((strcmp (version, "1.0") != 0) && (strcmp (version, "1.1") != 0))
     gdb_xml_error (parser, _("Unsupported btrace version: \"%s\""), version);
 }
 
@@ -2727,6 +2727,238 @@ parse_xml_btrace_pt (struct gdb_xml_parser *parser,
   btrace->variant.pt.size = 0;
 }
 
+/* Parse a btrace etm "cpu-etm-config-etmv4_config" xml record.  */
+
+static void
+parse_xml_btrace_etm_config_source_config_cpu_etmv4_config (
+                                struct gdb_xml_parser *parser,
+                                const struct gdb_xml_element *element,
+                                void *user_data,
+                                std::vector<gdb_xml_value> &attributes)
+{
+  struct btrace_data *btrace;
+  struct gdb_xml_value *reg_idr0;
+  struct gdb_xml_value *reg_idr1;
+  struct gdb_xml_value *reg_idr2;
+  struct gdb_xml_value *reg_idr8;
+  struct gdb_xml_value *reg_configr;
+  struct gdb_xml_value *reg_traceidr;
+  cs_etm_trace_params *etm_trace_params;
+
+  DEBUG ("parse_xml_btrace_etm_config_source_config_cpu_etmv4_config");
+
+  btrace = (struct btrace_data *) user_data;
+  etm_trace_params = & (btrace->variant.etm.config.etm_trace_params->back());
+
+  reg_idr0
+    = xml_find_attribute (attributes, "reg_idr0");
+  reg_idr1
+    = xml_find_attribute (attributes, "reg_idr1");
+  reg_idr2
+    = xml_find_attribute (attributes, "reg_idr2");
+  reg_idr8
+    = xml_find_attribute (attributes, "reg_idr8");
+  reg_configr
+    = xml_find_attribute (attributes, "reg_configr");
+  reg_traceidr
+    = xml_find_attribute (attributes, "reg_traceidr");
+
+  etm_trace_params->etmv4.reg_idr0
+    = (unsigned int) *(ULONGEST *)reg_idr0->value.get ();
+  etm_trace_params->etmv4.reg_idr1
+    = (unsigned int) *(ULONGEST *)reg_idr1->value.get ();
+  etm_trace_params->etmv4.reg_idr2
+    = (unsigned int) *(ULONGEST *)reg_idr2->value.get ();
+  etm_trace_params->etmv4.reg_idr8
+    = (unsigned int) *(ULONGEST *)reg_idr8->value.get ();
+  etm_trace_params->etmv4.reg_configr
+    = (unsigned int) *(ULONGEST *)reg_configr->value.get ();
+  etm_trace_params->etmv4.reg_traceidr
+    = (unsigned int) *(ULONGEST *)reg_traceidr->value.get ();
+
+}
+
+/* Parse a btrace etm "cpu-etm-config-etmv3_config" xml record.  */
+
+static void
+parse_xml_btrace_etm_config_source_config_cpu_etmv3_config (
+                                struct gdb_xml_parser *parser,
+                                const struct gdb_xml_element *element,
+                                void *user_data,
+                                std::vector<gdb_xml_value> &attributes)
+{
+  struct btrace_data *btrace;
+  struct gdb_xml_value *reg_ctrl;
+  struct gdb_xml_value *reg_trc_id;
+  struct gdb_xml_value *reg_ccer;
+  struct gdb_xml_value *reg_idr;
+
+  cs_etm_trace_params *etm_trace_params;
+
+  DEBUG ("parse_xml_btrace_etm_config_source_config_cpu_etmv3_config");
+
+  btrace = (struct btrace_data *) user_data;
+  etm_trace_params = & (btrace->variant.etm.config.etm_trace_params->back());
+
+  reg_ctrl
+    = xml_find_attribute (attributes, "reg_ctrl");
+  reg_trc_id
+    = xml_find_attribute (attributes, "reg_trc_id");
+  reg_ccer
+    = xml_find_attribute (attributes, "reg_ccer");
+  reg_idr
+    = xml_find_attribute (attributes, "reg_idr");
+
+  etm_trace_params->etmv3.reg_ctrl 
+    = (unsigned int) *(ULONGEST *) reg_ctrl->value.get ();
+  etm_trace_params->etmv3.reg_trc_id
+    = (unsigned int) *(ULONGEST *)reg_trc_id->value.get ();
+  etm_trace_params->etmv3.reg_ccer
+    = (unsigned int) *(ULONGEST *)reg_ccer->value.get ();
+  etm_trace_params->etmv3.reg_idr
+    = (unsigned int) *(ULONGEST *)reg_idr->value.get ();
+}
+
+
+/* Parse a btrace etm "cpu-etm-config" xml record.  */
+
+static void
+parse_xml_btrace_etm_config_source_config_cpu_etm_config (struct gdb_xml_parser *parser,
+                                const struct gdb_xml_element *element,
+                                void *user_data,
+                                std::vector<gdb_xml_value> &attributes)
+{
+  struct btrace_data *btrace;
+  struct gdb_xml_value *arch_ver;
+  struct gdb_xml_value *core_prof;
+  struct gdb_xml_value *protocol;
+  cs_etm_trace_params etm_trace_params;
+
+  DEBUG ("parse_xml_btrace_etm_config_source_config_cpu_etm_config");
+
+  btrace = (struct btrace_data *) user_data;
+
+  arch_ver
+    = xml_find_attribute (attributes, "arch_ver");
+  core_prof
+    = xml_find_attribute (attributes, "core_prof");
+  protocol
+    = xml_find_attribute (attributes, "protocol");
+
+  etm_trace_params.arch_ver=(int) *(ULONGEST *) arch_ver->value.get ();
+  etm_trace_params.core_profile=(int) *(ULONGEST *)core_prof->value.get ();
+  etm_trace_params.protocol=(int) *(ULONGEST *)protocol->value.get ();
+
+  btrace->variant.etm.config.etm_trace_params->push_back(etm_trace_params);
+}
+
+/* Parse a btrace etm "source-config" xml record.  */
+
+static void
+parse_xml_btrace_etm_config_source_config (struct gdb_xml_parser *parser,
+                                const struct gdb_xml_element *element,
+                                void *user_data,
+                                std::vector<gdb_xml_value> &attributes)
+{
+  struct btrace_data *btrace;
+  struct gdb_xml_value *trace_id;
+
+  DEBUG ("parse_xml_btrace_etm_config_source_config");
+  btrace = (struct btrace_data *) user_data;
+
+  trace_id = xml_find_attribute (attributes, "trace_id");
+  if (trace_id != NULL)
+    btrace->variant.etm.trace_id 
+      = (unsigned int) *(ULONGEST *) trace_id->value.get ();
+  btrace->variant.etm.config.etm_trace_params 
+    = new std::vector<cs_etm_trace_params>;
+}
+
+/* get the number of cpus  */
+static void
+parse_xml_btrace_etm_config_source_config_end(struct gdb_xml_parser *,
+      const struct gdb_xml_element *,
+      void *user_data, const char *body_text)
+{
+  struct btrace_data *btrace;
+
+  DEBUG ("parse_xml_btrace_etm_config_source_config_end");
+  btrace = (struct btrace_data *) user_data;
+
+  btrace->variant.etm.config.num_cpu
+    = btrace->variant.etm.config.etm_trace_params->size();
+}
+
+/* Parse a btrace etm "sink-config" xml record.  */
+
+static void
+parse_xml_btrace_etm_config_sink_config (struct gdb_xml_parser *parser,
+                                const struct gdb_xml_element *element,
+                                void *user_data,
+                                std::vector<gdb_xml_value> &attributes)
+{
+  struct btrace_data *btrace;
+  //const char *sink_id;
+  DEBUG ("parse_xml_btrace_etm_config_sink_config");
+  ULONGEST *formatted, *fsyncs, *hsyncs, *frame_aligned, *reset_on_4x_sync;
+  /*sink_id =
+      (const char *) xml_find_attribute (attributes, "sink_id")->value.get ();*/
+  formatted
+  = (ULONGEST *) xml_find_attribute (attributes, "formatted")->value.get ();
+  fsyncs
+  = (ULONGEST *) xml_find_attribute (attributes, "fsyncs")->value.get ();
+  hsyncs
+  = (ULONGEST *) xml_find_attribute (attributes, "hsyncs")->value.get ();
+  frame_aligned
+  = (ULONGEST *) xml_find_attribute (attributes, "frame_aligned")->value.get ();
+  reset_on_4x_sync
+  = (ULONGEST *) xml_find_attribute (attributes, "reset_on_4x_sync")->value.get ();
+
+  btrace = (struct btrace_data *) user_data;
+
+  btrace->variant.etm.config.etm_decoder_params.formatted
+    = *formatted;
+  btrace->variant.etm.config.etm_decoder_params.fsyncs
+    = *fsyncs;
+  btrace->variant.etm.config.etm_decoder_params.hsyncs
+    = *hsyncs;
+  btrace->variant.etm.config.etm_decoder_params.frame_aligned
+    = *frame_aligned;
+  btrace->variant.etm.config.etm_decoder_params.reset_on_4x_sync
+    = *reset_on_4x_sync;
+}
+
+
+/* Parse a btrace etm "raw" xml record.  */
+
+static void
+parse_xml_btrace_etm_raw (struct gdb_xml_parser *parser,
+                         const struct gdb_xml_element *element,
+                         void *user_data, const char *body_text)
+{
+  struct btrace_data *btrace;
+  DEBUG ("parse_xml_btrace_etm_raw");
+  btrace = (struct btrace_data *) user_data;
+  parse_xml_raw (parser, body_text, &btrace->variant.etm.data,
+                 &btrace->variant.etm.size);
+}
+
+/* Parse a btrace "etm" xml record.  */
+
+static void
+parse_xml_btrace_etm (struct gdb_xml_parser *parser,
+                     const struct gdb_xml_element *element,
+                     void *user_data,
+                     std::vector<gdb_xml_value> &attributes)
+{
+  struct btrace_data *btrace;
+  DEBUG ("parse_xml_btrace_etm");
+  btrace = (struct btrace_data *) user_data;
+  btrace->format = BTRACE_FORMAT_ETM;
+  btrace->variant.etm.data = NULL;
+  btrace->variant.etm.size = 0;
+}
+
 static const struct gdb_xml_attribute block_attributes[] = {
     { "begin", GDB_XML_AF_NONE, gdb_xml_parse_attr_ulongest, NULL },
     { "end", GDB_XML_AF_NONE, gdb_xml_parse_attr_ulongest, NULL },
@@ -2754,6 +2986,84 @@ static const struct gdb_xml_element btrace_pt_children[] = {
         { NULL, NULL, NULL, GDB_XML_EF_NONE, NULL, NULL }
 };
 
+static const struct gdb_xml_attribute btrace_etm_config_source_config_cpu_config_etmv3_config_attributes[] = {
+    { "reg_ctrl", GDB_XML_AF_NONE, gdb_xml_parse_attr_ulongest, NULL },
+    { "reg_trc_id", GDB_XML_AF_NONE, gdb_xml_parse_attr_ulongest, NULL },
+    { "reg_ccer", GDB_XML_AF_NONE, gdb_xml_parse_attr_ulongest, NULL },
+    { "reg_idr", GDB_XML_AF_NONE, gdb_xml_parse_attr_ulongest, NULL },
+    { NULL, GDB_XML_AF_NONE, NULL, NULL }
+};
+
+static const struct gdb_xml_attribute btrace_etm_config_source_config_cpu_config_etmv4_config_attributes[] = {
+    { "reg_idr0", GDB_XML_AF_NONE, gdb_xml_parse_attr_ulongest, NULL },
+    { "reg_idr1", GDB_XML_AF_NONE, gdb_xml_parse_attr_ulongest, NULL },
+    { "reg_idr2", GDB_XML_AF_NONE, gdb_xml_parse_attr_ulongest, NULL },
+    { "reg_idr8", GDB_XML_AF_NONE, gdb_xml_parse_attr_ulongest, NULL },
+    { "reg_configr", GDB_XML_AF_NONE, gdb_xml_parse_attr_ulongest, NULL },
+    { "reg_traceidr", GDB_XML_AF_NONE, gdb_xml_parse_attr_ulongest, NULL },
+    { NULL, GDB_XML_AF_NONE, NULL, NULL }
+};
+
+static const struct gdb_xml_element btrace_etm_config_source_config_cpu_etm_config_children[] = {
+    { "etmv3-config",
+        btrace_etm_config_source_config_cpu_config_etmv3_config_attributes, 
+        NULL, GDB_XML_EF_OPTIONAL,
+        parse_xml_btrace_etm_config_source_config_cpu_etmv3_config, NULL },
+    { "etmv4-config",
+        btrace_etm_config_source_config_cpu_config_etmv4_config_attributes,
+        NULL, GDB_XML_EF_OPTIONAL,
+        parse_xml_btrace_etm_config_source_config_cpu_etmv4_config, NULL },
+    { NULL, NULL, NULL, GDB_XML_EF_NONE, NULL, NULL }
+};
+
+static const struct gdb_xml_attribute btrace_etm_config_source_config_etm_config_attributes[] = {
+    { "cpu_id", GDB_XML_AF_NONE, gdb_xml_parse_attr_ulongest, NULL },
+    { "arch_ver", GDB_XML_AF_NONE, gdb_xml_parse_attr_ulongest, NULL },
+    { "core_prof", GDB_XML_AF_NONE, gdb_xml_parse_attr_ulongest, NULL },
+    { "protocol", GDB_XML_AF_NONE, gdb_xml_parse_attr_ulongest, NULL },
+    { NULL, GDB_XML_AF_NONE, NULL, NULL }
+};
+
+static const struct gdb_xml_element btrace_etm_config_source_config_children[] = {
+    { "cpu-etm-config", btrace_etm_config_source_config_etm_config_attributes,
+        btrace_etm_config_source_config_cpu_etm_config_children, GDB_XML_EF_REPEATABLE,
+        parse_xml_btrace_etm_config_source_config_cpu_etm_config, NULL },
+    { NULL, NULL, NULL, GDB_XML_EF_NONE, NULL, NULL }
+};
+
+static const struct gdb_xml_attribute btrace_etm_config_sink_config_attributes[] = {
+    { "sink_id", GDB_XML_AF_OPTIONAL, NULL, NULL },
+    { "formatted", GDB_XML_AF_NONE, gdb_xml_parse_attr_ulongest, NULL },
+    { "fsyncs", GDB_XML_AF_NONE, gdb_xml_parse_attr_ulongest, NULL },
+    { "hsyncs", GDB_XML_AF_NONE, gdb_xml_parse_attr_ulongest, NULL },
+    { "frame_aligned", GDB_XML_AF_NONE, gdb_xml_parse_attr_ulongest, NULL },
+    { "reset_on_4x_sync", GDB_XML_AF_NONE, gdb_xml_parse_attr_ulongest, NULL },
+    { NULL, GDB_XML_AF_NONE, NULL, NULL }
+};
+
+static const struct gdb_xml_attribute btrace_etm_config_source_config_attributes[] = {
+    { "trace_id", GDB_XML_AF_OPTIONAL, gdb_xml_parse_attr_ulongest, NULL },
+    { NULL, GDB_XML_AF_NONE, NULL, NULL }
+};
+
+static const struct gdb_xml_element btrace_etm_config_children[] = {
+    { "source-config", btrace_etm_config_source_config_attributes,
+        btrace_etm_config_source_config_children, GDB_XML_EF_NONE,
+        parse_xml_btrace_etm_config_source_config,
+        parse_xml_btrace_etm_config_source_config_end },
+    { "sink-config", btrace_etm_config_sink_config_attributes, NULL,
+        GDB_XML_EF_NONE, parse_xml_btrace_etm_config_sink_config, NULL },
+    { NULL, NULL, NULL, GDB_XML_EF_NONE, NULL, NULL }
+};
+
+static const struct gdb_xml_element btrace_etm_children[] = {
+    { "etm-config", NULL, btrace_etm_config_children, GDB_XML_EF_NONE, NULL,
+        NULL },
+    { "raw", NULL, NULL, GDB_XML_EF_OPTIONAL, NULL,
+        parse_xml_btrace_etm_raw },
+    { NULL, NULL, NULL, GDB_XML_EF_NONE, NULL, NULL }
+};
+
 static const struct gdb_xml_attribute btrace_attributes[] = {
     { "version", GDB_XML_AF_NONE, NULL, NULL },
     { NULL, GDB_XML_AF_NONE, NULL, NULL }
@@ -2762,15 +3072,17 @@ static const struct gdb_xml_attribute btrace_attributes[] = {
 static const struct gdb_xml_element btrace_children[] = {
     { "block", block_attributes, NULL,
         GDB_XML_EF_REPEATABLE | GDB_XML_EF_OPTIONAL, parse_xml_btrace_block, NULL },
-        { "pt", NULL, btrace_pt_children, GDB_XML_EF_OPTIONAL, parse_xml_btrace_pt,
-            NULL },
-            { NULL, NULL, NULL, GDB_XML_EF_NONE, NULL, NULL }
+    { "pt", NULL, btrace_pt_children, GDB_XML_EF_OPTIONAL,
+        parse_xml_btrace_pt, NULL },
+    { "etm", NULL, btrace_etm_children, GDB_XML_EF_OPTIONAL,
+        parse_xml_btrace_etm, NULL },
+    { NULL, NULL, NULL, GDB_XML_EF_NONE, NULL, NULL }
 };
 
 static const struct gdb_xml_element btrace_elements[] = {
     { "btrace", btrace_attributes, btrace_children, GDB_XML_EF_NONE,
         check_xml_btrace_version, NULL },
-        { NULL, NULL, NULL, GDB_XML_EF_NONE, NULL, NULL }
+    { NULL, NULL, NULL, GDB_XML_EF_NONE, NULL, NULL }
 };
 
 #endif /* defined (HAVE_LIBEXPAT) */
@@ -2844,6 +3156,32 @@ parse_xml_btrace_conf_pt (struct gdb_xml_parser *parser,
     conf->pt.size = (unsigned int) *(ULONGEST *) size->value.get ();
 }
 
+/* Parse a btrace-conf "etm" xml record.  */
+
+static void
+parse_xml_btrace_conf_etm (struct gdb_xml_parser *parser,
+                          const struct gdb_xml_element *element,
+                          void *user_data,
+                          std::vector<gdb_xml_value> &attributes)
+{
+  struct btrace_config *conf;
+  struct gdb_xml_value *size;
+  struct gdb_xml_value *sink;
+
+  DEBUG ("parse_xml_btrace_conf_etm");
+  conf = (struct btrace_config *) user_data;
+  conf->format = BTRACE_FORMAT_ETM;
+  conf->etm.size = 0;
+
+  size = xml_find_attribute (attributes, "size");
+  if (size != NULL)
+    conf->etm.size = (unsigned int) *(ULONGEST *) size->value.get ();
+
+  sink = xml_find_attribute (attributes, "sink");
+  if (sink != NULL)
+    conf->etm.sink = (char*) sink->value.get (); 
+}
+
 static const struct gdb_xml_attribute btrace_conf_pt_attributes[] = {
     { "size", GDB_XML_AF_OPTIONAL, gdb_xml_parse_attr_ulongest, NULL },
     { NULL, GDB_XML_AF_NONE, NULL, NULL }
@@ -2854,12 +3192,20 @@ static const struct gdb_xml_attribute btrace_conf_bts_attributes[] = {
     { NULL, GDB_XML_AF_NONE, NULL, NULL }
 };
 
+static const struct gdb_xml_attribute btrace_conf_etm_attributes[] = {
+    { "size", GDB_XML_AF_OPTIONAL, gdb_xml_parse_attr_ulongest, NULL },
+    { "sink", GDB_XML_AF_OPTIONAL, NULL, NULL },
+    { NULL, GDB_XML_AF_NONE, NULL, NULL }
+};
+
 static const struct gdb_xml_element btrace_conf_children[] = {
     { "bts", btrace_conf_bts_attributes, NULL, GDB_XML_EF_OPTIONAL,
         parse_xml_btrace_conf_bts, NULL },
-        { "pt", btrace_conf_pt_attributes, NULL, GDB_XML_EF_OPTIONAL,
-            parse_xml_btrace_conf_pt, NULL },
-            { NULL, NULL, NULL, GDB_XML_EF_NONE, NULL, NULL }
+    { "pt", btrace_conf_pt_attributes, NULL, GDB_XML_EF_OPTIONAL,
+        parse_xml_btrace_conf_pt, NULL },
+    { "etm", btrace_conf_etm_attributes, NULL, GDB_XML_EF_OPTIONAL,
+        parse_xml_btrace_conf_etm, NULL },
+    { NULL, NULL, NULL, GDB_XML_EF_NONE, NULL, NULL }
 };
 
 static const struct gdb_xml_attribute btrace_conf_attributes[] = {
