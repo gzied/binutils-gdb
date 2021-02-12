@@ -1,6 +1,6 @@
 /* Common target-dependent functionality for RISC-V
 
-   Copyright (C) 2018-2019 Free Software Foundation, Inc.
+   Copyright (C) 2018-2021 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -46,10 +46,13 @@ struct riscv_gdbarch_features
      that there are no f-registers.  No other value is valid.  */
   int flen = 0;
 
+  /* When true this target is RV32E.  */
+  bool embedded = false;
+
   /* Equality operator.  */
   bool operator== (const struct riscv_gdbarch_features &rhs) const
   {
-    return (xlen == rhs.xlen && flen == rhs.flen);
+    return (xlen == rhs.xlen && flen == rhs.flen && embedded == rhs.embedded);
   }
 
   /* Inequality operator.  */
@@ -61,15 +64,35 @@ struct riscv_gdbarch_features
   /* Used by std::unordered_map to hash feature sets.  */
   std::size_t hash () const noexcept
   {
-    std::size_t val = ((xlen & 0x1f) << 5 | (flen & 0x1f) << 0);
+    std::size_t val = ((embedded ? 1 : 0) << 10
+		       | (xlen & 0x1f) << 5
+		       | (flen & 0x1f) << 0);
     return val;
   }
 };
 
-/* Create and return a target description that is compatible with
-   FEATURES.  */
+#ifdef GDBSERVER
 
-const target_desc *riscv_create_target_description
-	(struct riscv_gdbarch_features features);
+/* Create and return a target description that is compatible with FEATURES.
+   This is only used directly from the gdbserver where the created target
+   description is modified after it is return.  */
+
+target_desc_up riscv_create_target_description
+	(const struct riscv_gdbarch_features features);
+
+#else
+
+/* Lookup an already existing target description matching FEATURES, or
+   create a new target description if this is the first time we have seen
+   FEATURES.  For the same FEATURES the same target_desc is always
+   returned.  This is important when trying to lookup gdbarch objects as
+   GDBARCH_LIST_LOOKUP_BY_INFO performs a pointer comparison on target
+   descriptions to find candidate gdbarch objects.  */
+
+const target_desc *riscv_lookup_target_description
+	(const struct riscv_gdbarch_features features);
+
+#endif /* GDBSERVER */
+
 
 #endif /* ARCH_RISCV_H */

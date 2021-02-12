@@ -156,6 +156,7 @@ Doug Evans			dje@google.com
 Simon Marchi			simon.marchi@polymtl.ca
 Yao Qi				qiyao@sourceware.org
 Tom Tromey			tom@tromey.com
+Tom de Vries			tdevries@suse.de
 Ulrich Weigand			Ulrich.Weigand@de.ibm.com
 Eli Zaretskii			eliz@gnu.org
 
@@ -238,13 +239,21 @@ the native maintainer when resolving ABI issues.
 
 	aarch64		--target=aarch64-elf ,-Werror
 			Alan Hayward		alan.hayward@arm.com
+			Luis Machado		luis.machado@linaro.org
 
 	alpha		--target=alpha-elf ,-Werror
 
+	arc		--target=arc-elf
+			Shahab Vahedi		shahab@synopsys.com
+
 	arm		--target=arm-elf ,-Werror
 			Alan Hayward		alan.hayward@arm.com
+			Luis Machado		luis.machado@linaro.org
 
 	avr		--target=avr ,-Werror
+
+	bpf		--target=bpf-unknown-none
+			Jose E. Marchesi	jose.marchesi@oracle.com
 
 	cris		--target=cris-elf ,-Werror ,
 			(sim does not build with -Werror)
@@ -285,8 +294,7 @@ the native maintainer when resolving ABI issues.
 	moxie		--target=moxie-elf ,-Werror
 			Anthony Green		green@moxielogic.com
 
-	ms1		--target=ms1-elf ,-Werror
-			Kevin Buettner		kevinb@redhat.com
+	ms1		Deleted
 
 	nios2		--target=nios2-elf ,-Werror
 			--target=nios2-linux-gnu ,-Werror
@@ -304,7 +312,7 @@ the native maintainer when resolving ABI issues.
 	riscv		--target=riscv32-elf ,-Werror
 			--target=riscv64-elf ,-Werror
 			Andrew Burgess		andrew.burgess@embecosm.com
-			Palmer Dabbelt		palmer@sifive.com
+			Palmer Dabbelt		palmer@dabbelt.com
 
 	rl78		--target=rl78-elf ,-Werror
 
@@ -371,7 +379,7 @@ documentation		Eli Zaretskii		eliz@gnu.org
 testsuite
   gdbtk (gdb.gdbtk)     Keith Seitz             keiths@redhat.com
 
-SystemTap		Sergio Durigan Junior	sergiodj@redhat.com
+SystemTap		Sergio Durigan Junior	sergiodj@sergiodj.net
 
 
 
@@ -439,6 +447,7 @@ To get recommended for the Write After Approval list you need a valid
 FSF assignment and have submitted one good patch.
 
 Tankut Baris Aktemur				tankut.baris.aktemur@intel.com
+Mihails Strasuns				mihails.strasuns@intel.com
 Pedro Alves					pedro_alves@portugalmail.pt
 David Anderson					davea@sgi.com
 John David Anglin				dave.anglin@nrc-cnrc.gc.ca
@@ -488,10 +497,12 @@ Philippe De Muyter				phdm@macqel.be
 Dhananjay Deshpande				dhananjayd@kpitcummins.com
 Markus Deuling					deuling@de.ibm.com
 Klee Dienes					kdienes@apple.com
+Hannes Domani					ssbssa@yahoo.de
 Gabriel Dos Reis                                gdr@integrable-solutions.net
-Sergio Durigan Junior				sergiodj@redhat.com
+Sergio Durigan Junior				sergiodj@sergiodj.net
 Michael Eager					eager@eagercon.com
 Richard Earnshaw				rearnsha@arm.com
+Bernd Edlinger					bernd.edlinger@hotmail.de
 Steve Ellcey					sje@cup.hp.com
 Frank Ch. Eigler				fche@redhat.com
 Ben Elliston					bje@gnu.org
@@ -631,11 +642,13 @@ Thomas Schwinge					tschwinge@gnu.org
 Keith Seitz					keiths@redhat.com
 Carlos Eduardo Seo				cseo@linux.vnet.ibm.com
 Ozkan Sezer					sezeroz@gmail.com
+Alok Kumar Sharma				AlokKumar.Sharma@amd.com
 Marcus Shawcroft				marcus.shawcroft@arm.com
 Stan Shebs					stanshebs@google.com
 Joel Sherrill					joel.sherrill@oarcorp.com
 Mark Shinwell					shinwell@codesourcery.com
 Craig Silverstein				csilvers@google.com
+Lancelot Six					lsix@lancelotsix.com
 Aidan Skinner					aidan@velvet.net
 Jiri Smid					smid@suse.cz
 Andrey Smirnov					andrew.smirnov@gmail.com
@@ -651,6 +664,7 @@ David Taylor					david.taylor@emc.com
 Ian Lance Taylor				ian@airs.com
 Walfred Tedeschi				walfred.tedeschi@intel.com
 Petr Tesarik					ptesarik@suse.cz
+Samuel Thibault					samuel.thibault@ens-lyon.org
 Gary Thomas					gthomas@redhat.com
 Jason Thorpe					thorpej@netbsd.org
 Caroline Tice					ctice@apple.com
@@ -658,10 +672,10 @@ Kai Tietz					ktietz@redhat.com
 Andreas Tobler					andreast@fgznet.ch
 Jon Turney					jon.turney@dronecode.org.uk
 David Ung					davidu@mips.com
+Shahab Vahedi					shahab@synopsys.com
 D Venkatasubramanian				dvenkat@noida.hcltech.com
 Corinna Vinschen				vinschen@redhat.com
 Jan Vrany					jan.vrany@fit.cvut.cz
-Tom de Vries					tdevries@suse.de
 Sami Wagiaalla					swagiaal@redhat.com
 Keith Walker					keith.walker@arm.com
 Ricard Wanderlof				ricardw@axis.com
@@ -672,7 +686,8 @@ Philippe Waroquiers				philippe.waroquiers@skynet.be
 Ulrich Weigand					uweigand@de.ibm.com
 Ken Werner					ken.werner@de.ibm.com
 Tim Wiederhake					tim.wiederhake@intel.com
-Mark Wielaard					mjw@redhat.com
+Mark Wielaard					mark@klomp.org
+Felix Willgerodt				felix.willgerodt@intel.com
 Nathan Williams					nathanw@wasabisystems.com
 Bob Wilson					bob.wilson@acm.org
 Jim Wilson					wilson@tuliptree.org
@@ -686,6 +701,7 @@ Wu Zhou						woodzltc@cn.ibm.com
 Yoshinori Sato					ysato@users.sourceforge.jp
 Hui Zhu						teawater@gmail.com
 Khoo Yit Phang					khooyp@cs.umd.edu
+Rogerio Alves					rcardoso@linux.ibm.com
 
 			Past Maintainers
 

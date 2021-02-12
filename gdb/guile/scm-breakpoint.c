@@ -1,6 +1,6 @@
 /* Scheme interface to breakpoints.
 
-   Copyright (C) 2008-2019 Free Software Foundation, Inc.
+   Copyright (C) 2008-2021 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -437,13 +437,15 @@ gdbscm_register_breakpoint_x (SCM self)
 	{
 	case bp_breakpoint:
 	  {
+	    const breakpoint_ops *ops =
+	      breakpoint_ops_for_event_location (eloc.get (), false);
 	    create_breakpoint (get_current_arch (),
 			       eloc.get (), NULL, -1, NULL,
 			       0,
 			       0, bp_breakpoint,
 			       0,
 			       AUTO_BOOLEAN_TRUE,
-			       &bkpt_breakpoint_ops,
+			       ops,
 			       0, 1, internal, 0);
 	    break;
 	  }
@@ -903,7 +905,7 @@ gdbscm_set_breakpoint_condition_x (SCM self, SCM newvalue)
 	   ? nullptr
 	   : gdbscm_scm_to_c_string (newvalue));
 
-      set_breakpoint_condition (bp_smob->bp, exp ? exp.get () : "", 0);
+      set_breakpoint_condition (bp_smob->bp, exp ? exp.get () : "", 0, false);
 
       return SCM_UNSPECIFIED;
     });

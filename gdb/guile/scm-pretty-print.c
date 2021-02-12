@@ -1,6 +1,6 @@
 /* GDB/Scheme pretty-printing.
 
-   Copyright (C) 2008-2019 Free Software Foundation, Inc.
+   Copyright (C) 2008-2021 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -59,7 +59,7 @@ enum display_hint
 
 /* The <gdb:pretty-printer> smob.  */
 
-typedef struct
+struct pretty_printer_smob
 {
   /* This must appear first.  */
   gdb_smob base;
@@ -77,11 +77,11 @@ typedef struct
   SCM lookup;
 
   /* Note: Attaching subprinters to this smob is left to Scheme.  */
-} pretty_printer_smob;
+};
 
 /* The <gdb:pretty-printer-worker> smob.  */
 
-typedef struct
+struct pretty_printer_worker_smob
 {
   /* This must appear first.  */
   gdb_smob base;
@@ -99,7 +99,7 @@ typedef struct
      The iterator returns a pair for each iteration: (name . value),
      where "value" can have the same types as to_string.  */
   SCM children;
-} pretty_printer_worker_smob;
+};
 
 static const char pretty_printer_smob_name[] =
   "gdb:pretty-printer";
@@ -675,8 +675,8 @@ ppscm_print_string_repr (SCM printer, enum display_hint hint,
 	{
 	  struct type *type = builtin_type (gdbarch)->builtin_char;
 	  
-	  LA_PRINT_STRING (stream, type, (gdb_byte *) string.get (),
-			   length, NULL, 0, options);
+	  language->printstr (stream, type, (gdb_byte *) string.get (),
+			      length, NULL, 0, options);
 	}
       else
 	{
@@ -824,10 +824,10 @@ ppscm_print_children (SCM printer, enum display_hint hint,
 	 3. Other.  Always print a ",".  */
       if (i == 0)
 	{
-         if (printed_nothing)
-           fputs_filtered ("{", stream);
-         else
-           fputs_filtered (" = {", stream);
+	 if (printed_nothing)
+	   fputs_filtered ("{", stream);
+	 else
+	   fputs_filtered (" = {", stream);
        }
 
       else if (! is_map || i % 2 == 0)
@@ -943,36 +943,32 @@ ppscm_print_children (SCM printer, enum display_hint hint,
 
 enum ext_lang_rc
 gdbscm_apply_val_pretty_printer (const struct extension_language_defn *extlang,
-				 struct type *type,
-				 LONGEST embedded_offset, CORE_ADDR address,
+				 struct value *value,
 				 struct ui_file *stream, int recurse,
-				 struct value *val,
 				 const struct value_print_options *options,
 				 const struct language_defn *language)
 {
+  struct type *type = value_type (value);
   struct gdbarch *gdbarch = get_type_arch (type);
   SCM exception = SCM_BOOL_F;
   SCM printer = SCM_BOOL_F;
   SCM val_obj = SCM_BOOL_F;
-  struct value *value;
   enum display_hint hint;
   enum ext_lang_rc result = EXT_LANG_RC_NOP;
   enum string_repr_result print_result;
 
-  if (value_lazy (val))
-    value_fetch_lazy (val);
+  if (value_lazy (value))
+    value_fetch_lazy (value);
 
   /* No pretty-printer support for unavailable values.  */
-  if (!value_bytes_available (val, embedded_offset, TYPE_LENGTH (type)))
+  if (!value_bytes_available (value, 0, TYPE_LENGTH (type)))
     return EXT_LANG_RC_NOP;
 
   if (!gdb_scheme_initialized)
     return EXT_LANG_RC_NOP;
 
   /* Instantiate the printer.  */
-  value = value_from_component (val, type, embedded_offset);
-
-  val_obj = vlscm_scm_from_value (value);
+  val_obj = vlscm_scm_from_value_no_release (value);
   if (gdbscm_is_exception (val_obj))
     {
       exception = val_obj;

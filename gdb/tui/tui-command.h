@@ -1,6 +1,6 @@
 /* Specific command window processing.
 
-   Copyright (C) 1998-2019 Free Software Foundation, Inc.
+   Copyright (C) 1998-2021 Free Software Foundation, Inc.
 
    Contributed by Hewlett-Packard Company.
 
@@ -27,10 +27,7 @@
 /* The TUI command window.  */
 struct tui_cmd_window : public tui_win_info
 {
-  tui_cmd_window ()
-    : tui_win_info (CMD_WIN)
-  {
-  }
+  tui_cmd_window () = default;
 
   DISABLE_COPY_AND_ASSIGN (tui_cmd_window);
 

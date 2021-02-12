@@ -1,4 +1,4 @@
-/* Copyright (C) 2018-2019 Free Software Foundation, Inc.
+/* Copyright (C) 2018-2021 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -24,6 +24,70 @@
 #include "../features/riscv/64bit-cpu.c"
 #include "../features/riscv/32bit-fpu.c"
 #include "../features/riscv/64bit-fpu.c"
+#include "../features/riscv/rv32e-xregs.c"
+
+#ifndef GDBSERVER
+#define STATIC_IN_GDB static
+#else
+#define STATIC_IN_GDB
+#endif
+
+/* See arch/riscv.h.  */
+
+STATIC_IN_GDB target_desc_up
+riscv_create_target_description (const struct riscv_gdbarch_features features)
+{
+  /* Now we should create a new target description.  */
+  target_desc_up tdesc = allocate_target_description ();
+
+#ifndef IN_PROCESS_AGENT
+  std::string arch_name = "riscv";
+
+  if (features.xlen == 4)
+    {
+      if (features.embedded)
+	arch_name.append (":rv32e");
+      else
+	arch_name.append (":rv32i");
+    }
+  else if (features.xlen == 8)
+    arch_name.append (":rv64i");
+  else if (features.xlen == 16)
+    arch_name.append (":rv128i");
+
+  if (features.flen == 4)
+    arch_name.append ("f");
+  else if (features.flen == 8)
+    arch_name.append ("d");
+  else if (features.flen == 16)
+    arch_name.append ("q");
+
+  set_tdesc_architecture (tdesc.get (), arch_name.c_str ());
+#endif
+
+  long regnum = 0;
+
+  /* For now we only support creating 32-bit or 64-bit x-registers.  */
+  if (features.xlen == 4)
+    {
+      if (features.embedded)
+	regnum = create_feature_riscv_rv32e_xregs (tdesc.get (), regnum);
+      else
+	regnum = create_feature_riscv_32bit_cpu (tdesc.get (), regnum);
+    }
+  else if (features.xlen == 8)
+    regnum = create_feature_riscv_64bit_cpu (tdesc.get (), regnum);
+
+  /* For now we only support creating 32-bit or 64-bit f-registers.  */
+  if (features.flen == 4)
+    regnum = create_feature_riscv_32bit_fpu (tdesc.get (), regnum);
+  else if (features.flen == 8)
+    regnum = create_feature_riscv_64bit_fpu (tdesc.get (), regnum);
+
+  return tdesc;
+}
+
+#ifndef GDBSERVER
 
 /* Wrapper used by std::unordered_map to generate hash for feature set.  */
 struct riscv_gdbarch_features_hasher
@@ -38,63 +102,29 @@ struct riscv_gdbarch_features_hasher
 /* Cache of previously seen target descriptions, indexed by the feature set
    that created them.  */
 static std::unordered_map<riscv_gdbarch_features,
-                          target_desc *,
-                          riscv_gdbarch_features_hasher> riscv_tdesc_cache;
+			  const target_desc_up,
+			  riscv_gdbarch_features_hasher> riscv_tdesc_cache;
 
 /* See arch/riscv.h.  */
 
 const target_desc *
-riscv_create_target_description (struct riscv_gdbarch_features features)
+riscv_lookup_target_description (const struct riscv_gdbarch_features features)
 {
-  /* Have we seen this feature set before?  If we have return the same
-     target description.  GDB expects that if two target descriptions are
-     the same (in content terms) then they will actually be the same
-     instance.  This is important when trying to lookup gdbarch objects as
-     GDBARCH_LIST_LOOKUP_BY_INFO performs a pointer comparison on target
-     descriptions to find candidate gdbarch objects.  */
+  /* Lookup in the cache.  If we find it then return the pointer out of
+     the target_desc_up (which is a unique_ptr).  This is safe as the
+     riscv_tdesc_cache will exist until GDB exits.  */
   const auto it = riscv_tdesc_cache.find (features);
   if (it != riscv_tdesc_cache.end ())
-    return it->second;
+    return it->second.get ();
 
-  /* Now we should create a new target description.  */
-  target_desc *tdesc = allocate_target_description ();
+  target_desc_up tdesc (riscv_create_target_description (features));
 
-#ifndef IN_PROCESS_AGENT
-  std::string arch_name = "riscv";
-
-  if (features.xlen == 4)
-    arch_name.append (":rv32i");
-  else if (features.xlen == 8)
-    arch_name.append (":rv64i");
-  else if (features.xlen == 16)
-    arch_name.append (":rv128i");
-
-  if (features.flen == 4)
-    arch_name.append ("f");
-  else if (features.flen == 8)
-    arch_name.append ("d");
-  else if (features.flen == 16)
-    arch_name.append ("q");
-
-  set_tdesc_architecture (tdesc, arch_name.c_str ());
-#endif
-
-  long regnum = 0;
-
-  /* For now we only support creating 32-bit or 64-bit x-registers.  */
-  if (features.xlen == 4)
-    regnum = create_feature_riscv_32bit_cpu (tdesc, regnum);
-  else if (features.xlen == 8)
-    regnum = create_feature_riscv_64bit_cpu (tdesc, regnum);
-
-  /* For now we only support creating 32-bit or 64-bit f-registers.  */
-  if (features.flen == 4)
-    regnum = create_feature_riscv_32bit_fpu (tdesc, regnum);
-  else if (features.flen == 8)
-    regnum = create_feature_riscv_64bit_fpu (tdesc, regnum);
-
-  /* Add to the cache.  */
-  riscv_tdesc_cache.emplace (features, tdesc);
-
-  return tdesc;
+  /* Add to the cache, and return a pointer borrowed from the
+     target_desc_up.  This is safe as the cache (and the pointers
+     contained within it) are not deleted until GDB exits.  */
+  target_desc *ptr = tdesc.get ();
+  riscv_tdesc_cache.emplace (features, std::move (tdesc));
+  return ptr;
 }
+
+#endif /* !GDBSERVER */

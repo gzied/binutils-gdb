@@ -1,4 +1,4 @@
-/* Copyright (C) 2013-2019 Free Software Foundation, Inc.
+/* Copyright (C) 2013-2021 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -31,6 +31,11 @@
 /* Variable controlling the output of the debugging traces for
    this module.  */
 static bool solib_aix_debug;
+
+/* Print an "aix-solib" debug statement.  */
+
+#define solib_aix_debug_printf(fmt, ...) \
+  debug_prefixed_printf_cond (solib_aix_debug, "aix-solib",fmt, ##__VA_ARGS__)
 
 /* Our private data in struct so_list.  */
 
@@ -105,7 +110,7 @@ solib_aix_parse_libraries (const char *library)
     {
       have_warned = 1;
       warning (_("Can not parse XML library list; XML support was disabled "
-                 "at compile time"));
+		 "at compile time"));
     }
 
   return {};
@@ -153,8 +158,8 @@ library_list_start_library (struct gdb_xml_parser *parser,
 
 static void
 library_list_start_list (struct gdb_xml_parser *parser,
-                         const struct gdb_xml_element *element,
-                         void *user_data,
+			 const struct gdb_xml_element *element,
+			 void *user_data,
 			 std::vector<gdb_xml_value> &attributes)
 {
   char *version
@@ -162,8 +167,8 @@ library_list_start_list (struct gdb_xml_parser *parser,
 
   if (strcmp (version, "1.0") != 0)
     gdb_xml_error (parser,
-                   _("Library list has unsupported version \"%s\""),
-                   version);
+		   _("Library list has unsupported version \"%s\""),
+		   version);
 }
 
 /* The allowed elements and attributes for an AIX library list
@@ -250,10 +255,8 @@ solib_aix_get_library_list (struct inferior *inf, const char *warning_msg)
       return data->library_list;
     }
 
-  if (solib_aix_debug)
-    fprintf_unfiltered (gdb_stdlog,
-			"DEBUG: TARGET_OBJECT_LIBRARIES_AIX = \n%s\n",
-			library_document->data ());
+  solib_aix_debug_printf ("TARGET_OBJECT_LIBRARIES_AIX = %s",
+			  library_document->data ());
 
   data->library_list = solib_aix_parse_libraries (library_document->data ());
   if (!data->library_list.has_value () && warning_msg != NULL)
@@ -374,9 +377,7 @@ solib_aix_free_so (struct so_list *so)
 {
   lm_info_aix *li = (lm_info_aix *) so->lm_info;
 
-  if (solib_aix_debug)
-    fprintf_unfiltered (gdb_stdlog, "DEBUG: solib_aix_free_so (%s)\n",
-			so->so_name);
+  solib_aix_debug_printf ("%s", so->so_name);
 
   delete li;
 }
@@ -390,19 +391,15 @@ solib_aix_clear_solib (void)
 }
 
 /* Compute and return the OBJFILE's section_offset array, using
-   the associated loader info (INFO).
+   the associated loader info (INFO).  */
 
-   The resulting array is computed on the heap and must be
-   deallocated after use.  */
-
-static gdb::unique_xmalloc_ptr<struct section_offsets>
+static section_offsets
 solib_aix_get_section_offsets (struct objfile *objfile,
 			       lm_info_aix *info)
 {
   bfd *abfd = objfile->obfd;
 
-  gdb::unique_xmalloc_ptr<struct section_offsets> offsets
-    (XCNEWVEC (struct section_offsets, objfile->num_sections));
+  section_offsets offsets (objfile->section_offsets.size ());
 
   /* .text */
 
@@ -411,7 +408,7 @@ solib_aix_get_section_offsets (struct objfile *objfile,
       struct bfd_section *sect
 	= objfile->sections[objfile->sect_index_text].the_bfd_section;
 
-      offsets->offsets[objfile->sect_index_text]
+      offsets[objfile->sect_index_text]
 	= info->text_addr + sect->filepos - bfd_section_vma (sect);
     }
 
@@ -422,7 +419,7 @@ solib_aix_get_section_offsets (struct objfile *objfile,
       struct bfd_section *sect
 	= objfile->sections[objfile->sect_index_data].the_bfd_section;
 
-      offsets->offsets[objfile->sect_index_data]
+      offsets[objfile->sect_index_data]
 	= info->data_addr - bfd_section_vma (sect);
     }
 
@@ -435,8 +432,8 @@ solib_aix_get_section_offsets (struct objfile *objfile,
   if (objfile->sect_index_bss != -1
       && objfile->sect_index_data != -1)
     {
-      offsets->offsets[objfile->sect_index_bss]
-	= (offsets->offsets[objfile->sect_index_data]
+      offsets[objfile->sect_index_bss]
+	= (offsets[objfile->sect_index_data]
 	   + solib_aix_bss_data_overlap (abfd));
     }
 
@@ -466,12 +463,13 @@ solib_aix_solib_create_inferior_hook (int from_tty)
     }
 
   lm_info_aix &exec_info = (*library_list)[0];
-  if (symfile_objfile != NULL)
+  if (current_program_space->symfile_object_file != NULL)
     {
-      gdb::unique_xmalloc_ptr<struct section_offsets> offsets
-	= solib_aix_get_section_offsets (symfile_objfile, &exec_info);
+      objfile *objf = current_program_space->symfile_object_file;
+      section_offsets offsets = solib_aix_get_section_offsets (objf,
+							       &exec_info);
 
-      objfile_relocate (symfile_objfile, offsets.get ());
+      objfile_relocate (objf, offsets);
     }
 }
 
@@ -523,12 +521,12 @@ solib_aix_current_sos (void)
 
       /* Add it to the list.  */
       if (!start)
-        last = start = new_solib;
+	last = start = new_solib;
       else
-        {
-          last->next = new_solib;
-          last = new_solib;
-        }
+	{
+	  last->next = new_solib;
+	  last = new_solib;
+	}
     }
 
   return start;
@@ -615,7 +613,7 @@ solib_aix_bfd_open (const char *pathname)
     (gdb_bfd_openr_next_archived_file (archive_bfd.get (), NULL));
   while (object_bfd != NULL)
     {
-      if (member_name == object_bfd->filename)
+      if (member_name == bfd_get_filename (object_bfd.get ()))
 	break;
 
       object_bfd = gdb_bfd_openr_next_archived_file (archive_bfd.get (),
@@ -641,10 +639,10 @@ solib_aix_bfd_open (const char *pathname)
      along with appended parenthesized member name in order to allow commands
      listing all shared libraries to display.  Otherwise, we would only be
      displaying the name of the archive member object.  */
-  bfd_set_filename (object_bfd.get (),
-		    xstrprintf ("%s%s",
-				bfd_get_filename (archive_bfd.get ()),
-				sep));
+  std::string fname = string_printf ("%s%s",
+				     bfd_get_filename (archive_bfd.get ()),
+				     sep);
+  bfd_set_filename (object_bfd.get (), fname.c_str ());
 
   return object_bfd;
 }
@@ -688,11 +686,9 @@ solib_aix_get_toc_value (CORE_ADDR pc)
 
   result = (obj_section_addr (data_osect)
 	    + xcoff_get_toc_offset (pc_osect->objfile));
-  if (solib_aix_debug)
-    fprintf_unfiltered (gdb_stdlog,
-			"DEBUG: solib_aix_get_toc_value (pc=%s) -> %s\n",
-			core_addr_to_string (pc),
-			core_addr_to_string (result));
+
+  solib_aix_debug_printf ("pc=%s -> %s", core_addr_to_string (pc),
+			  core_addr_to_string (result));
 
   return result;
 }
@@ -723,8 +719,9 @@ show_solib_aix_debug (struct ui_file *file, int from_tty,
 /* The target_so_ops for AIX targets.  */
 struct target_so_ops solib_aix_so_ops;
 
+void _initialize_solib_aix ();
 void
-_initialize_solib_aix (void)
+_initialize_solib_aix ()
 {
   solib_aix_so_ops.relocate_section_addresses
     = solib_aix_relocate_section_addresses;
@@ -747,7 +744,7 @@ _initialize_solib_aix (void)
 Control the debugging traces for the solib-aix module."), _("\
 Show whether solib-aix debugging traces are enabled."), _("\
 When on, solib-aix debugging traces are enabled."),
-                            NULL,
-                            show_solib_aix_debug,
-                            &setdebuglist, &showdebuglist);
+			    NULL,
+			    show_solib_aix_debug,
+			    &setdebuglist, &showdebuglist);
 }

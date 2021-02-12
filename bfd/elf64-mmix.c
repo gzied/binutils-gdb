@@ -1,5 +1,5 @@
 /* MMIX-specific support for 64-bit ELF.
-   Copyright (C) 2001-2019 Free Software Foundation, Inc.
+   Copyright (C) 2001-2021 Free Software Foundation, Inc.
    Contributed by Hans-Peter Nilsson <hp@bitrange.com>
 
    This file is part of BFD, the Binary File Descriptor library.
@@ -831,7 +831,7 @@ mmix_elf_new_section_hook (bfd *abfd, asection *sec)
   if (!sec->used_by_bfd)
     {
       struct _mmix_elf_section_data *sdata;
-      bfd_size_type amt = sizeof (*sdata);
+      size_t amt = sizeof (*sdata);
 
       sdata = bfd_zalloc (abfd, amt);
       if (sdata == NULL)
@@ -2076,8 +2076,11 @@ mmix_elf_link_output_symbol_hook (struct bfd_link_info *info ATTRIBUTE_UNUSED,
    formats (e.g. mmo) than for example a STT_REGISTER attribute.
    This section faking is based on a construct in elf32-mips.c.  */
 static asection mmix_elf_reg_section;
-static asymbol mmix_elf_reg_section_symbol;
-static asymbol *mmix_elf_reg_section_symbol_ptr;
+static const asymbol mmix_elf_reg_section_symbol =
+  GLOBAL_SYM_INIT (MMIX_REG_SECTION_NAME, &mmix_elf_reg_section);
+static asection mmix_elf_reg_section =
+  BFD_FAKE_SECTION (mmix_elf_reg_section, &mmix_elf_reg_section_symbol,
+		    MMIX_REG_SECTION_NAME, 0, SEC_NO_FLAGS);
 
 /* Handle the special section numbers that a symbol may use.  */
 
@@ -2090,19 +2093,6 @@ mmix_elf_symbol_processing (bfd *abfd ATTRIBUTE_UNUSED, asymbol *asym)
   switch (elfsym->internal_elf_sym.st_shndx)
     {
     case SHN_REGISTER:
-      if (mmix_elf_reg_section.name == NULL)
-	{
-	  /* Initialize the register section.  */
-	  mmix_elf_reg_section.name = MMIX_REG_SECTION_NAME;
-	  mmix_elf_reg_section.flags = SEC_NO_FLAGS;
-	  mmix_elf_reg_section.output_section = &mmix_elf_reg_section;
-	  mmix_elf_reg_section.symbol = &mmix_elf_reg_section_symbol;
-	  mmix_elf_reg_section.symbol_ptr_ptr = &mmix_elf_reg_section_symbol_ptr;
-	  mmix_elf_reg_section_symbol.name = MMIX_REG_SECTION_NAME;
-	  mmix_elf_reg_section_symbol.flags = BSF_SECTION_SYM;
-	  mmix_elf_reg_section_symbol.section = &mmix_elf_reg_section;
-	  mmix_elf_reg_section_symbol_ptr = &mmix_elf_reg_section_symbol;
-	}
       asym->section = &mmix_elf_reg_section;
       break;
 
@@ -2538,6 +2528,7 @@ mmix_elf_relax_section (bfd *abfd,
      spot a missing actual initialization.  */
   size_t bpono = (size_t) -1;
   size_t pjsno = 0;
+  size_t pjsno_undefs = 0;
   Elf_Internal_Sym *isymbuf = NULL;
   bfd_size_type size = sec->rawsize ? sec->rawsize : sec->size;
 
@@ -2703,6 +2694,11 @@ mmix_elf_relax_section (bfd *abfd,
 		  gregdata->n_remaining_bpo_relocs_this_relaxation_round--;
 		  bpono++;
 		}
+
+	      /* Similarly, keep accounting consistent for PUSHJ
+		 referring to an undefined symbol.  */
+	      if (ELF64_R_TYPE (irel->r_info) == R_MMIX_PUSHJ_STUBBABLE)
+		pjsno_undefs++;
 	      continue;
 	    }
 	}
@@ -2842,10 +2838,10 @@ mmix_elf_relax_section (bfd *abfd,
 	}
     }
 
-  BFD_ASSERT(pjsno == mmix_elf_section_data (sec)->pjs.n_pushj_relocs);
+  BFD_ASSERT(pjsno + pjsno_undefs
+	     == mmix_elf_section_data (sec)->pjs.n_pushj_relocs);
 
-  if (internal_relocs != NULL
-      && elf_section_data (sec)->relocs != internal_relocs)
+  if (elf_section_data (sec)->relocs != internal_relocs)
     free (internal_relocs);
 
   if (sec->size < size + mmix_elf_section_data (sec)->pjs.stubs_size_sum)
@@ -2860,10 +2856,9 @@ mmix_elf_relax_section (bfd *abfd,
   return TRUE;
 
  error_return:
-  if (isymbuf != NULL && (unsigned char *) isymbuf != symtab_hdr->contents)
+  if ((unsigned char *) isymbuf != symtab_hdr->contents)
     free (isymbuf);
-  if (internal_relocs != NULL
-      && elf_section_data (sec)->relocs != internal_relocs)
+  if (elf_section_data (sec)->relocs != internal_relocs)
     free (internal_relocs);
   return FALSE;
 }

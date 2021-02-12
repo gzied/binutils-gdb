@@ -1,6 +1,6 @@
 /* Self tests for run_on_main_thread
 
-   Copyright (C) 2019 Free Software Foundation, Inc.
+   Copyright (C) 2019-2021 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -21,7 +21,7 @@
 #include "gdbsupport/selftest.h"
 #include "gdbsupport/block-signals.h"
 #include "run-on-main-thread.h"
-#include "event-loop.h"
+#include "gdbsupport/event-loop.h"
 #if CXX_STD_THREAD
 #include <thread>
 #endif
@@ -70,6 +70,7 @@ run_tests ()
 }
 }
 
+void _initialize_main_thread_selftests ();
 void
 _initialize_main_thread_selftests ()
 {

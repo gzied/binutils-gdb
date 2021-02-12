@@ -1,5 +1,5 @@
 /* srconv.c -- Sysroff conversion program
-   Copyright (C) 1994-2019 Free Software Foundation, Inc.
+   Copyright (C) 1994-2021 Free Software Foundation, Inc.
 
    This file is part of GNU Binutils.
 
@@ -1686,8 +1686,6 @@ prescan (struct coff_ofile *otree)
 	}
     }
 }
-
-char *program_name;
 
 ATTRIBUTE_NORETURN static void
 show_usage (FILE *ffile, int status)

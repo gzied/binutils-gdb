@@ -1,6 +1,6 @@
 /* Fork a Unix child process, and set up to debug it, for GDB and GDBserver.
 
-   Copyright (C) 1990-2019 Free Software Foundation, Inc.
+   Copyright (C) 1990-2021 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -267,10 +267,11 @@ execv_argv::init_for_shell (const char *exec_file,
 pid_t
 fork_inferior (const char *exec_file_arg, const std::string &allargs,
 	       char **env, void (*traceme_fun) (),
-	       void (*init_trace_fun) (int), void (*pre_trace_fun) (),
+	       gdb::function_view<void (int)> init_trace_fun,
+	       void (*pre_trace_fun) (),
 	       const char *shell_file_arg,
-               void (*exec_fun)(const char *file, char * const *argv,
-                                char * const *env))
+	       void (*exec_fun)(const char *file, char * const *argv,
+				char * const *env))
 {
   pid_t pid;
   /* Set debug_fork then attach to the child while it sleeps, to debug.  */
@@ -385,38 +386,38 @@ fork_inferior (const char *exec_file_arg, const std::string &allargs,
       postfork_child_hook ();
 
       /* Changing the signal handlers for the inferior after
-         a vfork can also change them for the superior, so we don't mess
-         with signals here.  See comments in
-         initialize_signals for how we get the right signal handlers
-         for the inferior.  */
+	 a vfork can also change them for the superior, so we don't mess
+	 with signals here.  See comments in
+	 initialize_signals for how we get the right signal handlers
+	 for the inferior.  */
 
       /* "Trace me, Dr. Memory!"  */
       (*traceme_fun) ();
 
       /* The call above set this process (the "child") as debuggable
-        by the original gdb process (the "parent").  Since processes
-        (unlike people) can have only one parent, if you are debugging
-        gdb itself (and your debugger is thus _already_ the
-        controller/parent for this child), code from here on out is
-        undebuggable.  Indeed, you probably got an error message
-        saying "not parent".  Sorry; you'll have to use print
-        statements!  */
+	by the original gdb process (the "parent").  Since processes
+	(unlike people) can have only one parent, if you are debugging
+	gdb itself (and your debugger is thus _already_ the
+	controller/parent for this child), code from here on out is
+	undebuggable.  Indeed, you probably got an error message
+	saying "not parent".  Sorry; you'll have to use print
+	statements!  */
 
       restore_original_signals_state ();
 
       /* There is no execlpe call, so we have to set the environment
-         for our child in the global variable.  If we've vforked, this
-         clobbers the parent, but environ is restored a few lines down
-         in the parent.  By the way, yes we do need to look down the
-         path to find $SHELL.  Rich Pixley says so, and I agree.  */
+	 for our child in the global variable.  If we've vforked, this
+	 clobbers the parent, but environ is restored a few lines down
+	 in the parent.  By the way, yes we do need to look down the
+	 path to find $SHELL.  Rich Pixley says so, and I agree.  */
       environ = env;
 
       char **argv = child_argv.argv ();
 
       if (exec_fun != NULL)
-        (*exec_fun) (argv[0], &argv[0], env);
+	(*exec_fun) (argv[0], &argv[0], env);
       else
-        execvp (argv[0], &argv[0]);
+	execvp (argv[0], &argv[0]);
 
       /* If we get here, it's an error.  */
       save_errno = errno;
@@ -439,7 +440,7 @@ fork_inferior (const char *exec_file_arg, const std::string &allargs,
      initialize anything target-vector-specific that needs
      initializing.  */
   if (init_trace_fun)
-    (*init_trace_fun) (pid);
+    init_trace_fun (pid);
 
   /* We are now in the child process of interest, having exec'd the
      correct program, and are poised at the first instruction of the
@@ -450,7 +451,7 @@ fork_inferior (const char *exec_file_arg, const std::string &allargs,
 /* See nat/fork-inferior.h.  */
 
 ptid_t
-startup_inferior (pid_t pid, int ntraps,
+startup_inferior (process_stratum_target *proc_target, pid_t pid, int ntraps,
 		  struct target_waitstatus *last_waitstatus,
 		  ptid_t *last_ptid)
 {
@@ -502,7 +503,7 @@ startup_inferior (pid_t pid, int ntraps,
 	  case TARGET_WAITKIND_SYSCALL_ENTRY:
 	  case TARGET_WAITKIND_SYSCALL_RETURN:
 	    /* Ignore gracefully during startup of the inferior.  */
-	    switch_to_thread (event_ptid);
+	    switch_to_thread (proc_target, event_ptid);
 	    break;
 
 	  case TARGET_WAITKIND_SIGNALLED:
@@ -525,14 +526,17 @@ startup_inferior (pid_t pid, int ntraps,
 
 	  case TARGET_WAITKIND_EXECD:
 	    /* Handle EXEC signals as if they were SIGTRAP signals.  */
-	    xfree (ws.value.execd_pathname);
+	    /* Free the exec'ed pathname, but only if this isn't the
+	       waitstatus we are returning to the caller.  */
+	    if (pending_execs != 1)
+	      xfree (ws.value.execd_pathname);
 	    resume_signal = GDB_SIGNAL_TRAP;
-	    switch_to_thread (event_ptid);
+	    switch_to_thread (proc_target, event_ptid);
 	    break;
 
 	  case TARGET_WAITKIND_STOPPED:
 	    resume_signal = ws.value.sig;
-	    switch_to_thread (event_ptid);
+	    switch_to_thread (proc_target, event_ptid);
 	    break;
 	}
 
@@ -547,12 +551,12 @@ startup_inferior (pid_t pid, int ntraps,
 	  if (!terminal_initted)
 	    {
 	      /* Now that the child has exec'd we know it has already
-	         set its process group.  On POSIX systems, tcsetpgrp
-	         will fail with EPERM if we try it before the child's
-	         setpgid.  */
+		 set its process group.  On POSIX systems, tcsetpgrp
+		 will fail with EPERM if we try it before the child's
+		 setpgid.  */
 
 	      /* Set up the "saved terminal modes" of the inferior
-	         based on what modes we are starting it with.  */
+		 based on what modes we are starting it with.  */
 	      target_terminal::init ();
 
 	      /* Install inferior's terminal modes.  */

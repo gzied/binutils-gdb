@@ -26,6 +26,9 @@ case "${target}" in
    bfin-*-*)
        SIM_ARCH(bfin)
        ;;
+   bpf-*-*)
+       SIM_ARCH(bpf)
+       ;;
    cr16*-*-*)
        SIM_ARCH(cr16)
        ;;
@@ -87,9 +90,6 @@ case "${target}" in
        ;;
    rx-*-*)
        SIM_ARCH(rx)
-       ;;
-   sh64*-*-*)
-       SIM_ARCH(sh64)
        ;;
    sh*-*-*)
        SIM_ARCH(sh)

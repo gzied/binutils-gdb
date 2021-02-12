@@ -1,6 +1,6 @@
 /* Abstraction of GNU v2 abi.
 
-   Copyright (C) 2001-2019 Free Software Foundation, Inc.
+   Copyright (C) 2001-2021 Free Software Foundation, Inc.
 
    Contributed by Daniel Berlin <dberlin@redhat.com>
 
@@ -132,17 +132,17 @@ gnuv2_virtual_fn_field (struct value **arg1p, struct fn_field * f, int j,
 
   /* With older versions of g++, the vtbl field pointed to an array
      of structures.  Nowadays it points directly to the structure.  */
-  if (TYPE_CODE (value_type (vtbl)) == TYPE_CODE_PTR
-      && TYPE_CODE (TYPE_TARGET_TYPE (value_type (vtbl))) == TYPE_CODE_ARRAY)
+  if (value_type (vtbl)->code () == TYPE_CODE_PTR
+      && TYPE_TARGET_TYPE (value_type (vtbl))->code () == TYPE_CODE_ARRAY)
     {
       /* Handle the case where the vtbl field points to an
-         array of structures.  */
+	 array of structures.  */
       vtbl = value_ind (vtbl);
 
       /* Index into the virtual function table.  This is hard-coded because
-         looking up a field is not cheap, and it may be important to save
-         time, e.g. if the user has set a conditional breakpoint calling
-         a virtual function.  */
+	 looking up a field is not cheap, and it may be important to save
+	 time, e.g. if the user has set a conditional breakpoint calling
+	 a virtual function.  */
       entry = value_subscript (vtbl, vi);
     }
   else
@@ -155,7 +155,7 @@ gnuv2_virtual_fn_field (struct value **arg1p, struct fn_field * f, int j,
 
   entry_type = check_typedef (value_type (entry));
 
-  if (TYPE_CODE (entry_type) == TYPE_CODE_STRUCT)
+  if (entry_type->code () == TYPE_CODE_STRUCT)
     {
       /* Move the `this' pointer according to the virtual function table.  */
       set_value_offset (arg1, value_offset (arg1)
@@ -169,7 +169,7 @@ gnuv2_virtual_fn_field (struct value **arg1p, struct fn_field * f, int j,
 
       vfn = value_field (entry, 2);
     }
-  else if (TYPE_CODE (entry_type) == TYPE_CODE_PTR)
+  else if (entry_type->code () == TYPE_CODE_PTR)
     vfn = entry;
   else
     error (_("I'm confused:  virtual function table has bad type"));
@@ -206,7 +206,7 @@ gnuv2_value_rtti_type (struct value *v, int *full, LONGEST *top, int *using_enc)
   known_type = value_type (v);
   known_type = check_typedef (known_type);
   /* RTTI works only or class objects.  */
-  if (TYPE_CODE (known_type) != TYPE_CODE_STRUCT)
+  if (known_type->code () != TYPE_CODE_STRUCT)
     return NULL;
 
   /* Plan on this changing in the future as i get around to setting
@@ -230,7 +230,7 @@ gnuv2_value_rtti_type (struct value *v, int *full, LONGEST *top, int *using_enc)
     {
       v = value_cast (btype, v);
       if (using_enc)
-        *using_enc=1;
+	*using_enc=1;
     }
   /* We can't use value_ind here, because it would want to use RTTI, and
      we'd waste a bunch of time figuring out we already know the type.
@@ -262,26 +262,26 @@ gnuv2_value_rtti_type (struct value *v, int *full, LONGEST *top, int *using_enc)
   if (TYPE_N_BASECLASSES(rtti_type) > 1 &&  full && (*full) != 1)
     {
       if (top)
-        *top = TYPE_BASECLASS_BITPOS (rtti_type,
+	*top = TYPE_BASECLASS_BITPOS (rtti_type,
 				      TYPE_VPTR_FIELDNO(rtti_type)) / 8;
       if (top && ((*top) >0))
-        {
-          if (TYPE_LENGTH(rtti_type) > TYPE_LENGTH(known_type))
-            {
-              if (full)
-                *full=0;
-            }
-          else
-            {
-              if (full)
-                *full=1;
-            }
-        }
+	{
+	  if (TYPE_LENGTH(rtti_type) > TYPE_LENGTH(known_type))
+	    {
+	      if (full)
+		*full=0;
+	    }
+	  else
+	    {
+	      if (full)
+		*full=1;
+	    }
+	}
     }
   else
     {
       if (full)
-        *full=1;
+	*full=1;
     }
 
   return rtti_type;
@@ -312,9 +312,9 @@ vb_match (struct type *type, int index, struct type *basetype)
 
   /* It's a virtual baseclass pointer, now we just need to find out whether
      it is for this baseclass.  */
-  fieldtype = TYPE_FIELD_TYPE (type, index);
+  fieldtype = type->field (index).type ();
   if (fieldtype == NULL
-      || TYPE_CODE (fieldtype) != TYPE_CODE_PTR)
+      || fieldtype->code () != TYPE_CODE_PTR)
     /* "Can't happen".  */
     return 0;
 
@@ -325,10 +325,10 @@ vb_match (struct type *type, int index, struct type *basetype)
   if (TYPE_TARGET_TYPE (fieldtype) == basetype)
     return 1;
 
-  if (TYPE_NAME (basetype) != NULL
-      && TYPE_NAME (TYPE_TARGET_TYPE (fieldtype)) != NULL
-      && strcmp (TYPE_NAME (basetype),
-		 TYPE_NAME (TYPE_TARGET_TYPE (fieldtype))) == 0)
+  if (basetype->name () != NULL
+      && TYPE_TARGET_TYPE (fieldtype)->name () != NULL
+      && strcmp (basetype->name (),
+		 TYPE_TARGET_TYPE (fieldtype)->name ()) == 0)
     return 1;
   return 0;
 }
@@ -348,11 +348,11 @@ gnuv2_baseclass_offset (struct type *type, int index,
   if (BASETYPE_VIA_VIRTUAL (type, index))
     {
       /* Must hunt for the pointer to this virtual baseclass.  */
-      int i, len = TYPE_NFIELDS (type);
+      int i, len = type->num_fields ();
       int n_baseclasses = TYPE_N_BASECLASSES (type);
 
       /* First look for the virtual baseclass pointer
-         in the fields.  */
+	 in the fields.  */
       for (i = n_baseclasses; i < len; i++)
 	{
 	  if (vb_match (type, i, basetype))
@@ -362,7 +362,7 @@ gnuv2_baseclass_offset (struct type *type, int index,
 	      int field_length;
 	      CORE_ADDR addr;
 
-	      field_type = check_typedef (TYPE_FIELD_TYPE (type, i));
+	      field_type = check_typedef (type->field (i).type ());
 	      field_offset = TYPE_FIELD_BITPOS (type, i) / 8;
 	      field_length = TYPE_LENGTH (field_type);
 
@@ -413,8 +413,9 @@ init_gnuv2_ops (void)
   gnu_v2_abi_ops.baseclass_offset = gnuv2_baseclass_offset;
 }
 
+void _initialize_gnu_v2_abi ();
 void
-_initialize_gnu_v2_abi (void)
+_initialize_gnu_v2_abi ()
 {
   init_gnuv2_ops ();
   register_cp_abi (&gnu_v2_abi_ops);

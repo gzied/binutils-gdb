@@ -1,6 +1,6 @@
 /* Gdb/Python header for private use by Python module.
 
-   Copyright (C) 2008-2019 Free Software Foundation, Inc.
+   Copyright (C) 2008-2021 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -96,8 +96,6 @@
 #define Py_TPFLAGS_CHECKTYPES 0
 
 #define PyInt_Check PyLong_Check
-#define PyInt_FromLong PyLong_FromLong
-#define PyInt_FromSsize_t PyLong_FromSsize_t
 #define PyInt_AsLong PyLong_AsLong
 #define PyInt_AsSsize_t PyLong_AsSsize_t
 
@@ -127,8 +125,6 @@
 #define GDB_PY_LLU_ARG "K"
 typedef PY_LONG_LONG gdb_py_longest;
 typedef unsigned PY_LONG_LONG gdb_py_ulongest;
-#define gdb_py_long_from_longest PyLong_FromLongLong
-#define gdb_py_long_from_ulongest PyLong_FromUnsignedLongLong
 #define gdb_py_long_as_ulongest PyLong_AsUnsignedLongLong
 
 #else /* HAVE_LONG_LONG */
@@ -137,8 +133,6 @@ typedef unsigned PY_LONG_LONG gdb_py_ulongest;
 #define GDB_PY_LLU_ARG "K"
 typedef long gdb_py_longest;
 typedef unsigned long gdb_py_ulongest;
-#define gdb_py_long_from_longest PyLong_FromLong
-#define gdb_py_long_from_ulongest PyLong_FromUnsignedLong
 #define gdb_py_long_as_ulongest PyLong_AsUnsignedLong
 
 #endif /* HAVE_LONG_LONG */
@@ -324,7 +318,7 @@ extern PyTypeObject frame_object_type
 extern PyTypeObject thread_object_type
     CPYCHECKER_TYPE_OBJECT_FOR_TYPEDEF ("thread_object");
 
-typedef struct gdbpy_breakpoint_object
+struct gdbpy_breakpoint_object
 {
   PyObject_HEAD
 
@@ -337,16 +331,16 @@ typedef struct gdbpy_breakpoint_object
 
   /* 1 is this is a FinishBreakpoint object, 0 otherwise.  */
   int is_finish_bp;
-} gdbpy_breakpoint_object;
+};
 
 /* Require that BREAKPOINT be a valid breakpoint ID; throw a Python
    exception if it is invalid.  */
 #define BPPY_REQUIRE_VALID(Breakpoint)                                  \
     do {                                                                \
       if ((Breakpoint)->bp == NULL)                                     \
-        return PyErr_Format (PyExc_RuntimeError,                        \
-                             _("Breakpoint %d is invalid."),            \
-                             (Breakpoint)->number);                     \
+	return PyErr_Format (PyExc_RuntimeError,                        \
+			     _("Breakpoint %d is invalid."),            \
+			     (Breakpoint)->number);                     \
     } while (0)
 
 /* Require that BREAKPOINT be a valid breakpoint ID; throw a Python
@@ -354,11 +348,11 @@ typedef struct gdbpy_breakpoint_object
 #define BPPY_SET_REQUIRE_VALID(Breakpoint)                              \
     do {                                                                \
       if ((Breakpoint)->bp == NULL)                                     \
-        {                                                               \
-          PyErr_Format (PyExc_RuntimeError, _("Breakpoint %d is invalid."), \
-                        (Breakpoint)->number);                          \
-          return -1;                                                    \
-        }                                                               \
+	{                                                               \
+	  PyErr_Format (PyExc_RuntimeError, _("Breakpoint %d is invalid."), \
+			(Breakpoint)->number);                          \
+	  return -1;                                                    \
+	}                                                               \
     } while (0)
 
 
@@ -367,7 +361,7 @@ typedef struct gdbpy_breakpoint_object
 extern gdbpy_breakpoint_object *bppy_pending_object;
 
 
-typedef struct
+struct thread_object
 {
   PyObject_HEAD
 
@@ -376,7 +370,7 @@ typedef struct
 
   /* The Inferior object to which this thread belongs.  */
   PyObject *inf_obj;
-} thread_object;
+};
 
 struct inferior_object;
 
@@ -385,16 +379,17 @@ extern struct cmd_list_element *show_python_list;
 
 /* extension_language_script_ops "methods".  */
 
-extern int gdbpy_auto_load_enabled (const struct extension_language_defn *);
+/* Return true if auto-loading Python scripts is enabled.
+   This is the extension_language_script_ops.auto_load_enabled "method".  */
+
+extern bool gdbpy_auto_load_enabled (const struct extension_language_defn *);
 
 /* extension_language_ops "methods".  */
 
 extern enum ext_lang_rc gdbpy_apply_val_pretty_printer
   (const struct extension_language_defn *,
-   struct type *type,
-   LONGEST embedded_offset, CORE_ADDR address,
+   struct value *value,
    struct ui_file *stream, int recurse,
-   struct value *val,
    const struct value_print_options *options,
    const struct language_defn *language);
 extern enum ext_lang_bt_status gdbpy_apply_frame_filter
@@ -447,6 +442,8 @@ PyObject *gdbpy_parameter_value (enum var_types type, void *var);
 char *gdbpy_parse_command_name (const char *name,
 				struct cmd_list_element ***base_list,
 				struct cmd_list_element **start_list);
+PyObject *gdbpy_register_tui_window (PyObject *self, PyObject *args,
+				     PyObject *kw);
 
 PyObject *symtab_and_line_to_sal_object (struct symtab_and_line sal);
 PyObject *symtab_to_symtab_object (struct symtab *symtab);
@@ -454,6 +451,7 @@ PyObject *symbol_to_symbol_object (struct symbol *sym);
 PyObject *block_to_block_object (const struct block *block,
 				 struct objfile *objfile);
 PyObject *value_to_value_object (struct value *v);
+PyObject *value_to_value_object_no_release (struct value *v);
 PyObject *type_to_type_object (struct type *);
 PyObject *frame_info_to_frame_object (struct frame_info *frame);
 PyObject *symtab_to_linetable_object (PyObject *symtab);
@@ -471,6 +469,10 @@ PyObject *objfpy_get_xmethods (PyObject *, void *);
 PyObject *gdbpy_lookup_objfile (PyObject *self, PyObject *args, PyObject *kw);
 
 PyObject *gdbarch_to_arch_object (struct gdbarch *gdbarch);
+
+PyObject *gdbpy_new_register_descriptor_iterator (struct gdbarch *gdbarch,
+						  const char *group_name);
+PyObject *gdbpy_new_reggroup_iterator (struct gdbarch *gdbarch);
 
 gdbpy_ref<thread_object> create_thread_object (struct thread_info *tp);
 gdbpy_ref<> thread_to_thread_object (thread_info *thr);;
@@ -539,9 +541,13 @@ int gdbpy_initialize_py_events (void)
   CPYCHECKER_NEGATIVE_RESULT_SETS_EXCEPTION;
 int gdbpy_initialize_arch (void)
   CPYCHECKER_NEGATIVE_RESULT_SETS_EXCEPTION;
+int gdbpy_initialize_registers ()
+  CPYCHECKER_NEGATIVE_RESULT_SETS_EXCEPTION;
 int gdbpy_initialize_xmethods (void)
   CPYCHECKER_NEGATIVE_RESULT_SETS_EXCEPTION;
 int gdbpy_initialize_unwind (void)
+  CPYCHECKER_NEGATIVE_RESULT_SETS_EXCEPTION;
+int gdbpy_initialize_tui ()
   CPYCHECKER_NEGATIVE_RESULT_SETS_EXCEPTION;
 
 /* A wrapper for PyErr_Fetch that handles reference counting for the
@@ -672,7 +678,7 @@ extern const struct language_defn *python_language;
     if (Exception.reason < 0)			\
       {						\
 	gdbpy_convert_exception (Exception);	\
-        return NULL;				\
+	return NULL;				\
       }						\
   } while (0)
 
@@ -681,7 +687,7 @@ extern const struct language_defn *python_language;
 #define GDB_PY_SET_HANDLE_EXCEPTION(Exception)				\
     do {								\
       if (Exception.reason < 0)						\
-        {								\
+	{								\
 	  gdbpy_convert_exception (Exception);				\
 	  return -1;							\
 	}								\
@@ -751,8 +757,8 @@ int gdb_pymodule_addobject (PyObject *module, const char *name,
 
 struct varobj_iter;
 struct varobj;
-struct varobj_iter *py_varobj_get_iterator (struct varobj *var,
-					    PyObject *printer);
+std::unique_ptr<varobj_iter> py_varobj_get_iterator (struct varobj *var,
+						     PyObject *printer);
 
 /* Deleter for Py_buffer unique_ptr specialization.  */
 
@@ -766,5 +772,24 @@ struct Py_buffer_deleter
 
 /* A unique_ptr specialization for Py_buffer.  */
 typedef std::unique_ptr<Py_buffer, Py_buffer_deleter> Py_buffer_up;
+
+/* Parse a register number from PYO_REG_ID and place the register number
+   into *REG_NUM.  The register is a register for GDBARCH.
+
+   If a register is parsed successfully then *REG_NUM will have been
+   updated, and true is returned.  Otherwise the contents of *REG_NUM are
+   undefined, and false is returned.
+
+   The PYO_REG_ID object can be a string, the name of the register.  This
+   is the slowest approach as GDB has to map the name to a number for each
+   call.  Alternatively PYO_REG_ID can be an internal GDB register
+   number.  This is quick but should not be encouraged as this means
+   Python scripts are now dependent on GDB's internal register numbering.
+   Final PYO_REG_ID can be a gdb.RegisterDescriptor object, these objects
+   can be looked up by name once, and then cache the register number so
+   should be as quick as using a register number.  */
+
+extern bool gdbpy_parse_register_id (struct gdbarch *gdbarch,
+				     PyObject *pyo_reg_id, int *reg_num);
 
 #endif /* PYTHON_PYTHON_INTERNAL_H */

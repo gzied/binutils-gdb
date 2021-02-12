@@ -1,6 +1,6 @@
 /* Guile interface to program spaces.
 
-   Copyright (C) 2010-2019 Free Software Foundation, Inc.
+   Copyright (C) 2010-2021 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -28,10 +28,9 @@
 /* NOTE: Python exports the name "Progspace", so we export "progspace".
    Internally we shorten that to "pspace".  */
 
-/* The <gdb:progspace> smob.
-   The typedef for this struct is in guile-internal.h.  */
+/* The <gdb:progspace> smob.  */
 
-struct _pspace_smob
+struct pspace_smob
 {
   /* This always appears first.  */
   gdb_smob base;
@@ -353,17 +352,16 @@ gdbscm_current_progspace (void)
 static SCM
 gdbscm_progspaces (void)
 {
-  struct program_space *ps;
   SCM result;
 
   result = SCM_EOL;
 
-  ALL_PSPACES (ps)
-  {
-    SCM item = psscm_scm_from_pspace (ps);
+  for (struct program_space *ps : program_spaces)
+    {
+      SCM item = psscm_scm_from_pspace (ps);
 
-    result = scm_cons (item, result);
-  }
+      result = scm_cons (item, result);
+    }
 
   return scm_reverse_x (result, SCM_EOL);
 }

@@ -1,6 +1,6 @@
 # This testcase is part of GDB, the GNU debugger.
 #
-# Copyright 2013-2019 Free Software Foundation, Inc.
+# Copyright 2013-2021 Free Software Foundation, Inc.
 #
 # Contributed by Intel Corp. <markus.t.metzger@intel.com>
 #
@@ -41,6 +41,10 @@ if [info exists COMPILE] {
 	} else {
 		standard_testfile i686-record_goto.S
 	}
+} elseif {[istarget "arm*-*-*"]} {
+	standard_testfile arm-record_goto.S
+} elseif {[istarget "aarch64*-*-*"]} {
+	standard_testfile aarch64-record_goto.S
 } else {
     unsupported "target architecture not supported"
     return -1
@@ -48,6 +52,126 @@ if [info exists COMPILE] {
 
 if [prepare_for_testing "failed to prepare" $testfile $srcfile $opts] {
     return -1
+}
+
+if {[istarget "i?86-*-*"] || [istarget "x86_64-*-*"]} {
+    set function_positions(0) 19
+    set function_positions(1) 27
+    set function_positions(2) 2
+    set function_positions(end) 40
+    set function_positions(3) 39
+
+    set sequence_begin(1) 1
+    set sequence_end(1) 1
+    set sequence_begin(2) 2
+    set sequence_end(2) 4
+    set sequence_begin(3) 5
+    set sequence_end(3) 8
+    set sequence_begin(4) 9
+    set sequence_end(4) 9
+    set sequence_begin(5) 10
+    set sequence_end(5) 12
+    set sequence_begin(6) 13
+    set sequence_end(6) 16
+    set sequence_begin(7) 17
+    set sequence_end(7) 18
+    set sequence_begin(8) 19
+    set sequence_end(8) 19
+    set sequence_begin(9) 20
+    set sequence_end(9) 22
+    set sequence_begin(10) 23
+    set sequence_end(10) 26
+    set sequence_begin(11) 27
+    set sequence_end(11) 27
+    set sequence_begin(12) 28
+    set sequence_end(12) 30
+    set sequence_begin(13) 31
+    set sequence_end(13) 34
+    set sequence_begin(14) 35
+    set sequence_end(14) 36
+    set sequence_begin(15) 37
+    set sequence_end(15) 38
+    set sequence_begin(16) 39
+    set sequence_end(16) 40
+
+} elseif {[istarget "arm*-*-*"]} {
+    set function_positions(0) 23
+    set function_positions(1) 33
+    set function_positions(2) 2
+    set function_positions(end) 48
+    set function_positions(3) 47
+
+    set sequence_begin(1) 1
+    set sequence_end(1) 1
+    set sequence_begin(2) 2
+    set sequence_end(2) 4
+    set sequence_begin(3) 5
+    set sequence_end(3) 10
+    set sequence_begin(4) 11
+    set sequence_end(4) 11
+    set sequence_begin(5) 12
+    set sequence_end(5) 14
+    set sequence_begin(6) 15
+    set sequence_end(6) 20
+    set sequence_begin(7) 21
+    set sequence_end(7) 22
+    set sequence_begin(8) 23
+    set sequence_end(8) 23
+    set sequence_begin(9) 24
+    set sequence_end(9) 26
+    set sequence_begin(10) 27
+    set sequence_end(10) 32
+    set sequence_begin(11) 33
+    set sequence_end(11) 33
+    set sequence_begin(12) 34
+    set sequence_end(12) 36
+    set sequence_begin(13) 37
+    set sequence_end(13) 42
+    set sequence_begin(14) 43
+    set sequence_end(14) 44
+    set sequence_begin(15) 45
+    set sequence_end(15) 46
+    set sequence_begin(16) 47
+    set sequence_end(16) 48
+} elseif {[istarget "aarch64*-*-*"]} {
+    set function_positions(0) 16
+    set function_positions(1) 22
+    set function_positions(2) 2
+    set function_positions(end) 36
+    set function_positions(3) 35
+
+    set sequence_begin(1) 1
+    set sequence_end(1) 1
+    set sequence_begin(2) 2
+    set sequence_end(2) 4
+    set sequence_begin(3) 5
+    set sequence_end(3) 6
+    set sequence_begin(4) 7
+    set sequence_end(4) 7
+    set sequence_begin(5) 8
+    set sequence_end(5) 10
+    set sequence_begin(6) 11
+    set sequence_end(6) 12
+    set sequence_begin(7) 13
+    set sequence_end(7) 15
+    set sequence_begin(8) 16
+    set sequence_end(8) 16
+    set sequence_begin(9) 17
+    set sequence_end(9) 19
+    set sequence_begin(10) 20
+    set sequence_end(10) 21
+    set sequence_begin(11) 22
+    set sequence_end(11) 22
+    set sequence_begin(12) 23
+    set sequence_end(12) 25
+    set sequence_begin(13) 26
+    set sequence_end(13) 27
+    set sequence_begin(14) 28
+    set sequence_end(14) 30
+    set sequence_begin(15) 31
+    set sequence_end(15) 33
+    set sequence_begin(16) 34
+    set sequence_end(16) 36
 }
 
 if ![runto_main] {
@@ -65,43 +189,43 @@ gdb_test "next"
 
 # start by listing all functions
 gdb_test "record function-call-history /ci 1, +20" [multi_line \
-  "1\tmain\tinst 1,1" \
-  "2\t  fun4\tinst 2,4" \
-  "3\t    fun1\tinst 5,8" \
-  "4\t  fun4\tinst 9,9" \
-  "5\t    fun2\tinst 10,12" \
-  "6\t      fun1\tinst 13,16" \
-  "7\t    fun2\tinst 17,18" \
-  "8\t  fun4\tinst 19,19" \
-  "9\t    fun3\tinst 20,22" \
-  "10\t      fun1\tinst 23,26" \
-  "11\t    fun3\tinst 27,27" \
-  "12\t      fun2\tinst 28,30" \
-  "13\t        fun1\tinst 31,34" \
-  "14\t      fun2\tinst 35,36" \
-  "15\t    fun3\tinst 37,38" \
-  "16\t  fun4\tinst 39,40" \
+  "1\tmain\tinst $sequence_begin(1),$sequence_end(1)" \
+  "2\t  fun4\tinst $sequence_begin(2),$sequence_end(2)" \
+  "3\t    fun1\tinst $sequence_begin(3),$sequence_end(3)" \
+  "4\t  fun4\tinst $sequence_begin(4),$sequence_end(4)" \
+  "5\t    fun2\tinst $sequence_begin(5),$sequence_end(5)" \
+  "6\t      fun1\tinst $sequence_begin(6),$sequence_end(6)" \
+  "7\t    fun2\tinst $sequence_begin(7),$sequence_end(7)" \
+  "8\t  fun4\tinst $sequence_begin(8),$sequence_end(8)" \
+  "9\t    fun3\tinst $sequence_begin(9),$sequence_end(9)" \
+  "10\t      fun1\tinst $sequence_begin(10),$sequence_end(10)" \
+  "11\t    fun3\tinst $sequence_begin(11),$sequence_end(11)" \
+  "12\t      fun2\tinst $sequence_begin(12),$sequence_end(12)" \
+  "13\t        fun1\tinst $sequence_begin(13),$sequence_end(13)" \
+  "14\t      fun2\tinst $sequence_begin(14),$sequence_end(14)" \
+  "15\t    fun3\tinst $sequence_begin(15),$sequence_end(15)" \
+  "16\t  fun4\tinst $sequence_begin(16),$sequence_end(16)" \
   ]
 
 # let's see if we can go back in history
-gdb_test "record goto 19" ".*fun4 \\(\\) at record_goto.c:43.*"
+gdb_test "record goto $function_positions(0)" ".*fun4 \\(\\) at record_goto.c:43.*"
 
 # the function call history should start at the new location
 gdb_test "record function-call-history /ci" [multi_line \
-  "8\t  fun4\tinst 19,19" \
-  "9\t    fun3\tinst 20,22" \
-  "10\t      fun1\tinst 23,26" \
-  ] "function-call-history from 19 forwards"
+  "8\t  fun4\tinst $sequence_begin(8),$sequence_end(8)" \
+  "9\t    fun3\tinst $sequence_begin(9),$sequence_end(9)" \
+  "10\t      fun1\tinst $sequence_begin(10),$sequence_end(10)" \
+  ] "function-call-history from $function_positions(0) forwards"
 
 # the instruction history should start at the new location
 gdb_test "record instruction-history" [multi_line \
-  "19.*" \
-  "20.*" \
-  "21.*" \
-  ] "instruction-history from 19 forwards"
+  "$function_positions(0).*" \
+  "[expr {$function_positions(0) + 1}].*" \
+  "[expr {$function_positions(0) + 2}].*" \
+  ] "instruction-history from $function_positions(0) forwards"
 
 # let's go to another place in the history
-gdb_test "record goto 27" ".*fun3 \\(\\) at record_goto.c:35.*"
+gdb_test "record goto $function_positions(1)" ".*fun3 \\(\\) at record_goto.c:35.*"
 
 # check the back trace at that location
 gdb_test "backtrace" [multi_line \
@@ -117,26 +241,26 @@ gdb_test "up" ".*main.*at record_goto.c:49.*" "up to main"
 
 # the function call history should start at the new location
 gdb_test "record function-call-history /ci -" [multi_line \
-  "9\t    fun3\tinst 20,22" \
-  "10\t      fun1\tinst 23,26" \
-  "11\t    fun3\tinst 27,27" \
-  ] "function-call-history from 27 backwards"
+  "9\t    fun3\tinst $sequence_begin(9),$sequence_end(9)" \
+  "10\t      fun1\tinst $sequence_begin(10),$sequence_end(10)" \
+  "11\t    fun3\tinst $sequence_begin(11),$sequence_end(11)" \
+  ] "function-call-history from $function_positions(1) backwards"
 
 # the instruction history should start at the new location
 gdb_test "record instruction-history -" [multi_line \
-  "25.*" \
-  "26.*" \
-  "27.*" \
-  ] "instruction-history from 27 backwards"
+  "[expr {$function_positions(1) - 2}].*" \
+  "[expr {$function_positions(1) - 1}].*" \
+  "$function_positions(1).*" \
+  ] "instruction-history from $function_positions(1) backwards"
 
 # test that we can go to the begin of the trace
 gdb_test "record goto begin" ".*main \\(\\) at record_goto.c:49.*"
 
 # check that we're filling up the context correctly
 gdb_test "record function-call-history /ci -" [multi_line \
-  "1\tmain\tinst 1,1" \
-  "2\t  fun4\tinst 2,4" \
-  "3\t    fun1\tinst 5,8" \
+  "1\tmain\tinst $sequence_begin(1),$sequence_end(1)" \
+  "2\t  fun4\tinst $sequence_begin(2),$sequence_end(2)" \
+  "3\t    fun1\tinst $sequence_begin(3),$sequence_end(3)" \
   ] "function-call-history from begin backwards"
 
 # check that we're filling up the context correctly
@@ -147,52 +271,53 @@ gdb_test "record instruction-history -" [multi_line \
   ] "instruction-history from begin backwards"
 
 # we should get the exact same history from the first instruction
-gdb_test "record goto 2" ".*fun4 \\(\\) at record_goto.c:40.*"
+gdb_test "record goto $function_positions(2)" ".*fun4 \\(\\) at record_goto.c:40.*"
 
 # check that we're filling up the context correctly
 gdb_test "record function-call-history /ci -" [multi_line \
-  "1\tmain\tinst 1,1" \
-  "2\t  fun4\tinst 2,4" \
-  "3\t    fun1\tinst 5,8\r" \
-  ] "function-call-history from 2 backwards"
+  "1\tmain\tinst $sequence_begin(1),$sequence_end(1)" \
+  "2\t  fun4\tinst $sequence_begin(2),$sequence_end(2)" \
+  "3\t    fun1\tinst $sequence_begin(3),$sequence_end(3)\r" \
+  ] "function-call-history from $function_positions(2) backwards"
 
 # check that we're filling up the context correctly
 gdb_test "record instruction-history -" [multi_line \
   "1.*" \
   "2.*" \
   "3.*" \
-  ] "instruction-history from 2 backwards"
+  ] "instruction-history from $function_positions(2) backwards"
 
 # check that we can go to the end of the trace
 gdb_test "record goto end" ".*main \\(\\) at record_goto.c:50.*"
 
 # check that we're filling up the context correctly
 gdb_test "record function-call-history /ci" [multi_line \
-  "14\t      fun2\tinst 35,36" \
-  "15\t    fun3\tinst 37,38" \
-  "16\t  fun4\tinst 39,40" \
+  "14\t      fun2\tinst $sequence_begin(14),$sequence_end(14)" \
+  "15\t    fun3\tinst $sequence_begin(15),$sequence_end(15)" \
+  "16\t  fun4\tinst $sequence_begin(16),$sequence_end(16)" \
   ] "function-call-history from end forwards"
 
 # check that we're filling up the context correctly
+#adapt it for arm, last instruction is  at pos 48
 gdb_test "record instruction-history" [multi_line \
-  "38.*" \
-  "39.*" \
-  "40.*\r" \
+  "[expr {$function_positions(end) - 2}].*" \
+  "[expr {$function_positions(end) - 1}].*" \
+  "$function_positions(end).*\r" \
   ] "instruction-history from end forwards"
 
 # we should get the exact same history from the second to last instruction
-gdb_test "record goto 39" ".*fun4 \\(\\) at record_goto.c:44.*"
+gdb_test "record goto $function_positions(3)" ".*fun4 \\(\\) at record_goto.c:44.*"
 
 # check that we're filling up the context correctly
 gdb_test "record function-call-history /ci" [multi_line \
-  "14\t      fun2\tinst 35,36" \
-  "15\t    fun3\tinst 37,38" \
-  "16\t  fun4\tinst 39,40\r" \
-  ] "function-call-history from 39 forwards"
+  "14\t      fun2\tinst $sequence_begin(14),$sequence_end(14)" \
+  "15\t    fun3\tinst $sequence_begin(15),$sequence_end(15)" \
+  "16\t  fun4\tinst $sequence_begin(16),$sequence_end(16)\r" \
+  ] "function-call-history from $function_positions(3) forwards"
 
 # check that we're filling up the context correctly
 gdb_test "record instruction-history" [multi_line \
-  "38.*" \
-  "39.*" \
-  "40.*\r" \
-  ] "instruction-history from 39 forwards"
+  "[expr {$function_positions(3) - 1}].*" \
+  "$function_positions(3).*" \
+  "[expr {$function_positions(3) + 1}].*\r" \
+  ] "instruction-history from $function_positions(3) forwards"

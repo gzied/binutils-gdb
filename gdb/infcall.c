@@ -1,6 +1,6 @@
 /* Perform an inferior function call, for GDB, the GNU debugger.
 
-   Copyright (C) 1986-2019 Free Software Foundation, Inc.
+   Copyright (C) 1986-2021 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -42,12 +42,13 @@
 #include "thread-fsm.h"
 #include <algorithm>
 #include "gdbsupport/scope-exit.h"
+#include <list>
 
 /* If we can't find a function's name from its address,
    we print this instead.  */
 #define RAW_FUNCTION_ADDRESS_FORMAT "at 0x%s"
 #define RAW_FUNCTION_ADDRESS_SIZE (sizeof (RAW_FUNCTION_ADDRESS_FORMAT) \
-                                   + 2 * sizeof (CORE_ADDR))
+				   + 2 * sizeof (CORE_ADDR))
 
 /* NOTE: cagney/2003-04-16: What's the future of this code?
 
@@ -168,7 +169,7 @@ value_arg_coerce (struct gdbarch *gdbarch, struct value *arg,
      saved by the called function.  */
   arg = value_coerce_to_target (arg);
 
-  switch (TYPE_CODE (type))
+  switch (type->code ())
     {
     case TYPE_CODE_REF:
     case TYPE_CODE_RVALUE_REF:
@@ -183,7 +184,7 @@ value_arg_coerce (struct gdbarch *gdbarch, struct value *arg,
 	   if the value was not previously in memory - in some cases
 	   we should clearly be allowing this, but how?  */
 	new_value = value_cast (TYPE_TARGET_TYPE (type), arg);
-	new_value = value_ref (new_value, TYPE_CODE (type));
+	new_value = value_ref (new_value, type->code ());
 	return new_value;
       }
     case TYPE_CODE_INT:
@@ -197,8 +198,8 @@ value_arg_coerce (struct gdbarch *gdbarch, struct value *arg,
 	    type = builtin->builtin_int;
 	}
       /* Currently all target ABIs require at least the width of an integer
-         type for an argument.  We may have to conditionalize the following
-         type coercion for future targets.  */
+	 type for an argument.  We may have to conditionalize the following
+	 type coercion for future targets.  */
       if (TYPE_LENGTH (type) < TYPE_LENGTH (builtin->builtin_int))
 	type = builtin->builtin_int;
       break;
@@ -216,10 +217,10 @@ value_arg_coerce (struct gdbarch *gdbarch, struct value *arg,
       break;
     case TYPE_CODE_ARRAY:
       /* Arrays are coerced to pointers to their first element, unless
-         they are vectors, in which case we want to leave them alone,
-         because they are passed by value.  */
-      if (current_language->c_style_arrays)
-	if (!TYPE_VECTOR (type))
+	 they are vectors, in which case we want to leave them alone,
+	 because they are passed by value.  */
+      if (current_language->c_style_arrays_p ())
+	if (!type->is_vector ())
 	  type = lookup_pointer_type (TYPE_TARGET_TYPE (type));
       break;
     case TYPE_CODE_UNDEF:
@@ -259,22 +260,22 @@ find_function_addr (struct value *function,
      part of it.  */
 
   /* Determine address to call.  */
-  if (TYPE_CODE (ftype) == TYPE_CODE_FUNC
-      || TYPE_CODE (ftype) == TYPE_CODE_METHOD)
+  if (ftype->code () == TYPE_CODE_FUNC
+      || ftype->code () == TYPE_CODE_METHOD)
     funaddr = value_address (function);
-  else if (TYPE_CODE (ftype) == TYPE_CODE_PTR)
+  else if (ftype->code () == TYPE_CODE_PTR)
     {
       funaddr = value_as_address (function);
       ftype = check_typedef (TYPE_TARGET_TYPE (ftype));
-      if (TYPE_CODE (ftype) == TYPE_CODE_FUNC
-	  || TYPE_CODE (ftype) == TYPE_CODE_METHOD)
+      if (ftype->code () == TYPE_CODE_FUNC
+	  || ftype->code () == TYPE_CODE_METHOD)
 	funaddr = gdbarch_convert_from_func_ptr_addr (gdbarch, funaddr,
 						      current_top_target ());
     }
-  if (TYPE_CODE (ftype) == TYPE_CODE_FUNC
-      || TYPE_CODE (ftype) == TYPE_CODE_METHOD)
+  if (ftype->code () == TYPE_CODE_FUNC
+      || ftype->code () == TYPE_CODE_METHOD)
     {
-      if (TYPE_GNU_IFUNC (ftype))
+      if (ftype->is_gnu_ifunc ())
 	{
 	  CORE_ADDR resolver_addr = funaddr;
 
@@ -302,10 +303,10 @@ find_function_addr (struct value *function,
       else
 	value_type = TYPE_TARGET_TYPE (ftype);
     }
-  else if (TYPE_CODE (ftype) == TYPE_CODE_INT)
+  else if (ftype->code () == TYPE_CODE_INT)
     {
       /* Handle the case of functions lacking debugging info.
-         Their values are characters since their addresses are char.  */
+	 Their values are characters since their addresses are char.  */
       if (TYPE_LENGTH (ftype) == 1)
 	funaddr = value_as_address (value_addr (function));
       else
@@ -437,7 +438,7 @@ get_call_return_value (struct call_return_meta_info *ri)
   thread_info *thr = inferior_thread ();
   bool stack_temporaries = thread_stack_temporaries_enabled_p (thr);
 
-  if (TYPE_CODE (ri->value_type) == TYPE_CODE_VOID)
+  if (ri->value_type->code () == TYPE_CODE_VOID)
     retval = allocate_value (ri->value_type);
   else if (ri->struct_return_p)
     {
@@ -648,7 +649,8 @@ run_inferior_call (struct call_thread_fsm *sm,
   if (!was_running
       && call_thread_ptid == inferior_ptid
       && stop_stack_dummy == STOP_STACK_DUMMY)
-    finish_thread_state (user_visible_resume_ptid (0));
+    finish_thread_state (call_thread->inf->process_target (),
+			 user_visible_resume_ptid (0));
 
   enable_watchpoints_after_interactive_call_stop ();
 
@@ -704,6 +706,33 @@ reserve_stack_space (const type *values_type, CORE_ADDR &sp)
   return addr;
 }
 
+/* The data structure which keeps a destructor function and
+   its implicit 'this' parameter.  */
+
+struct destructor_info
+{
+  destructor_info (struct value *function, struct value *self)
+    : function (function), self (self) { }
+
+  struct value *function;
+  struct value *self;
+};
+
+
+/* Auxiliary function that takes a list of destructor functions
+   with their 'this' parameters, and invokes the functions.  */
+
+static void
+call_destructors (const std::list<destructor_info> &dtors_to_invoke,
+		  struct type *default_return_type)
+{
+  for (auto vals : dtors_to_invoke)
+    {
+      call_function_by_hand (vals.function, default_return_type,
+			     gdb::make_array_view (&(vals.self), 1));
+    }
+}
+
 /* See infcall.h.  */
 
 struct value *
@@ -757,7 +786,7 @@ call_function_by_hand_dummy (struct value *function,
     error (_("Cannot call functions in the program: "
 	     "may-call-functions is off."));
 
-  if (!target_has_execution)
+  if (!target_has_execution ())
     noprocess ();
 
   if (get_traceframe_number () >= 0)
@@ -798,7 +827,7 @@ call_function_by_hand_dummy (struct value *function,
 
   values_type = check_typedef (values_type);
 
-  if (args.size () < TYPE_NFIELDS (ftype))
+  if (args.size () < ftype->num_fields ())
     error (_("Too few arguments in function call."));
 
   /* A holder for the inferior status.
@@ -874,8 +903,8 @@ call_function_by_hand_dummy (struct value *function,
 	 do is add FRAME_ALIGN() to the architecture vector.  If that
 	 fails, try dummy_id().
 
-         If the ABI specifies a "Red Zone" (see the doco) the code
-         below will quietly trash it.  */
+	 If the ABI specifies a "Red Zone" (see the doco) the code
+	 below will quietly trash it.  */
       sp = old_sp;
 
     /* Skip over the stack temporaries that might have been generated during
@@ -885,7 +914,7 @@ call_function_by_hand_dummy (struct value *function,
 	struct value *lastval;
 
 	lastval = get_last_thread_stack_temporary (call_thread.get ());
-        if (lastval != NULL)
+	if (lastval != NULL)
 	  {
 	    CORE_ADDR lastval_addr = value_address (lastval);
 
@@ -983,6 +1012,12 @@ call_function_by_hand_dummy (struct value *function,
       internal_error (__FILE__, __LINE__, _("bad switch"));
     }
 
+  /* Coerce the arguments and handle pass-by-reference.
+     We want to remember the destruction required for pass-by-ref values.
+     For these, store the dtor function and the 'this' argument
+     in DTORS_TO_INVOKE.  */
+  std::list<destructor_info> dtors_to_invoke;
+
   for (int i = args.size () - 1; i >= 0; i--)
     {
       int prototyped;
@@ -990,9 +1025,9 @@ call_function_by_hand_dummy (struct value *function,
 
       /* FIXME drow/2002-05-31: Should just always mark methods as
 	 prototyped.  Can we respect TYPE_VARARGS?  Probably not.  */
-      if (TYPE_CODE (ftype) == TYPE_CODE_METHOD)
+      if (ftype->code () == TYPE_CODE_METHOD)
 	prototyped = 1;
-      if (TYPE_TARGET_TYPE (ftype) == NULL && TYPE_NFIELDS (ftype) == 0
+      if (TYPE_TARGET_TYPE (ftype) == NULL && ftype->num_fields () == 0
 	  && default_return_type != NULL)
 	{
 	  /* Calling a no-debug function with the return type
@@ -1007,21 +1042,105 @@ call_function_by_hand_dummy (struct value *function,
 	  */
 	  prototyped = 1;
 	}
-      else if (i < TYPE_NFIELDS (ftype))
-	prototyped = TYPE_PROTOTYPED (ftype);
+      else if (i < ftype->num_fields ())
+	prototyped = ftype->is_prototyped ();
       else
 	prototyped = 0;
 
-      if (i < TYPE_NFIELDS (ftype))
-	param_type = TYPE_FIELD_TYPE (ftype, i);
+      if (i < ftype->num_fields ())
+	param_type = ftype->field (i).type ();
       else
 	param_type = NULL;
 
+      value *original_arg = args[i];
       args[i] = value_arg_coerce (gdbarch, args[i],
 				  param_type, prototyped);
 
-      if (param_type != NULL && language_pass_by_reference (param_type))
-	args[i] = value_addr (args[i]);
+      if (param_type == NULL)
+	continue;
+
+      auto info = language_pass_by_reference (param_type);
+      if (!info.copy_constructible)
+	error (_("expression cannot be evaluated because the type '%s' "
+		 "is not copy constructible"), param_type->name ());
+
+      if (!info.destructible)
+	error (_("expression cannot be evaluated because the type '%s' "
+		 "is not destructible"), param_type->name ());
+
+      if (info.trivially_copyable)
+	continue;
+
+      /* Make a copy of the argument on the stack.  If the argument is
+	 trivially copy ctor'able, copy bit by bit.  Otherwise, call
+	 the copy ctor to initialize the clone.  */
+      CORE_ADDR addr = reserve_stack_space (param_type, sp);
+      value *clone
+	= value_from_contents_and_address (param_type, nullptr, addr);
+      push_thread_stack_temporary (call_thread.get (), clone);
+      value *clone_ptr
+	= value_from_pointer (lookup_pointer_type (param_type), addr);
+
+      if (info.trivially_copy_constructible)
+	{
+	  int length = TYPE_LENGTH (param_type);
+	  write_memory (addr, value_contents (args[i]), length);
+	}
+      else
+	{
+	  value *copy_ctor;
+	  value *cctor_args[2] = { clone_ptr, original_arg };
+	  find_overload_match (gdb::make_array_view (cctor_args, 2),
+			       param_type->name (), METHOD,
+			       &clone_ptr, nullptr, &copy_ctor, nullptr,
+			       nullptr, 0, EVAL_NORMAL);
+
+	  if (copy_ctor == nullptr)
+	    error (_("expression cannot be evaluated because a copy "
+		     "constructor for the type '%s' could not be found "
+		     "(maybe inlined?)"), param_type->name ());
+
+	  call_function_by_hand (copy_ctor, default_return_type,
+				 gdb::make_array_view (cctor_args, 2));
+	}
+
+      /* If the argument has a destructor, remember it so that we
+	 invoke it after the infcall is complete.  */
+      if (!info.trivially_destructible)
+	{
+	  /* Looking up the function via overload resolution does not
+	     work because the compiler (in particular, gcc) adds an
+	     artificial int parameter in some cases.  So we look up
+	     the function by using the "~" name.  This should be OK
+	     because there can be only one dtor definition.  */
+	  const char *dtor_name = nullptr;
+	  for (int fieldnum = 0;
+	       fieldnum < TYPE_NFN_FIELDS (param_type);
+	       fieldnum++)
+	    {
+	      fn_field *fn
+		= TYPE_FN_FIELDLIST1 (param_type, fieldnum);
+	      const char *field_name
+		= TYPE_FN_FIELDLIST_NAME (param_type, fieldnum);
+
+	      if (field_name[0] == '~')
+		dtor_name = TYPE_FN_FIELD_PHYSNAME (fn, 0);
+	    }
+
+	  if (dtor_name == nullptr)
+	    error (_("expression cannot be evaluated because a destructor "
+		     "for the type '%s' could not be found "
+		     "(maybe inlined?)"), param_type->name ());
+
+	  value *dtor
+	    = find_function_in_inferior (dtor_name, 0);
+
+	  /* Insert the dtor to the front of the list to call them
+	     in reverse order later.  */
+	  dtors_to_invoke.emplace_front (dtor, clone_ptr);
+	}
+
+      args[i] = clone_ptr;
     }
 
   /* Reserve space for the return structure to be written on the
@@ -1188,6 +1307,10 @@ call_function_by_hand_dummy (struct value *function,
 	    maybe_remove_breakpoints ();
 
 	    gdb_assert (retval != NULL);
+
+	    /* Destruct the pass-by-ref argument clones.  */
+	    call_destructors (dtors_to_invoke, default_return_type);
+
 	    return retval;
 	  }
 
@@ -1204,13 +1327,13 @@ call_function_by_hand_dummy (struct value *function,
   if (e.reason < 0)
     {
       const char *name = get_function_name (funaddr,
-                                            name_buf, sizeof (name_buf));
+					    name_buf, sizeof (name_buf));
 
       discard_infcall_control_state (inf_status.release ());
 
       /* We could discard the dummy frame here if the program exited,
-         but it will get garbage collected the next time the program is
-         run anyway.  */
+	 but it will get garbage collected the next time the program is
+	 run anyway.  */
 
       switch (e.reason)
 	{
@@ -1230,7 +1353,7 @@ When the function is done executing, GDB will silently stop."),
   /* If the program has exited, or we stopped at a different thread,
      exit and inform the user.  */
 
-  if (! target_has_execution)
+  if (! target_has_execution ())
     {
       const char *name = get_function_name (funaddr,
 					    name_buf, sizeof (name_buf));
@@ -1240,8 +1363,8 @@ When the function is done executing, GDB will silently stop."),
       discard_infcall_control_state (inf_status.release ());
 
       /* We could discard the dummy frame here given that the program exited,
-         but it will get garbage collected the next time the program is
-         run anyway.  */
+	 but it will get garbage collected the next time the program is
+	 run anyway.  */
 
       error (_("The program being debugged exited while in a function "
 	       "called from GDB.\n"
@@ -1384,8 +1507,9 @@ When the function is done executing, GDB will silently stop."),
   gdb_assert_not_reached ("... should not be here");
 }
 
+void _initialize_infcall ();
 void
-_initialize_infcall (void)
+_initialize_infcall ()
 {
   add_setshow_boolean_cmd ("may-call-functions", no_class,
 			   &may_call_functions_p, _("\

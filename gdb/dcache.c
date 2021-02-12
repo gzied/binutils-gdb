@@ -1,6 +1,6 @@
 /* Caching code for GDB, the GNU debugger.
 
-   Copyright (C) 1992-2019 Free Software Foundation, Inc.
+   Copyright (C) 1992-2021 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -324,7 +324,7 @@ dcache_read_line (DCACHE *dcache, struct dcache_block *db)
 	reg_len = region->hi - memaddr;
 
       /* Skip non-readable regions.  The cache attribute can be ignored,
-         since we may be loading this for a stack access.  */
+	 since we may be loading this for a stack access.  */
       if (region->attrib.mode == MEM_WO)
 	{
 	  memaddr += reg_len;
@@ -401,7 +401,7 @@ dcache_peek_byte (DCACHE *dcache, CORE_ADDR addr, gdb_byte *ptr)
       db = dcache_alloc (dcache, addr);
 
       if (!dcache_read_line (dcache, db))
-         return 0;
+	 return 0;
     }
 
   *ptr = db->data[XFORM (dcache, addr)];
@@ -597,7 +597,7 @@ dcache_info_1 (DCACHE *dcache, const char *exp)
       if (linestart == exp || i < 0)
 	{
 	  printf_filtered (_("Usage: info dcache [LINENUMBER]\n"));
-          return;
+	  return;
 	}
 
       dcache_print_line (dcache, i);
@@ -670,22 +670,9 @@ set_dcache_line_size (const char *args, int from_tty,
   target_dcache_invalidate ();
 }
 
-static void
-set_dcache_command (const char *arg, int from_tty)
-{
-  printf_unfiltered (
-     "\"set dcache\" must be followed by the name of a subcommand.\n");
-  help_list (dcache_set_list, "set dcache ", all_commands, gdb_stdout);
-}
-
-static void
-show_dcache_command (const char *args, int from_tty)
-{
-  cmd_show_list (dcache_show_list, from_tty, "");
-}
-
+void _initialize_dcache ();
 void
-_initialize_dcache (void)
+_initialize_dcache ()
 {
   add_setshow_boolean_cmd ("remotecache", class_support,
 			   &dcache_enabled_p, _("\
@@ -707,12 +694,14 @@ With no arguments, this command prints the cache configuration and a\n\
 summary of each line in the cache.  With an argument, dump\"\n\
 the contents of the given line."));
 
-  add_prefix_cmd ("dcache", class_obscure, set_dcache_command, _("\
+  add_basic_prefix_cmd ("dcache", class_obscure, _("\
 Use this command to set number of lines in dcache and line-size."),
-		  &dcache_set_list, "set dcache ", /*allow_unknown*/0, &setlist);
-  add_prefix_cmd ("dcache", class_obscure, show_dcache_command, _("\
+			&dcache_set_list, "set dcache ", /*allow_unknown*/0,
+			&setlist);
+  add_show_prefix_cmd ("dcache", class_obscure, _("\
 Show dcachesettings."),
-		  &dcache_show_list, "show dcache ", /*allow_unknown*/0, &showlist);
+		       &dcache_show_list, "show dcache ", /*allow_unknown*/0,
+		       &showlist);
 
   add_setshow_zuinteger_cmd ("line-size", class_obscure,
 			     &dcache_line_size, _("\

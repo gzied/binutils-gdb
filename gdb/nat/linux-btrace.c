@@ -1,6 +1,6 @@
 /* Linux-dependent part of branch trace support for GDB, and GDBserver.
 
-   Copyright (C) 2013-2019 Free Software Foundation, Inc.
+   Copyright (C) 2013-2021 Free Software Foundation, Inc.
 
    Contributed by Intel Corp. <markus.t.metzger@intel.com>
 
@@ -74,22 +74,25 @@ btrace_this_cpu (void)
   if (ok != 0)
     {
       if (ebx == signature_INTEL_ebx && ecx == signature_INTEL_ecx
-	  && edx == signature_INTEL_edx)
-	{
-	  unsigned int cpuid, ignore;
+          && edx == signature_INTEL_edx)
+        {
+          unsigned int cpuid, ignore;
 
-	  ok = x86_cpuid (1, &cpuid, &ignore, &ignore, &ignore);
-	  if (ok != 0)
-	    {
-	      cpu.vendor = CV_INTEL;
+          ok = x86_cpuid (1, &cpuid, &ignore, &ignore, &ignore);
+          if (ok != 0)
+            {
+              cpu.vendor = CV_INTEL;
 
-	      cpu.family = (cpuid >> 8) & 0xf;
-	      cpu.model = (cpuid >> 4) & 0xf;
+              cpu.family = (cpuid >> 8) & 0xf;
+              cpu.model = (cpuid >> 4) & 0xf;
 
-	      if (cpu.family == 0x6)
-		cpu.model += (cpuid >> 12) & 0xf0;
-	    }
-	}
+              if (cpu.family == 0x6)
+                cpu.model += (cpuid >> 12) & 0xf0;
+            }
+        }
+      else if (ebx == signature_AMD_ebx && ecx == signature_AMD_ecx
+          && edx == signature_AMD_edx)
+        cpu.vendor = CV_AMD;
     }
 
   return cpu;
@@ -109,7 +112,7 @@ perf_event_new_data (const struct perf_event_buffer *pev)
 
 static gdb_byte *
 perf_event_read (const struct perf_event_buffer *pev, __u64 data_head,
-		 size_t size)
+                 size_t size)
 {
   const gdb_byte *begin, *end, *start, *stop;
   gdb_byte *buffer;
@@ -156,12 +159,74 @@ perf_event_read (const struct perf_event_buffer *pev, __u64 data_head,
   return buffer;
 }
 
+/* Copy available bytes from PEV ending at DATA_HEAD, updates *psize
+   gives back *data: a pointer to the memory holding the copy.
+
+   The caller is responsible for freeing the data memory.  */
+static void
+perf_event_read_available (struct perf_event_buffer *pev, gdb_byte **data,
+                           size_t *psize)
+{
+  const gdb_byte *begin, *end, *start, *stop;
+  gdb_byte *buffer;
+  size_t buffer_size;
+  __u64 data_tail, data_head;
+
+  if (psize == NULL)
+    {
+      *data = NULL;
+      return ;
+    }
+
+  buffer_size = *(pev->data_head) - pev->last_head;
+
+  if (buffer_size >pev->size)
+    buffer_size = pev->size;
+
+  data_head = *(pev->data_head);
+  data_tail = *(pev->data_head) - buffer_size;
+
+  /* If we ask for more data than we seem to have, we wrap around and read
+     data from the end of the buffer.  This is already handled by the %
+     BUFFER_SIZE operation, below.  Here, we just need to make sure that we
+     don't underflow.
+
+     Note that this is perfectly OK for perf event buffers where data_head
+     doesn'grow indefinitely and instead wraps around to remain within the
+     buffer's boundaries.  */
+
+  gdb_assert (buffer_size <= data_head);
+
+
+  begin = pev->mem;
+  start = begin + data_tail % pev->size;
+  stop = begin + data_head % pev->size;
+
+  buffer = (gdb_byte *) xmalloc (buffer_size);
+
+  if (start < stop)
+    {
+      memcpy (buffer, start, stop - start);
+    }
+  else
+    {
+      end = begin + pev->size;
+
+      memcpy (buffer, start, end - start);
+      memcpy (buffer + (end - start), begin, stop - begin);
+    }
+  pev->last_head = *(pev->data_head);
+  *psize = buffer_size;
+  *data = buffer;
+  return ;
+}
+
 /* Copy the perf event buffer data from PEV.
    Store a pointer to the copy into DATA and its size in SIZE.  */
 
 static void
 perf_event_read_all (struct perf_event_buffer *pev, gdb_byte **data,
-		     size_t *psize)
+                     size_t *psize)
 {
   size_t size;
   __u64 data_head;
@@ -200,17 +265,17 @@ linux_determine_kernel_start (void)
 
       line = fgets (buffer, sizeof (buffer), file.get ());
       if (line == NULL)
-	break;
+        break;
 
       match = sscanf (line, "%" SCNx64 " %*[tT] %7s", &addr, symbol);
       if (match != 2)
-	continue;
+        continue;
 
       if (strcmp (symbol, "_text") == 0)
-	{
-	  kernel_start = addr;
-	  break;
-	}
+        {
+          kernel_start = addr;
+          break;
+        }
     }
 
   return kernel_start;
@@ -273,8 +338,8 @@ perf_event_sample_ok (const struct perf_event_sample *sample)
 
 static std::vector<btrace_block> *
 perf_event_read_bts (struct btrace_target_info* tinfo, const uint8_t *begin,
-		     const uint8_t *end, const uint8_t *start, size_t size)
-{
+                     const uint8_t *end, const uint8_t *start, size_t size)
+                     {
   std::vector<btrace_block> *btrace = new std::vector<btrace_block>;
   struct perf_event_sample sample;
   size_t read = 0;
@@ -301,44 +366,44 @@ perf_event_read_bts (struct btrace_target_info* tinfo, const uint8_t *begin,
 
       /* If we're still inside the buffer, we're done.  */
       if (begin <= start)
-	psample = (const struct perf_event_sample *) start;
+        psample = (const struct perf_event_sample *) start;
       else
-	{
-	  int missing;
+        {
+          int missing;
 
-	  /* We're to the left of the ring buffer, we will wrap around and
+          /* We're to the left of the ring buffer, we will wrap around and
 	     reappear at the very right of the ring buffer.  */
 
-	  missing = (begin - start);
-	  start = (end - missing);
+          missing = (begin - start);
+          start = (end - missing);
 
-	  /* If the entire sample is missing, we're done.  */
-	  if (missing == sizeof (sample))
-	    psample = (const struct perf_event_sample *) start;
-	  else
-	    {
-	      uint8_t *stack;
+          /* If the entire sample is missing, we're done.  */
+          if (missing == sizeof (sample))
+            psample = (const struct perf_event_sample *) start;
+          else
+            {
+              uint8_t *stack;
 
-	      /* The sample wrapped around.  The lower part is at the end and
+              /* The sample wrapped around.  The lower part is at the end and
 		 the upper part is at the beginning of the buffer.  */
-	      stack = (uint8_t *) &sample;
+              stack = (uint8_t *) &sample;
 
-	      /* Copy the two parts so we have a contiguous sample.  */
-	      memcpy (stack, start, missing);
-	      memcpy (stack + missing, begin, sizeof (sample) - missing);
+              /* Copy the two parts so we have a contiguous sample.  */
+              memcpy (stack, start, missing);
+              memcpy (stack + missing, begin, sizeof (sample) - missing);
 
-	      psample = &sample;
-	    }
-	}
+              psample = &sample;
+            }
+        }
 
       if (!perf_event_sample_ok (psample))
-	{
-	  warning (_("Branch trace may be incomplete."));
-	  break;
-	}
+        {
+          warning (_("Branch trace may be incomplete."));
+          break;
+        }
 
       if (perf_event_skip_bts_record (&psample->bts))
-	continue;
+        continue;
 
       /* We found a valid sample, so we can complete the current block.  */
       block.begin = psample->bts.to;
@@ -357,7 +422,7 @@ perf_event_read_bts (struct btrace_target_info* tinfo, const uint8_t *begin,
   btrace->push_back (block);
 
   return btrace;
-}
+                     }
 
 /* Check whether an Intel cpu supports BTS.  */
 
@@ -365,27 +430,27 @@ static int
 intel_supports_bts (const struct btrace_cpu *cpu)
 {
   switch (cpu->family)
-    {
+  {
     case 0x6:
       switch (cpu->model)
-	{
-	case 0x1a: /* Nehalem */
-	case 0x1f:
-	case 0x1e:
-	case 0x2e:
-	case 0x25: /* Westmere */
-	case 0x2c:
-	case 0x2f:
-	case 0x2a: /* Sandy Bridge */
-	case 0x2d:
-	case 0x3a: /* Ivy Bridge */
+      {
+        case 0x1a: /* Nehalem */
+        case 0x1f:
+        case 0x1e:
+        case 0x2e:
+        case 0x25: /* Westmere */
+        case 0x2c:
+        case 0x2f:
+        case 0x2a: /* Sandy Bridge */
+        case 0x2d:
+        case 0x3a: /* Ivy Bridge */
 
-	  /* AAJ122: LBR, BTM, or BTS records may have incorrect branch
+          /* AAJ122: LBR, BTM, or BTS records may have incorrect branch
 	     "from" information afer an EIST transition, T-states, C1E, or
 	     Adaptive Thermal Throttling.  */
-	  return 0;
-	}
-    }
+          return 0;
+      }
+  }
 
   return 1;
 }
@@ -399,14 +464,17 @@ cpu_supports_bts (void)
 
   cpu = btrace_this_cpu ();
   switch (cpu.vendor)
-    {
+  {
     default:
       /* Don't know about others.  Let's assume they do.  */
       return 1;
 
     case CV_INTEL:
       return intel_supports_bts (&cpu);
-    }
+
+    case CV_AMD:
+      return 0;
+  }
 }
 
 /* The perf_event_open syscall failed.  Try to print a helpful error
@@ -416,23 +484,23 @@ static void
 diagnose_perf_event_open_fail ()
 {
   switch (errno)
-    {
+  {
     case EPERM:
     case EACCES:
       {
-	static const char filename[] = "/proc/sys/kernel/perf_event_paranoid";
-	gdb_file_up file = gdb_fopen_cloexec (filename, "r");
-	if (file.get () == nullptr)
-	  break;
+        static const char filename[] = "/proc/sys/kernel/perf_event_paranoid";
+        gdb_file_up file = gdb_fopen_cloexec (filename, "r");
+        if (file.get () == nullptr)
+          break;
 
-	int level, found = fscanf (file.get (), "%d", &level);
-	if (found == 1 && level > 2)
-	  error (_("You do not have permission to record the process.  "
-		   "Try setting %s to 2 or less."), filename);
+        int level, found = fscanf (file.get (), "%d", &level);
+        if (found == 1 && level > 2)
+          error (_("You do not have permission to record the process.  "
+              "Try setting %s to 2 or less."), filename);
       }
 
       break;
-    }
+  }
 
   error (_("Failed to start recording: %s"), safe_strerror (errno));
 }
@@ -451,7 +519,7 @@ linux_enable_bts (ptid_t ptid, const struct btrace_config_bts *conf)
     error (_("BTS support has been disabled for the target cpu."));
 
   gdb::unique_xmalloc_ptr<btrace_target_info> tinfo
-    (XCNEW (btrace_target_info));
+  (XCNEW (btrace_target_info));
   tinfo->ptid = ptid;
 
   tinfo->conf.format = BTRACE_FORMAT_BTS;
@@ -477,10 +545,11 @@ linux_enable_bts (ptid_t ptid, const struct btrace_config_bts *conf)
   scoped_fd fd (syscall (SYS_perf_event_open, &bts->attr, pid, -1, -1, 0));
   if (fd.get () < 0)
     diagnose_perf_event_open_fail ();
+  long page_size = sysconf(_SC_PAGESIZE);
 
   /* Convert the requested size in bytes to pages (rounding up).  */
-  pages = ((size_t) conf->size / PAGE_SIZE
-	   + ((conf->size % PAGE_SIZE) == 0 ? 0 : 1));
+  pages = ((size_t) conf->size / page_size
+      + ((conf->size % page_size) == 0 ? 0 : 1));
   /* We need at least one page.  */
   if (pages == 0)
     pages = 1;
@@ -499,32 +568,32 @@ linux_enable_bts (ptid_t ptid, const struct btrace_config_bts *conf)
       size_t length;
       __u64 data_size;
 
-      data_size = (__u64) pages * PAGE_SIZE;
+      data_size = (__u64) pages * page_size;
 
       /* Don't ask for more than we can represent in the configuration.  */
       if ((__u64) UINT_MAX < data_size)
-	continue;
+        continue;
 
       size = (size_t) data_size;
-      length = size + PAGE_SIZE;
+      length = size + page_size;
 
       /* Check for overflows.  */
-      if ((__u64) length != data_size + PAGE_SIZE)
-	continue;
+      if ((__u64) length != data_size + page_size)
+        continue;
 
       errno = 0;
       /* The number of pages we request needs to be a power of two.  */
       data.reset (nullptr, length, PROT_READ, MAP_SHARED, fd.get (), 0);
       if (data.get () != MAP_FAILED)
-	break;
+        break;
     }
 
   if (pages == 0)
     error (_("Failed to map trace buffer: %s."), safe_strerror (errno));
 
   struct perf_event_mmap_page *header = (struct perf_event_mmap_page *)
-    data.get ();
-  data_offset = PAGE_SIZE;
+        data.get ();
+  data_offset = page_size;
 
 #if defined (PERF_ATTR_SIZE_VER5)
   if (offsetof (struct perf_event_mmap_page, data_size) <= header->size)
@@ -538,7 +607,7 @@ linux_enable_bts (ptid_t ptid, const struct btrace_config_bts *conf)
 
       /* Check for overflows.  */
       if ((__u64) size != data_size)
-	error (_("Failed to determine trace buffer size."));
+        error (_("Failed to determine trace buffer size."));
     }
 #endif /* defined (PERF_ATTR_SIZE_VER5) */
 
@@ -588,7 +657,7 @@ linux_enable_pt (ptid_t ptid, const struct btrace_config_pt *conf)
     pid = ptid.pid ();
 
   gdb::unique_xmalloc_ptr<btrace_target_info> tinfo
-    (XCNEW (btrace_target_info));
+  (XCNEW (btrace_target_info));
   tinfo->ptid = ptid;
 
   tinfo->conf.format = BTRACE_FORMAT_PT;
@@ -607,19 +676,20 @@ linux_enable_pt (ptid_t ptid, const struct btrace_config_pt *conf)
     diagnose_perf_event_open_fail ();
 
   /* Allocate the configuration page. */
-  scoped_mmap data (nullptr, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED,
-		    fd.get (), 0);
+  long page_size = sysconf(_SC_PAGESIZE);
+  scoped_mmap data (nullptr, page_size, PROT_READ | PROT_WRITE, MAP_SHARED,
+                    fd.get (), 0);
   if (data.get () == MAP_FAILED)
     error (_("Failed to map trace user page: %s."), safe_strerror (errno));
 
   struct perf_event_mmap_page *header = (struct perf_event_mmap_page *)
-    data.get ();
+        data.get ();
 
   header->aux_offset = header->data_offset + header->data_size;
 
   /* Convert the requested size in bytes to pages (rounding up).  */
-  pages = ((size_t) conf->size / PAGE_SIZE
-	   + ((conf->size % PAGE_SIZE) == 0 ? 0 : 1));
+  pages = ((size_t) conf->size / page_size
+      + ((conf->size % page_size) == 0 ? 0 : 1));
   /* We need at least one page.  */
   if (pages == 0)
     pages = 1;
@@ -638,25 +708,25 @@ linux_enable_pt (ptid_t ptid, const struct btrace_config_pt *conf)
       size_t length;
       __u64 data_size;
 
-      data_size = (__u64) pages * PAGE_SIZE;
+      data_size = (__u64) pages * page_size;
 
       /* Don't ask for more than we can represent in the configuration.  */
       if ((__u64) UINT_MAX < data_size)
-	continue;
+        continue;
 
       length = (size_t) data_size;
 
       /* Check for overflows.  */
       if ((__u64) length != data_size)
-	continue;
+        continue;
 
       header->aux_size = data_size;
 
       errno = 0;
       aux.reset (nullptr, length, PROT_READ, MAP_SHARED, fd.get (),
-		 header->aux_offset);
+                 header->aux_offset);
       if (aux.get () != MAP_FAILED)
-	break;
+        break;
     }
 
   if (pages == 0)
@@ -683,13 +753,163 @@ linux_enable_pt (ptid_t ptid, const struct btrace_config_pt *conf)
 
 #endif /* !defined (PERF_ATTR_SIZE_VER5) */
 
+/* Determine the etm event type.  */
+
+static int
+perf_event_etm_event_type ()
+{
+  static const char filename[] = "/sys/bus/event_source/devices/cs_etm/type";
+
+  errno = 0;
+  gdb_file_up file = gdb_fopen_cloexec (filename, "r");
+  if (file.get () == nullptr)
+    error (_("Failed to open %s: %s."), filename, safe_strerror (errno));
+
+  int type, found = fscanf (file.get (), "%d", &type);
+  if (found != 1)
+    error (_("Failed to read the ETM event type from %s."), filename);
+
+  return type;
+}
+
+
+static unsigned int
+perf_event_etm_event_sink (const struct btrace_config_etm *conf)
+{
+  char filename[PATH_MAX];
+
+  sprintf( filename, "/sys/bus/event_source/devices/cs_etm/sinks/%s",conf->sink );
+  errno = 0;
+  gdb_file_up file = gdb_fopen_cloexec (filename, "r");
+  if (file.get () == nullptr)
+    error (_("Failed to open %s: %s."), filename, safe_strerror (errno));
+
+  unsigned int sink;
+  int  found = fscanf (file.get (), "0x%x", &sink);
+  if (found != 1)
+    error (_("Failed to read the ETM sink from %s."), filename);
+
+  return sink;
+}
+
+/* Enable arm CoreSight ETM tracing.  */
+
+static struct btrace_target_info *
+linux_enable_etm (ptid_t ptid, const struct btrace_config_etm *conf)
+{
+  struct btrace_tinfo_etm *etm;
+  size_t pages;
+  int pid, pg;
+
+  pid = ptid.lwp ();
+  if (pid == 0)
+    pid = ptid.pid ();
+
+  gdb::unique_xmalloc_ptr<btrace_target_info> tinfo
+  (XCNEW (btrace_target_info));
+  tinfo->ptid = ptid;
+
+  tinfo->conf.format = BTRACE_FORMAT_ETM;
+  etm = &tinfo->variant.etm;
+
+  etm->attr.type = perf_event_etm_event_type ();
+  etm->attr.size = sizeof (etm->attr);
+
+  etm->attr.sample_type = PERF_SAMPLE_CPU;
+  etm->attr.read_format = PERF_FORMAT_ID;
+  etm->attr.sample_id_all = 1;
+  etm->attr.enable_on_exec = 1;
+  etm->attr.exclude_kernel = 1;
+  etm->attr.exclude_hv = 1;
+  etm->attr.exclude_idle = 1;
+  if (conf->sink != nullptr)
+    {
+      if (strcmp (conf->sink, "default")!=0)
+        etm->attr.config2 = perf_event_etm_event_sink(conf);
+    }
+
+
+  errno = 0;
+  scoped_fd fd (syscall (SYS_perf_event_open, &etm->attr, pid, -1, -1, 0));
+  if (fd.get () < 0)
+    diagnose_perf_event_open_fail ();
+
+  /* Allocate the configuration page. */
+  long page_size = sysconf(_SC_PAGESIZE);
+  scoped_mmap data (nullptr, page_size, PROT_READ | PROT_WRITE, MAP_SHARED,
+                    fd.get (), 0);
+  if (data.get () == MAP_FAILED)
+    error (_("Failed to map trace user page: %s."), safe_strerror (errno));
+
+  struct perf_event_mmap_page *header = (struct perf_event_mmap_page *)
+	    data.get ();
+
+  header->aux_offset = header->data_offset + header->data_size;
+  /* Convert the requested size in bytes to pages (rounding up).  */
+  pages = ((size_t) conf->size / page_size
+      + ((conf->size % page_size) == 0 ? 0 : 1));
+  /* We need at least one page.  */
+  if (pages == 0)
+    pages = 1;
+
+  /* The buffer size can be requested in powers of two pages.  Adjust PAGES
+     to the next power of two.  */
+  for (pg = 0; pages != ((size_t) 1 << pg); ++pg)
+    if ((pages & ((size_t) 1 << pg)) != 0)
+      pages += ((size_t) 1 << pg);
+
+
+  /* We try to allocate the requested size.
+     If that fails, try to get as much as we can.  */
+  scoped_mmap aux;
+  for (; pages > 0; pages >>= 1)
+    {
+      size_t length;
+      __u64 data_size;
+      data_size = (__u64) pages * page_size;
+
+      /* Don't ask for more than we can represent in the configuration.  */
+      if ((__u64) UINT_MAX < data_size)
+        continue;
+
+
+      length = (size_t) data_size;
+
+      /* Check for overflows.  */
+      if ((__u64) length != data_size)
+        continue;
+
+
+      header->aux_size = data_size;
+
+      errno = 0;
+      aux.reset (nullptr, length, PROT_READ, MAP_SHARED, fd.get (),
+                 header->aux_offset);
+      if (aux.get () != MAP_FAILED)
+        break;
+    }
+  if (pages == 0)
+    error (_("Failed to map trace buffer: %s."), safe_strerror (errno));
+
+  etm->etm.size = aux.size ();
+  etm->etm.mem = (const uint8_t *) aux.release ();
+  etm->etm.data_head = &header->aux_head;
+  etm->etm.last_head = header->aux_tail;
+  etm->header = (struct perf_event_mmap_page *) data.release ();
+  gdb_assert (etm->header == header);
+  etm->file = fd.release ();
+
+  tinfo->conf.etm.size = (unsigned int) etm->etm.size;
+  return tinfo.release ();
+}
+
 /* See linux-btrace.h.  */
 
 struct btrace_target_info *
 linux_enable_btrace (ptid_t ptid, const struct btrace_config *conf)
 {
   switch (conf->format)
-    {
+  {
     case BTRACE_FORMAT_NONE:
       error (_("Bad branch trace format."));
 
@@ -701,7 +921,11 @@ linux_enable_btrace (ptid_t ptid, const struct btrace_config *conf)
 
     case BTRACE_FORMAT_PT:
       return linux_enable_pt (ptid, &conf->pt);
-    }
+
+    case BTRACE_FORMAT_ETM:
+      return linux_enable_etm (ptid, &conf->etm);
+
+  }
 }
 
 /* Disable BTS tracing.  */
@@ -709,7 +933,8 @@ linux_enable_btrace (ptid_t ptid, const struct btrace_config *conf)
 static enum btrace_error
 linux_disable_bts (struct btrace_tinfo_bts *tinfo)
 {
-  munmap((void *) tinfo->header, tinfo->bts.size + PAGE_SIZE);
+  long page_size = sysconf(_SC_PAGESIZE);
+  munmap((void *) tinfo->header, tinfo->bts.size + page_size);
   close (tinfo->file);
 
   return BTRACE_ERR_NONE;
@@ -720,8 +945,22 @@ linux_disable_bts (struct btrace_tinfo_bts *tinfo)
 static enum btrace_error
 linux_disable_pt (struct btrace_tinfo_pt *tinfo)
 {
+  long page_size = sysconf(_SC_PAGESIZE);
   munmap((void *) tinfo->pt.mem, tinfo->pt.size);
-  munmap((void *) tinfo->header, PAGE_SIZE);
+  munmap((void *) tinfo->header, page_size);
+  close (tinfo->file);
+
+  return BTRACE_ERR_NONE;
+}
+
+/* Disable arm CoreSight ETM tracing.  */
+
+static enum btrace_error
+linux_disable_etm (struct btrace_tinfo_etm *tinfo)
+{
+  long page_size = sysconf(_SC_PAGESIZE);
+  munmap((void *) tinfo->etm.mem, tinfo->etm.size);
+  munmap((void *) tinfo->header, page_size);
   close (tinfo->file);
 
   return BTRACE_ERR_NONE;
@@ -736,7 +975,7 @@ linux_disable_btrace (struct btrace_target_info *tinfo)
 
   errcode = BTRACE_ERR_NOT_SUPPORTED;
   switch (tinfo->conf.format)
-    {
+  {
     case BTRACE_FORMAT_NONE:
       break;
 
@@ -747,7 +986,11 @@ linux_disable_btrace (struct btrace_target_info *tinfo)
     case BTRACE_FORMAT_PT:
       errcode = linux_disable_pt (&tinfo->variant.pt);
       break;
-    }
+
+    case BTRACE_FORMAT_ETM:
+      errcode = linux_disable_etm (&tinfo->variant.etm);
+      break;
+  }
 
   if (errcode == BTRACE_ERR_NONE)
     xfree (tinfo);
@@ -760,8 +1003,8 @@ linux_disable_btrace (struct btrace_target_info *tinfo)
 
 static enum btrace_error
 linux_read_bts (struct btrace_data_bts *btrace,
-		struct btrace_target_info *tinfo,
-		enum btrace_read_type type)
+                struct btrace_target_info *tinfo,
+                enum btrace_read_type type)
 {
   struct perf_event_buffer *pevent;
   const uint8_t *begin, *end, *start;
@@ -789,44 +1032,44 @@ linux_read_bts (struct btrace_data_bts *btrace,
       btrace->blocks = nullptr;
 
       if (type == BTRACE_READ_DELTA)
-	{
-	  __u64 data_size;
+        {
+          __u64 data_size;
 
-	  /* Determine the number of bytes to read and check for buffer
+          /* Determine the number of bytes to read and check for buffer
 	     overflows.  */
 
-	  /* Check for data head overflows.  We might be able to recover from
+          /* Check for data head overflows.  We might be able to recover from
 	     those but they are very unlikely and it's not really worth the
 	     effort, I think.  */
-	  if (data_head < data_tail)
-	    return BTRACE_ERR_OVERFLOW;
+          if (data_head < data_tail)
+            return BTRACE_ERR_OVERFLOW;
 
-	  /* If the buffer is smaller than the trace delta, we overflowed.  */
-	  data_size = data_head - data_tail;
-	  if (buffer_size < data_size)
-	    return BTRACE_ERR_OVERFLOW;
+          /* If the buffer is smaller than the trace delta, we overflowed.  */
+          data_size = data_head - data_tail;
+          if (buffer_size < data_size)
+            return BTRACE_ERR_OVERFLOW;
 
-	  /* DATA_SIZE <= BUFFER_SIZE and therefore fits into a size_t.  */
-	  size = (size_t) data_size;
-	}
+          /* DATA_SIZE <= BUFFER_SIZE and therefore fits into a size_t.  */
+          size = (size_t) data_size;
+        }
       else
-	{
-	  /* Read the entire buffer.  */
-	  size = buffer_size;
+        {
+          /* Read the entire buffer.  */
+          size = buffer_size;
 
-	  /* Adjust the size if the buffer has not overflowed, yet.  */
-	  if (data_head < size)
-	    size = (size_t) data_head;
-	}
+          /* Adjust the size if the buffer has not overflowed, yet.  */
+          if (data_head < size)
+            size = (size_t) data_head;
+        }
 
       /* Data_head keeps growing; the buffer itself is circular.  */
       begin = pevent->mem;
       start = begin + data_head % buffer_size;
 
       if (data_head <= buffer_size)
-	end = start;
+        end = start;
       else
-	end = begin + pevent->size;
+        end = begin + pevent->size;
 
       btrace->blocks = perf_event_read_bts (tinfo, begin, end, start, size);
 
@@ -836,7 +1079,7 @@ linux_read_bts (struct btrace_data_bts *btrace,
 
 	 Let's check whether the data head moved while we read the trace.  */
       if (data_head == *pevent->data_head)
-	break;
+        break;
     }
 
   pevent->last_head = data_head;
@@ -863,14 +1106,198 @@ linux_fill_btrace_pt_config (struct btrace_data_pt_config *conf)
 
 static enum btrace_error
 linux_read_pt (struct btrace_data_pt *btrace,
-	       struct btrace_target_info *tinfo,
-	       enum btrace_read_type type)
+               struct btrace_target_info *tinfo,
+               enum btrace_read_type type)
 {
   struct perf_event_buffer *pt;
 
   pt = &tinfo->variant.pt.pt;
 
   linux_fill_btrace_pt_config (&btrace->config);
+
+  switch (type)
+  {
+    case BTRACE_READ_DELTA:
+      /* We don't support delta reads.  The data head (i.e. aux_head) wraps
+	 around to stay inside the aux buffer.  */
+      return BTRACE_ERR_NOT_SUPPORTED;
+
+    case BTRACE_READ_NEW:
+      if (!perf_event_new_data (pt))
+        return BTRACE_ERR_NONE;
+
+      /* Fall through.  */
+    case BTRACE_READ_ALL:
+      perf_event_read_all (pt, &btrace->data, &btrace->size);
+      return BTRACE_ERR_NONE;
+  }
+
+  internal_error (__FILE__, __LINE__, _("Unknown btrace read type."));
+}
+
+/* return the number of CPUs that are present  */
+
+static int 
+get_cpu_count(void)
+{
+  static const char filename[] = "/sys/devices/system/cpu/present";
+  int length;
+  char * buffer;
+  int cpu_count;
+
+  gdb_file_up file = gdb_fopen_cloexec (filename, "r");
+  if (file.get () == nullptr)
+    error (_("Failed to open %s: %s."), filename, safe_strerror (errno));
+
+  fseek (file.get (), 0, SEEK_END);
+  length = ftell (file.get ());
+  fseek (file.get (), 0, SEEK_SET);
+  buffer = (char*) xmalloc (length+1);
+
+  length = fread (buffer, 1, length, file.get());
+  buffer[length]='\0';
+  while (--length) 
+    {
+      if ((buffer[length] == ',') || (buffer[length] == '-')) 
+        {
+          length++;
+          break;
+        }
+    }
+  if (sscanf(&buffer[length], "%d", &cpu_count) < 1)
+    error (_("Failed to get cpu count in %s: %s."), 
+             buffer, safe_strerror (errno));
+
+  cpu_count ++;
+  return (cpu_count);
+}
+
+/* check if the etm is an etmv4  */
+
+static bool 
+cs_etm_is_etmv4( int cpu)
+{
+  char filename[PATH_MAX];
+  sprintf(filename, 
+          "/sys/bus/event_source/devices/cs_etm/cpu%d/trcidr/trcidr0",
+          cpu);
+  errno = 0;
+  gdb_file_up file = gdb_fopen_cloexec (filename, "r");
+  if (file.get () == nullptr)
+    return false;
+
+  return true;
+}
+
+/* get etm configuration register from sys filesystem  */
+
+static uint32_t 
+cs_etm_get_register(int cpu, const char *path)
+{
+  char filename[PATH_MAX];
+  uint32_t val = 0;
+
+  /* Get coresight register from sysfs  */
+  sprintf(filename,
+          "/sys/bus/event_source/devices/cs_etm/cpu%d/%s",
+          cpu, path );
+  errno = 0;
+  gdb_file_up file = gdb_fopen_cloexec (filename, "r");
+  if (file.get () == nullptr)
+    error (_("Failed to open %s: %s."), filename, safe_strerror (errno));
+
+  int  found = fscanf (file.get (), "0x%x", &val);
+  if (found != 1)
+    error (_("Failed to read coresight register from %s."), filename);
+  return val;
+}
+
+#define CORESIGHT_ETM_PMU_SEED  0x10
+
+/* calculate trace_id for this cpu
+to be kept aligned with coresight-pmu.h  */
+
+static inline int 
+coresight_get_trace_id(int cpu)
+{
+  return (CORESIGHT_ETM_PMU_SEED + (cpu * 2));
+}
+
+
+/* PTMs ETMIDR [11:8] set to b0011  */
+#define ETMIDR_PTM_VERSION 0x00000300
+
+/* collect and fill etm trace parameter  */
+
+static void 
+fill_etm_trace_params (struct cs_etm_trace_params *etm_trace_params, int cpu)
+{
+  if (cs_etm_is_etmv4 (cpu) == true)
+    {
+      etm_trace_params->arch_ver = ARCHITECTURE_V8;
+      etm_trace_params->core_profile = PROFILE_CORTEX_A;
+      etm_trace_params->protocol = CS_ETM_PROTO_ETMV4i;
+      /* this is the parameter passed in etm->attr.config in the call to 
+         perf_event_open remapped according to linux/coresight-pmu.h  */
+      etm_trace_params->etmv4.reg_configr = 0;
+      etm_trace_params->etmv4.reg_idr0 = 
+	cs_etm_get_register(cpu, "trcidr/trcidr0");
+      etm_trace_params->etmv4.reg_idr1 = 
+	cs_etm_get_register(cpu, "trcidr/trcidr1");
+      etm_trace_params->etmv4.reg_idr2 = 
+	cs_etm_get_register(cpu, "trcidr/trcidr2");
+      etm_trace_params->etmv4.reg_idr8 = 
+	cs_etm_get_register(cpu, "trcidr/trcidr8");
+      etm_trace_params->etmv4.reg_traceidr = coresight_get_trace_id(cpu);
+    }
+  else
+    {
+      etm_trace_params->arch_ver = ARCHITECTURE_V7;
+      etm_trace_params->core_profile = PROFILE_CORTEX_A;
+      etm_trace_params->protocol = 
+	(etm_trace_params->etmv3.reg_idr & ETMIDR_PTM_VERSION) == ETMIDR_PTM_VERSION?
+	CS_ETM_PROTO_PTM:CS_ETM_PROTO_ETMV3;
+      etm_trace_params->etmv3.reg_ccer = 
+	cs_etm_get_register(cpu, "mgmt/etmccer");
+      etm_trace_params->etmv3.reg_ctrl = 
+	cs_etm_get_register(cpu, "mgmt/etmcr");
+      etm_trace_params->etmv3.reg_idr = 
+	cs_etm_get_register(cpu, "mgmt/etmidr");
+      etm_trace_params->etmv3.reg_trc_id = 
+	cs_etm_get_register(cpu, "traceid");
+    }
+}
+
+static void
+linux_fill_btrace_etm_config (struct btrace_target_info *tinfo,
+                              struct btrace_data_etm_config *conf)
+{
+
+  cs_etm_trace_params etm_trace_params;
+  conf->num_cpu = get_cpu_count();
+  conf->etm_trace_params=new std::vector<cs_etm_trace_params>;
+  for (int i = 0; i<conf->num_cpu; i++)
+    {
+      fill_etm_trace_params (&etm_trace_params,i);
+      conf->etm_trace_params->push_back(etm_trace_params);
+    }
+
+  conf->etm_decoder_params.formatted = 1;
+  conf->etm_decoder_params.fsyncs = 0;
+  conf->etm_decoder_params.hsyncs = 1;
+  conf->etm_decoder_params.frame_aligned = 0;
+  conf->etm_decoder_params.reset_on_4x_sync = 1;
+}
+
+static enum btrace_error
+linux_read_etm (struct btrace_data_etm *btrace,
+                struct btrace_target_info *tinfo,
+                enum btrace_read_type type)
+{
+  struct perf_event_buffer *etm;
+  etm = &tinfo->variant.etm.etm;
+
+  linux_fill_btrace_etm_config (tinfo, &btrace->config);
 
   switch (type)
     {
@@ -880,27 +1307,29 @@ linux_read_pt (struct btrace_data_pt *btrace,
       return BTRACE_ERR_NOT_SUPPORTED;
 
     case BTRACE_READ_NEW:
-      if (!perf_event_new_data (pt))
-	return BTRACE_ERR_NONE;
+      if (!perf_event_new_data (etm))
+        return BTRACE_ERR_NONE;
 
       /* Fall through.  */
     case BTRACE_READ_ALL:
-      perf_event_read_all (pt, &btrace->data, &btrace->size);
+      etm->last_head=0;
+      perf_event_read_available (etm, &(btrace->data),&(btrace->size));
       return BTRACE_ERR_NONE;
     }
 
   internal_error (__FILE__, __LINE__, _("Unkown btrace read type."));
 }
 
+
 /* See linux-btrace.h.  */
 
 enum btrace_error
 linux_read_btrace (struct btrace_data *btrace,
-		   struct btrace_target_info *tinfo,
-		   enum btrace_read_type type)
+                   struct btrace_target_info *tinfo,
+                   enum btrace_read_type type)
 {
   switch (tinfo->conf.format)
-    {
+  {
     case BTRACE_FORMAT_NONE:
       return BTRACE_ERR_NOT_SUPPORTED;
 
@@ -918,7 +1347,15 @@ linux_read_btrace (struct btrace_data *btrace,
       btrace->variant.pt.size = 0;
 
       return linux_read_pt (&btrace->variant.pt, tinfo, type);
-    }
+
+    case BTRACE_FORMAT_ETM:
+      /* We read btrace in arm CoreSight ETM Trace format.  */
+      btrace->format = BTRACE_FORMAT_ETM;
+      btrace->variant.etm.data = NULL;
+      btrace->variant.etm.size = 0;
+
+      return linux_read_etm (&btrace->variant.etm, tinfo, type);
+  }
 
   internal_error (__FILE__, __LINE__, _("Unkown branch trace format."));
 }
@@ -953,8 +1390,8 @@ linux_disable_btrace (struct btrace_target_info *tinfo)
 
 enum btrace_error
 linux_read_btrace (struct btrace_data *btrace,
-		   struct btrace_target_info *tinfo,
-		   enum btrace_read_type type)
+                   struct btrace_target_info *tinfo,
+                   enum btrace_read_type type)
 {
   return BTRACE_ERR_NOT_SUPPORTED;
 }

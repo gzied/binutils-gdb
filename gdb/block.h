@@ -1,6 +1,6 @@
 /* Code dealing with blocks for GDB.
 
-   Copyright (C) 2003-2019 Free Software Foundation, Inc.
+   Copyright (C) 2003-2021 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -342,6 +342,16 @@ extern struct symbol *block_iter_match_first (const struct block *block,
 extern struct symbol *block_iter_match_next
   (const lookup_name_info &name, struct block_iterator *iterator);
 
+/* Return true if symbol A is the best match possible for DOMAIN.  */
+
+extern bool best_symbol (struct symbol *a, const domain_enum domain);
+
+/* Return symbol B if it is a better match than symbol A for DOMAIN.
+   Otherwise return A.  */
+
+extern struct symbol *better_symbol (struct symbol *a, struct symbol *b,
+				     const domain_enum domain);
+
 /* Search BLOCK for symbol NAME in DOMAIN.  */
 
 extern struct symbol *block_lookup_symbol (const struct block *block,
@@ -382,7 +392,7 @@ extern int block_find_non_opaque_type (struct symbol *sym, void *data);
    struct symbol *with_opaque = NULL;
    struct symbol *sym
      = block_find_symbol (block, name, domain,
-                          block_find_non_opaque_type_preferred, &with_opaque);
+			  block_find_non_opaque_type_preferred, &with_opaque);
 
    At this point if SYM is non-NULL then a non-opaque type has been found.
    Otherwise, if WITH_OPAQUE is non-NULL then an opaque type has been found.
@@ -413,6 +423,6 @@ extern int block_find_non_opaque_type_preferred (struct symbol *sym,
 /* Given a vector of pairs, allocate and build an obstack allocated
    blockranges struct for a block.  */
 struct blockranges *make_blockranges (struct objfile *objfile,
-                                      const std::vector<blockrange> &rangevec);
+				      const std::vector<blockrange> &rangevec);
 
 #endif /* BLOCK_H */

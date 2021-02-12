@@ -1,5 +1,5 @@
 /* A YACC grammar to parse a superset of the AT&T linker scripting language.
-   Copyright (C) 1991-2019 Free Software Foundation, Inc.
+   Copyright (C) 1991-2021 Free Software Foundation, Inc.
    Written by Steve Chamberlain of Cygnus Support (steve@cygnus.com).
 
    This file is part of the GNU Binutils.
@@ -1313,7 +1313,7 @@ dynamic_list_node:
 dynamic_list_tag:
 		vers_defns ';'
 		{
-		  lang_append_dynamic_list ($1);
+		  lang_append_dynamic_list (current_dynamic_list_p, $1);
 		}
 	;
 

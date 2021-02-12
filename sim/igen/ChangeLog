@@ -1,3 +1,40 @@
+2021-01-11  Mike Frysinger  <vapier@gentoo.org>
+
+	* configure.ac (AC_CHECK_HEADERS): Delete stdlib.h, string.h, and
+	strings.h.
+	* configure, configure.ac: Regenerate.
+
+2021-01-11  Mike Frysinger  <vapier@gentoo.org>
+
+	* filter.c, if.c, misc.c, misc.h, table.c: Delete HAVE_STRING_H,
+	HAVE_STRINGS_H, HAVE_STDLIB_H, and strings.h include.
+
+2021-01-09  Mike Frysinger  <vapier@gentoo.org>
+
+	* configure: Regenerate.
+
+2021-01-04  Mike Frysinger  <vapier@gentoo.org>
+
+	* gen-icache.c, igen.c: Include stdlib.h.
+
+2021-01-04  Mike Frysinger  <vapier@gentoo.org>
+
+	* configure: Regenerate.
+
+2020-07-03  Sebastian Huber  <sebastian.huber@embedded-brains.de>
+
+	PR sim/26194
+	* lf.h (lf_get_file_type): Declare.
+	* lf.c (lf_get_file_type): Define.
+	* gen-idecode.c (print_idecode_issue_function_header): Use
+	lf_get_file_type() to issue an extern variable declaration in
+	case of header files.
+
+2019-12-19  Tom Tromey  <tromey@adacore.com>
+
+	PR build/24572:
+	* Makefile.in (install-strip): New target.
+
 2016-01-10  Mike Frysinger  <vapier@gentoo.org>
 
 	* configure: Regenerate.

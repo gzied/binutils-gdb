@@ -1,4 +1,4 @@
-# Copyright (C) 2009-2019 Free Software Foundation, Inc.
+# Copyright (C) 2009-2021 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -24,6 +24,11 @@ if [get_compiler_info c++] {
     return -1
 }
 
+# Skip all tests if Python scripting is not enabled.
+gdb_exit
+gdb_start
+if { [skip_python_tests] } { continue }
+
 # Build inferior to language specification.
 proc build_inferior {exefile lang} {
   global srcdir subdir srcfile testfile hex
@@ -44,9 +49,6 @@ proc prepare_gdb {exefile} {
   gdb_start
   gdb_reinitialize_dir $srcdir/$subdir
   gdb_load ${exefile}
-
-  # Skip all tests if Python scripting is not enabled.
-  if { [skip_python_tests] } { continue }
 
   if ![runto_main] then {
       perror "couldn't run to breakpoint"
@@ -291,9 +293,9 @@ proc test_raw {} {
 proc test_pretty_arrays {} {
   global current_lang
 
-  set an_array_pretty "  \\{2,\[\r\n\]+  3,\[\r\n\]+  5\\}"
+  set an_array_pretty "\\{\[\r\n\]+  2,\[\r\n\]+  3,\[\r\n\]+  5\[\r\n\]+\\}"
   set an_array_with_repetition_pretty \
-    "  \\{1,\[\r\n\]+  3 <repeats 12 times>,\[\r\n\]+  5,\[\r\n\]+  5,\[\r\n\]+  5\\}"
+    "\\{\[\r\n\]+  1,\[\r\n\]+  3 <repeats 12 times>,\[\r\n\]+  5,\[\r\n\]+  5,\[\r\n\]+  5\[\r\n\]+\\}"
 
   check_var_with_bool_opt "pretty_arrays" "a_point_t"
   check_var_with_bool_opt "pretty_arrays" "a_point_t_pointer"
@@ -485,6 +487,48 @@ proc test_unions {} {
   }
 }
 
+# Test the address option for gdb.Value.format_string.
+proc test_address {} {
+  global undefined
+  global current_lang
+
+  check_var_with_bool_opt "address" "a_point_t"
+  check_var_with_bool_opt "address" "a_point_t_pointer" \
+    $undefined \
+    ""
+  check_var_with_bool_opt "address" "another_point"
+  check_var_with_bool_opt "symbols" "a_struct_with_union"
+  check_var_with_bool_opt "address" "an_enum"
+  check_var_with_bool_opt "address" "a_string" \
+    $undefined \
+    "\"hello world\""
+  check_var_with_bool_opt "address" "a_binary_string" \
+    $undefined \
+    "\"hello\""
+  check_var_with_bool_opt "address" "a_binary_string_array"
+  check_var_with_bool_opt "address" "a_big_string"
+  check_var_with_bool_opt "address" "an_array"
+  check_var_with_bool_opt "address" "an_array_with_repetition"
+  check_var_with_bool_opt "address" "a_symbol_pointer" \
+    $undefined \
+    "<global_symbol>"
+
+  if { $current_lang == "c++" } {
+    check_var_with_bool_opt "address" "a_point_t_ref"
+    check_var_with_bool_opt "address" "a_base_ref" \
+      $undefined \
+      ""
+  }
+
+  with_temp_option "set print address off" "set print address on" {
+    check_var_with_no_opts "a_string" \
+      "\"hello world\""
+    check_var_with_bool_opt "address" "a_string" \
+      $undefined \
+      "\"hello world\""
+  }
+}
+
 # Test the deref_refs option for gdb.Value.format_string.
 proc test_deref_refs {} {
   global current_lang
@@ -507,7 +551,7 @@ proc test_deref_refs {} {
   if { $current_lang == "c++" } {
     check_var_with_bool_opt "deref_refs" "a_point_t_ref"
     check_var_with_bool_opt "deref_refs" "a_base_ref" \
-      "${default_ref_regexp}: \\{_vptr\\.Base = ${default_pointer_regexp} <vtable for Deriv\\+16>, a = 42, static a_static_member = 2019\\}"
+	"${default_ref_regexp}: \\{_vptr\[.\$\]Base = ${default_pointer_regexp} <vtable for Deriv\\+16>, a = 42, static a_static_member = 2019\\}"
   }
 }
 
@@ -886,7 +930,7 @@ proc test_mixed {} {
 
   check_format_string "an_array" \
     "array_indexes=True, pretty_arrays=True" \
-    "  \\{\\\[0\\\] = 2,\[\r\n\]+  \\\[1\\\] = 3,\[\r\n\]+  \\\[2\\\] = 5\\}"
+    "\\{\[\r\n\]+  \\\[0\\\] = 2,\[\r\n\]+  \\\[1\\\] = 3,\[\r\n\]+  \\\[2\\\] = 5\[\r\n\]+\\}"
 
   check_format_string "a_struct_with_union" \
     "pretty_structs=True, unions=False" \
@@ -903,7 +947,7 @@ proc test_mixed {} {
 
     check_format_string "a_base_ref" \
       "deref_refs=True, static_members=False" \
-      "${default_ref_regexp}: \\{_vptr\\.Base = ${default_pointer_regexp} <vtable for Deriv\\+16>, a = 42\\}"
+      "${default_ref_regexp}: \\{_vptr\[.\$\]Base = ${default_pointer_regexp} <vtable for Deriv\\+16>, a = 42\\}"
   }
 }
 
@@ -941,6 +985,7 @@ proc test_all_common {} {
   test_array_indexes
   test_symbols
   test_unions
+  test_address
   test_deref_refs
   test_actual_objects
   test_static_members

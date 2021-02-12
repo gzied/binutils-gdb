@@ -1,6 +1,6 @@
 /* TUI support I/O functions.
 
-   Copyright (C) 1998-2019 Free Software Foundation, Inc.
+   Copyright (C) 1998-2021 Free Software Foundation, Inc.
 
    Contributed by Hewlett-Packard Company.
 
@@ -21,7 +21,7 @@
 
 #include "defs.h"
 #include "target.h"
-#include "event-loop.h"
+#include "gdbsupport/event-loop.h"
 #include "event-top.h"
 #include "command.h"
 #include "top.h"
@@ -131,10 +131,6 @@ static FILE *tui_old_rl_outstream;
 static int tui_readline_pipe[2];
 #endif
 
-/* The last gdb prompt that was registered in readline.
-   This may be the main gdb prompt or a secondary prompt.  */
-static char *tui_rl_saved_prompt;
-
 /* Print a character in the curses command window.  The output is
    buffered.  It is up to the caller to refresh the screen if
    necessary.  */
@@ -142,35 +138,21 @@ static char *tui_rl_saved_prompt;
 static void
 do_tui_putc (WINDOW *w, char c)
 {
-  static int tui_skip_line = -1;
+  /* Expand TABs, since ncurses on MS-Windows doesn't.  */
+  if (c == '\t')
+    {
+      int col;
 
-  /* Catch annotation and discard them.  We need two \032 and discard
-     until a \n is seen.  */
-  if (c == '\032')
-    {
-      tui_skip_line++;
-    }
-  else if (tui_skip_line != 1)
-    {
-      tui_skip_line = -1;
-      /* Expand TABs, since ncurses on MS-Windows doesn't.  */
-      if (c == '\t')
+      col = getcurx (w);
+      do
 	{
-	  int col;
-
-	  col = getcurx (w);
-	  do
-	    {
-	      waddch (w, ' ');
-	      col++;
-	    }
-	  while ((col % 8) != 0);
+	  waddch (w, ' ');
+	  col++;
 	}
-      else
-	waddch (w, c);
+      while ((col % 8) != 0);
     }
-  else if (c == '\n')
-    tui_skip_line = -1;
+  else
+    waddch (w, c);
 }
 
 /* Update the cached value of the command window's start line based on
@@ -306,8 +288,8 @@ get_color_pair (int fg, int bg)
 
 /* Apply STYLE to W.  */
 
-static void
-apply_style (WINDOW *w, ui_file_style style)
+void
+tui_apply_style (WINDOW *w, ui_file_style style)
 {
   /* Reset.  */
   wattron (w, A_NORMAL);
@@ -413,7 +395,7 @@ apply_ansi_escape (WINDOW *w, const char *buf)
       style.set_reverse (true);
     }
 
-  apply_style (w, style);
+  tui_apply_style (w, style);
   return n_read;
 }
 
@@ -438,7 +420,7 @@ tui_set_reverse_mode (WINDOW *w, bool reverse)
       style.set_fg (reverse_save_fg);
     }
 
-  apply_style (w, style);
+  tui_apply_style (w, style);
 }
 
 /* Print LENGTH characters from the buffer pointed to by BUF to the
@@ -451,6 +433,69 @@ tui_write (const char *buf, size_t length)
   /* We need this to be \0-terminated for the regexp matching.  */
   std::string copy (buf, length);
   tui_puts (copy.c_str ());
+}
+
+/* Print a string in the curses command window.  The output is
+   buffered.  It is up to the caller to refresh the screen if
+   necessary.  */
+
+void
+tui_puts (const char *string, WINDOW *w)
+{
+  if (w == nullptr)
+    w = TUI_CMD_WIN->handle.get ();
+
+  while (true)
+    {
+      const char *next = strpbrk (string, "\n\1\2\033\t");
+
+      /* Print the plain text prefix.  */
+      size_t n_chars = next == nullptr ? strlen (string) : next - string;
+      if (n_chars > 0)
+	waddnstr (w, string, n_chars);
+
+      /* We finished.  */
+      if (next == nullptr)
+	break;
+
+      char c = *next;
+      switch (c)
+	{
+	case '\1':
+	case '\2':
+	  /* Ignore these, they are readline escape-marking
+	     sequences.  */
+	  ++next;
+	  break;
+
+	case '\n':
+	case '\t':
+	  do_tui_putc (w, c);
+	  ++next;
+	  break;
+
+	case '\033':
+	  {
+	    size_t bytes_read = apply_ansi_escape (w, next);
+	    if (bytes_read > 0)
+	      next += bytes_read;
+	    else
+	      {
+		/* Just drop the escape.  */
+		++next;
+	      }
+	  }
+	  break;
+
+	default:
+	  gdb_assert_not_reached ("missing case in tui_puts");
+	}
+
+      string = next;
+    }
+
+  if (TUI_CMD_WIN != nullptr && w == TUI_CMD_WIN->handle.get ())
+    update_cmdwin_start_line ();
 }
 
 static void
@@ -498,18 +543,6 @@ tui_puts_internal (WINDOW *w, const char *string, int *height)
     wrefresh (w);
 }
 
-/* Print a string in the curses command window.  The output is
-   buffered.  It is up to the caller to refresh the screen if
-   necessary.  */
-
-void
-tui_puts (const char *string, WINDOW *w)
-{
-  if (w == nullptr)
-    w = TUI_CMD_WIN->handle.get ();
-  tui_puts_internal (w, string, nullptr);
-}
-
 /* Readline callback.
    Redisplay the command line with its prompt after readline has
    changed the edited text.  */
@@ -538,7 +571,7 @@ tui_redisplay_readline (void)
   if (tui_current_key_mode == TUI_SINGLE_KEY_MODE)
     prompt = "";
   else
-    prompt = tui_rl_saved_prompt;
+    prompt = rl_display_prompt;
   
   c_pos = -1;
   c_line = -1;
@@ -557,17 +590,17 @@ tui_redisplay_readline (void)
       
       if (in == rl_point)
 	{
-          getyx (w, c_line, c_pos);
+	  getyx (w, c_line, c_pos);
 	}
 
       if (in == rl_end)
-        break;
+	break;
 
       c = (unsigned char) rl_line_buffer[in];
       if (CTRL_CHAR (c) || c == RUBOUT)
 	{
-          waddch (w, '^');
-          waddch (w, CTRL_CHAR (c) ? UNCTRL (c) : '?');
+	  waddch (w, '^');
+	  waddch (w, CTRL_CHAR (c) ? UNCTRL (c) : '?');
 	}
       else if (c == '\t')
 	{
@@ -581,13 +614,13 @@ tui_redisplay_readline (void)
 	}
       else
 	{
-          waddch (w, c);
+	  waddch (w, c);
 	}
       if (c == '\n')
 	TUI_CMD_WIN->start_line = getcury (w);
       col = getcurx (w);
       if (col < prev_col)
-        height++;
+	height++;
       prev_col = col;
     }
   wclrtobot (w);
@@ -606,11 +639,6 @@ tui_redisplay_readline (void)
 static void
 tui_prep_terminal (int notused1)
 {
-  /* Save the prompt registered in readline to correctly display it.
-     (we can't use gdb_prompt() due to secondary prompts and can't use
-     rl_prompt because it points to an alloca buffer).  */
-  xfree (tui_rl_saved_prompt);
-  tui_rl_saved_prompt = rl_prompt != NULL ? xstrdup (rl_prompt) : NULL;
 }
 
 /* Readline callback to restore the terminal.  It is called once each
@@ -769,6 +797,10 @@ tui_setup_io (int mode)
 
   if (mode)
     {
+      /* Ensure that readline has been initialized before saving any
+	 of its variables.  */
+      tui_ensure_readline_initialized ();
+
       /* Redirect readline to TUI.  */
       tui_old_rl_redisplay_function = rl_redisplay_function;
       tui_old_rl_deprep_terminal = rl_deprep_term_function;
@@ -843,7 +875,7 @@ tui_cont_sig (int sig)
   if (tui_active)
     {
       /* Restore the terminal setting because another process (shell)
-         might have changed it.  */
+	 might have changed it.  */
       resetty ();
 
       /* Force a refresh of the screen.  */
@@ -889,7 +921,7 @@ tui_initialize_io (void)
   (void) fcntl (tui_readline_pipe[0], F_SETFL, O_NDELAY);
 #endif
 #endif
-  add_file_handler (tui_readline_pipe[0], tui_readline_output, 0);
+  add_file_handler (tui_readline_pipe[0], tui_readline_output, 0, "tui");
 #else
   tui_rl_outstream = stdout;
 #endif
@@ -950,7 +982,7 @@ tui_dispatch_ctrl_char (unsigned int ch)
       break;
     default:
       /* We didn't recognize the character as a control character, so pass it
-         through.  */
+	 through.  */
       return ch;
     }
 
@@ -959,10 +991,12 @@ tui_dispatch_ctrl_char (unsigned int ch)
   return 0;
 }
 
-/* Get a character from the command window.  This is called from the
-   readline package.  */
+/* Main worker for tui_getc.  Get a character from the command window.
+   This is called from the readline package, but wrapped in a
+   try/catch by tui_getc.  */
+
 static int
-tui_getc (FILE *fp)
+tui_getc_1 (FILE *fp)
 {
   int ch;
   WINDOW *w;
@@ -981,22 +1015,22 @@ tui_getc (FILE *fp)
   if (ch == '\n' || ch == '\r')
     {
       /* When hitting return with an empty input, gdb executes the last
-         command.  If we emit a newline, this fills up the command window
-         with empty lines with gdb prompt at beginning.  Instead of that,
-         stay on the same line but provide a visual effect to show the
-         user we recognized the command.  */
+	 command.  If we emit a newline, this fills up the command window
+	 with empty lines with gdb prompt at beginning.  Instead of that,
+	 stay on the same line but provide a visual effect to show the
+	 user we recognized the command.  */
       if (rl_end == 0 && !gdb_in_secondary_prompt_p (current_ui))
-        {
+	{
 	  wmove (w, getcury (w), 0);
 
-          /* Clear the line.  This will blink the gdb prompt since
-             it will be redrawn at the same line.  */
-          wclrtoeol (w);
-          wrefresh (w);
-          napms (20);
-        }
+	  /* Clear the line.  This will blink the gdb prompt since
+	     it will be redrawn at the same line.  */
+	  wclrtoeol (w);
+	  wrefresh (w);
+	  napms (20);
+	}
       else
-        {
+	{
 	  /* Move cursor to the end of the command line before emitting the
 	     newline.  We need to do so because when ncurses outputs a newline
 	     it truncates any text that appears past the end of the cursor.  */
@@ -1007,7 +1041,7 @@ tui_getc (FILE *fp)
 	  px %= TUI_CMD_WIN->width;
 	  wmove (w, py, px);
 	  tui_putc ('\n');
-        }
+	}
     }
   
   /* Handle prev/next/up/down here.  */
@@ -1045,54 +1079,25 @@ tui_getc (FILE *fp)
   return ch;
 }
 
-/* See tui-io.h.  */
+/* Get a character from the command window.  This is called from the
+   readline package.  */
 
-gdb::unique_xmalloc_ptr<char>
-tui_expand_tabs (const char *string)
+static int
+tui_getc (FILE *fp)
 {
-  int n_adjust, ncol;
-  const char *s;
-  char *ret, *q;
-
-  /* 1. How many additional characters do we need?  */
-  for (ncol = 0, n_adjust = 0, s = string; s; )
+  try
     {
-      s = strpbrk (s, "\t");
-      if (s)
-	{
-	  ncol += (s - string) + n_adjust;
-	  /* Adjustment for the next tab stop, minus one for the TAB
-	     we replace with spaces.  */
-	  n_adjust += 8 - (ncol % 8) - 1;
-	  s++;
-	}
+      return tui_getc_1 (fp);
     }
-
-  /* Allocate the copy.  */
-  ret = q = (char *) xmalloc (strlen (string) + n_adjust + 1);
-
-  /* 2. Copy the original string while replacing TABs with spaces.  */
-  for (ncol = 0, s = string; s; )
+  catch (const gdb_exception &ex)
     {
-      const char *s1 = strpbrk (s, "\t");
-      if (s1)
-	{
-	  if (s1 > s)
-	    {
-	      strncpy (q, s, s1 - s);
-	      q += s1 - s;
-	      ncol += s1 - s;
-	    }
-	  do {
-	    *q++ = ' ';
-	    ncol++;
-	  } while ((ncol % 8) != 0);
-	  s1++;
-	}
-      else
-	strcpy (q, s);
-      s = s1;
-    }
+      /* Just in case, don't ever let an exception escape to readline.
+	 This shouldn't ever happen, but if it does, print the
+	 exception instead of just crashing GDB.  */
+      exception_print (gdb_stderr, ex);
 
-  return gdb::unique_xmalloc_ptr<char> (ret);
+      /* If we threw an exception, it's because we recognized the
+	 character.  */
+      return 0;
+    }
 }

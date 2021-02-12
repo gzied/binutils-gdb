@@ -6,7 +6,7 @@ foo:
 	addsubpd	%xmm2,%xmm1
 	addsubps	(%rbx),%xmm2
 	addsubps	%xmm4,%xmm3
-	fisttp		0x909090(%rax)
+	fisttps		0x909090(%rax)
 	fisttpl		0x909090(%rax)
 	fisttpll	0x909090(%rax)
 	haddpd		0x0(%rbp),%xmm4
@@ -38,3 +38,7 @@ foo:
 	.intel_syntax noprefix
 	movddup xmm7,[rax]
 	movddup xmm7,QWORD PTR [rax]
+
+	monitor		rax, ecx, edx
+	monitor		eax, ecx, edx
+	mwait		eax, ecx

@@ -1,5 +1,5 @@
 /* Disassemble support for GDB.
-   Copyright (C) 2002-2019 Free Software Foundation, Inc.
+   Copyright (C) 2002-2021 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -46,6 +46,10 @@ public:
   gdb_disassembler (struct gdbarch *gdbarch, struct ui_file *file)
     : gdb_disassembler (gdbarch, file, dis_asm_read_memory)
   {}
+
+  ~gdb_disassembler ();
+
+  DISABLE_COPY_AND_ASSIGN (gdb_disassembler);
 
   int print_insn (CORE_ADDR memaddr, int *branch_delay_insns = NULL);
 

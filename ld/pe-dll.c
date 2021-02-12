@@ -1,5 +1,5 @@
 /* Routines to help build PEI-format DLLs (Win32 etc)
-   Copyright (C) 1998-2019 Free Software Foundation, Inc.
+   Copyright (C) 1998-2021 Free Software Foundation, Inc.
    Written by DJ Delorie <dj@cygnus.com>
 
    This file is part of the GNU Binutils.
@@ -160,6 +160,7 @@ int pe_dll_extra_pe_debug = 0;
 int pe_use_nul_prefixed_import_tables = 0;
 int pe_use_coff_long_section_names = -1;
 int pe_leading_underscore = -1;
+int pe_dll_enable_reloc_section = 1;
 
 /* Static variables and types.  */
 
@@ -277,6 +278,16 @@ static pe_details_type pe_detail_list[] =
     PE_ARCH_i386,
     bfd_arch_i386,
     FALSE,
+    autofilter_symbollist_i386
+  },
+#else
+  {
+    "pei-i386",
+    "pe-bigobj-i386",
+    7 /* R_IMAGEBASE */,
+    PE_ARCH_i386,
+    bfd_arch_i386,
+    TRUE,
     autofilter_symbollist_i386
   },
 #endif
@@ -549,13 +560,14 @@ auto_export (bfd *abfd, def_file *d, const char *n)
   const char * libname = NULL;
 
   if (abfd && abfd->my_archive)
-    libname = lbasename (abfd->my_archive->filename);
+    libname = lbasename (bfd_get_filename (abfd->my_archive));
 
   key.name = key.its_name = (char *) n;
 
   /* Return false if n is in the d->exports table.  */
-  if (bsearch (&key, d->exports, d->num_exports,
-	       sizeof (pe_def_file->exports[0]), pe_export_sort))
+  if (d->num_exports != 0
+      && bsearch (&key, d->exports, d->num_exports,
+		  sizeof (pe_def_file->exports[0]), pe_export_sort))
     return 0;
 
   if (pe_dll_do_default_excludes)
@@ -583,7 +595,7 @@ auto_export (bfd *abfd, def_file *d, const char *n)
 
       /* Next, exclude symbols from certain startup objects.  */
 
-      if (abfd && (p = lbasename (abfd->filename)))
+      if (abfd && (p = lbasename (bfd_get_filename (abfd))))
 	{
 	  afptr = autofilter_objlist;
 	  while (afptr->name)
@@ -644,7 +656,7 @@ auto_export (bfd *abfd, def_file *d, const char *n)
 	}
       else if (ex->type == EXCLUDEFORIMPLIB)
 	{
-	  if (filename_cmp (abfd->filename, ex->string) == 0)
+	  if (filename_cmp (bfd_get_filename (abfd), ex->string) == 0)
 	    return 0;
 	}
       else if (strcmp (n, ex->string) == 0)
@@ -880,12 +892,9 @@ process_def_file_and_drectve (bfd *abfd ATTRIBUTE_UNUSED, struct bfd_link_info *
 	  e[j - 1].flag_constant |= e[i].flag_constant;
 	  e[j - 1].flag_noname |= e[i].flag_noname;
 	  e[j - 1].flag_data |= e[i].flag_data;
-	  if (e[i].name)
-	    free (e[i].name);
-	  if (e[i].internal_name)
-	    free (e[i].internal_name);
-	  if (e[i].its_name)
-	    free (e[i].its_name);
+	  free (e[i].name);
+	  free (e[i].internal_name);
+	  free (e[i].its_name);
 	}
       else
 	{
@@ -1068,7 +1077,7 @@ generate_edata (bfd *abfd, struct bfd_link_info *info ATTRIBUTE_UNUSED)
     dll_name = pe_def_file->name;
   else
     {
-      dll_name = abfd->filename;
+      dll_name = bfd_get_filename (abfd);
 
       for (dlnp = dll_name; *dlnp; dlnp++)
 	if (*dlnp == '\\' || *dlnp == '/' || *dlnp == ':')
@@ -1210,8 +1219,10 @@ fill_edata (bfd *abfd, struct bfd_link_info *info ATTRIBUTE_UNUSED)
 
   memset (edata_d, 0, edata_sz);
 
-  if (pe_data (abfd)->insert_timestamp)
+  if (pe_data (abfd)->timestamp == -1)
     H_PUT_32 (abfd, time (0), edata_d + 4);
+  else
+    H_PUT_32 (abfd, pe_data (abfd)->timestamp, edata_d + 4);
 
   if (pe_def_file->version_major != -1)
     {
@@ -1495,7 +1506,6 @@ pe_find_data_imports (const char *symhead,
 static void
 generate_reloc (bfd *abfd, struct bfd_link_info *info)
 {
-
   /* For .reloc stuff.  */
   reloc_data_type *reloc_data;
   int total_relocs = 0;
@@ -1506,6 +1516,8 @@ generate_reloc (bfd *abfd, struct bfd_link_info *info)
   bfd *b;
   struct bfd_section *s;
 
+  if (reloc_s == NULL)
+    return;
   total_relocs = 0;
   for (b = info->input_bfds; b; b = b->link.next)
     for (s = b->sections; s; s = s->next)
@@ -1537,9 +1549,11 @@ generate_reloc (bfd *abfd, struct bfd_link_info *info)
 	  if (s->output_section->vma == 0)
 	    {
 	      /* Huh?  Shouldn't happen, but punt if it does.  */
+#if 0 /* This happens when linking with --just-symbols=<file>, so do not generate an error.  */
 	      einfo (_("%P: zero vma section reloc detected: `%s' #%d f=%d\n"),
 		     s->output_section->name, s->output_section->index,
 		     s->output_section->flags);
+#endif
 	      continue;
 	    }
 
@@ -2754,7 +2768,7 @@ pe_create_import_fixup (arelent *rel, asection *s, bfd_vma addend, char *name,
       if (!(name_thunk_sym && name_thunk_sym->type == bfd_link_hash_defined))
 	{
 	  b = make_singleton_name_thunk (name, link_info.output_bfd);
-	  add_bfd_to_link (b, b->filename, &link_info);
+	  add_bfd_to_link (b, bfd_get_filename (b), &link_info);
 
 	  /* If we ever use autoimport, we have to cast text section writable.  */
 	  config.text_read_only = FALSE;
@@ -2765,7 +2779,7 @@ pe_create_import_fixup (arelent *rel, asection *s, bfd_vma addend, char *name,
 	{
 	  b = make_import_fixup_entry (name, fixup_name, symname,
 				       link_info.output_bfd);
-	  add_bfd_to_link (b, b->filename, &link_info);
+	  add_bfd_to_link (b, bfd_get_filename (b), &link_info);
 	}
     }
 
@@ -2781,12 +2795,12 @@ pe_create_import_fixup (arelent *rel, asection *s, bfd_vma addend, char *name,
 
       b = make_runtime_pseudo_reloc (name, fixup_name, addend, rel->howto->bitsize,
 				     link_info.output_bfd);
-      add_bfd_to_link (b, b->filename, &link_info);
+      add_bfd_to_link (b, bfd_get_filename (b), &link_info);
 
       if (runtime_pseudo_relocs_created++ == 0)
 	{
 	  b = pe_create_runtime_relocator_reference (link_info.output_bfd);
-	  add_bfd_to_link (b, b->filename, &link_info);
+	  add_bfd_to_link (b, bfd_get_filename (b), &link_info);
 	}
     }
 
@@ -2842,7 +2856,7 @@ pe_dll_generate_implib (def_file *def, const char *impfilename, struct bfd_link_
 	{
 	  if (ex->type != EXCLUDEFORIMPLIB)
 	    continue;
-	  found = (filename_cmp (ex->string, ibfd->filename) == 0);
+	  found = (filename_cmp (ex->string, bfd_get_filename (ibfd)) == 0);
 	}
       /* If it matched, we must open a fresh BFD for it (the original
 	 input BFD is still needed for the DLL's final link) and add
@@ -2850,10 +2864,11 @@ pe_dll_generate_implib (def_file *def, const char *impfilename, struct bfd_link_
       if (found)
 	{
 	  bfd *newbfd = bfd_openr (ibfd->my_archive
-		? ibfd->my_archive->filename : ibfd->filename, NULL);
+				   ? bfd_get_filename (ibfd->my_archive)
+				   : bfd_get_filename (ibfd), NULL);
 	  if (!newbfd)
 	    {
-	      einfo (_("%X%P: bfd_openr %s: %E\n"), ibfd->filename);
+	      einfo (_("%X%P: bfd_openr %s: %E\n"), bfd_get_filename (ibfd));
 	      return;
 	    }
 	  if (ibfd->my_archive)
@@ -2866,19 +2881,22 @@ pe_dll_generate_implib (def_file *def, const char *impfilename, struct bfd_link_
 	      if (!bfd_check_format_matches (arbfd, bfd_archive, NULL))
 		{
 		  einfo (_("%X%P: %s(%s): can't find member in non-archive file"),
-		    ibfd->my_archive->filename, ibfd->filename);
+			 bfd_get_filename (ibfd->my_archive),
+			 bfd_get_filename (ibfd));
 		  return;
 		}
 	      newbfd = NULL;
 	      while ((newbfd = bfd_openr_next_archived_file (arbfd, newbfd)) != 0)
 		{
-		  if (filename_cmp (newbfd->filename, ibfd->filename) == 0)
+		  if (filename_cmp (bfd_get_filename (newbfd),
+				    bfd_get_filename (ibfd)) == 0)
 		    break;
 		}
 	      if (!newbfd)
 		{
 		  einfo (_("%X%P: %s(%s): can't find member in archive"),
-		    ibfd->my_archive->filename, ibfd->filename);
+			 bfd_get_filename (ibfd->my_archive),
+			 bfd_get_filename (ibfd));
 		  return;
 		}
 	    }
@@ -3235,7 +3253,7 @@ pe_process_import_defs (bfd *output_bfd, struct bfd_link_info *linfo)
 	      if (!do_this_dll)
 		{
 		  bfd *ar_head = make_head (output_bfd);
-		  add_bfd_to_link (ar_head, ar_head->filename, linfo);
+		  add_bfd_to_link (ar_head, bfd_get_filename (ar_head), linfo);
 		  do_this_dll = 1;
 		}
 	      exp.internal_name = imp[i].internal_name;
@@ -3248,13 +3266,13 @@ pe_process_import_defs (bfd *output_bfd, struct bfd_link_info *linfo)
 	      exp.flag_data = imp[i].data;
 	      exp.flag_noname = exp.name ? 0 : 1;
 	      one = make_one (&exp, output_bfd, (! exp.flag_data) && include_jmp_stub);
-	      add_bfd_to_link (one, one->filename, linfo);
+	      add_bfd_to_link (one, bfd_get_filename (one), linfo);
 	    }
 	}
       if (do_this_dll)
 	{
 	  bfd *ar_tail = make_tail (output_bfd);
-	  add_bfd_to_link (ar_tail, ar_tail->filename, linfo);
+	  add_bfd_to_link (ar_tail, bfd_get_filename (ar_tail), linfo);
 	}
 
       free (dll_symname);
@@ -3289,7 +3307,7 @@ pe_get32 (bfd *abfd, int where)
 
   bfd_seek (abfd, (file_ptr) where, SEEK_SET);
   bfd_bread (b, (bfd_size_type) 4, abfd);
-  return b[0] + (b[1] << 8) + (b[2] << 16) + (b[3] << 24);
+  return b[0] + (b[1] << 8) + (b[2] << 16) + ((unsigned) b[3] << 24);
 }
 
 static unsigned int
@@ -3297,7 +3315,7 @@ pe_as32 (void *ptr)
 {
   unsigned char *b = ptr;
 
-  return b[0] + (b[1] << 8) + (b[2] << 16) + (b[3] << 24);
+  return b[0] + (b[1] << 8) + (b[2] << 16) + ((unsigned) b[3] << 24);
 }
 
 bfd_boolean
@@ -3329,6 +3347,8 @@ pe_implied_import_dll (const char *filename)
       einfo (_("%X%P: open %s: %E\n"), filename);
       return FALSE;
     }
+
+  track_dependency_files (filename);
 
   /* PEI dlls seem to be bfd_objects.  */
   if (!bfd_check_format (dll, bfd_object))
@@ -3554,7 +3574,14 @@ pe_dll_build_sections (bfd *abfd, struct bfd_link_info *info)
   process_def_file_and_drectve (abfd, info);
 
   if (pe_def_file->num_exports == 0 && !bfd_link_pic (info))
-    return;
+    {
+      if (pe_dll_enable_reloc_section)
+	{
+	  build_filler_bfd (0);
+	  pe_output_file_set_long_section_names (filler_bfd);
+	}
+      return;
+    }
 
   generate_edata (abfd, info);
   build_filler_bfd (1);
@@ -3573,33 +3600,16 @@ pe_exe_build_sections (bfd *abfd, struct bfd_link_info *info ATTRIBUTE_UNUSED)
 void
 pe_dll_fill_sections (bfd *abfd, struct bfd_link_info *info)
 {
-  pe_dll_id_target (bfd_get_target (abfd));
-  pe_output_file_set_long_section_names (abfd);
-  image_base = pe_data (abfd)->pe_opthdr.ImageBase;
+  pe_exe_fill_sections (abfd, info);
 
-  generate_reloc (abfd, info);
-  if (reloc_sz > 0)
+  if (edata_s)
     {
-      bfd_set_section_size (reloc_s, reloc_sz);
-
-      /* Resize the sections.  */
-      lang_reset_memory_regions ();
-      lang_size_sections (NULL, TRUE);
-
-      /* Redo special stuff.  */
-      ldemul_after_allocation ();
-
-      /* Do the assignments again.  */
-      lang_do_assignments (lang_final_phase_enum);
+      fill_edata (abfd, info);
+      edata_s->contents = edata_d;
     }
-
-  fill_edata (abfd, info);
 
   if (bfd_link_dll (info))
     pe_data (abfd)->dll = 1;
-
-  edata_s->contents = edata_d;
-  reloc_s->contents = reloc_d;
 }
 
 void
@@ -3624,7 +3634,8 @@ pe_exe_fill_sections (bfd *abfd, struct bfd_link_info *info)
       /* Do the assignments again.  */
       lang_do_assignments (lang_final_phase_enum);
     }
-  reloc_s->contents = reloc_d;
+  if (reloc_s)
+    reloc_s->contents = reloc_d;
 }
 
 bfd_boolean

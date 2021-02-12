@@ -1,5 +1,5 @@
 /* Disassemble V850 instructions.
-   Copyright (C) 1996-2019 Free Software Foundation, Inc.
+   Copyright (C) 1996-2021 Free Software Foundation, Inc.
 
    This file is part of the GNU opcodes library.
 
@@ -88,7 +88,7 @@ get_operand_value (const struct v850_operand *operand,
 		   bfd_boolean noerror,
 		   int *invalid)
 {
-  long value;
+  unsigned long value;
   bfd_byte buffer[4];
 
   if ((operand->flags & V850E_IMMEDIATE16)
@@ -158,11 +158,13 @@ get_operand_value (const struct v850_operand *operand,
       if (operand->bits == -1)
 	value = (insn & operand->shift);
       else
-	value = (insn >> operand->shift) & ((1 << operand->bits) - 1);
+	value = (insn >> operand->shift) & ((1ul << operand->bits) - 1);
 
       if (operand->flags & V850_OPERAND_SIGNED)
-	value = ((long)(value << (sizeof (long)*8 - operand->bits))
-		 >> (sizeof (long)*8 - operand->bits));
+	{
+	  unsigned long sign = 1ul << (operand->bits - 1);
+	  value = (value ^ sign) - sign;
+	}
     }
 
   return value;
@@ -497,7 +499,7 @@ disassemble (bfd_vma memaddr,
 						     0,  0, 0, 0, 0, 31, 29, 28, 23, 22, 21, 20, 27, 26, 25, 24 };
 		    int *regs;
 		    int i;
-		    unsigned long int mask = 0;
+		    unsigned int mask = 0;
 		    int pc = 0;
 
 		    switch (operand->shift)
@@ -512,12 +514,12 @@ disassemble (bfd_vma memaddr,
 
 		    for (i = 0; i < 32; i++)
 		      {
-			if (value & (1 << i))
+			if (value & (1u << i))
 			  {
 			    switch (regs[ i ])
 			      {
 			      default:
-				mask |= (1 << regs[ i ]);
+				mask |= (1u << regs[ i ]);
 				break;
 			      case 0:
 				/* xgettext:c-format */
@@ -541,10 +543,10 @@ disassemble (bfd_vma memaddr,
 			    int shown_one = 0;
 
 			    for (bit = 0; bit < 32; bit++)
-			      if (mask & (1 << bit))
+			      if (mask & (1u << bit))
 				{
-				  unsigned long int first = bit;
-				  unsigned long int last;
+				  unsigned int first = bit;
+				  unsigned int last;
 
 				  if (shown_one)
 				    info->fprintf_func (info->stream, ", ");
@@ -554,7 +556,7 @@ disassemble (bfd_vma memaddr,
 				  info->fprintf_func (info->stream, "%s", get_v850_reg_name (first));
 
 				  for (bit++; bit < 32; bit++)
-				    if ((mask & (1 << bit)) == 0)
+				    if ((mask & (1u << bit)) == 0)
 				      break;
 
 				  last = bit;

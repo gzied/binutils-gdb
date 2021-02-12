@@ -1,6 +1,6 @@
 # This testcase is part of GDB, the GNU debugger.
 #
-# Copyright 2016-2019 Free Software Foundation, Inc.
+# Copyright 2016-2021 Free Software Foundation, Inc.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -43,6 +43,10 @@ if [info exists COMPILE] {
 	} else {
 		standard_testfile i686-tailcall-only.S
 	}
+} elseif { [istarget "arm*-*-*"] } {
+  standard_testfile arm-tailcall-only.S
+} elseif {[istarget "aarch64*-*-*"]} {
+  standard_testfile aarch64-tailcall-only.S
 } else {
     unsupported "target architecture not supported"
     return -1
@@ -62,6 +66,10 @@ gdb_test_no_output "set record function-call-history-size 0"
 
 # trace foo
 gdb_test "step" ".*" "prepare for recording"
+# make sure we get out of function epilogue
+if { [istarget "arm*-*-*"] } {
+  gdb_test "stepi"
+}
 gdb_test_no_output "record btrace"
 gdb_test "stepi 4" ".*" "record branch trace"
 

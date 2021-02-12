@@ -1,5 +1,5 @@
 /* Annotation routines for GDB.
-   Copyright (C) 1986-2019 Free Software Foundation, Inc.
+   Copyright (C) 1986-2021 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -238,8 +238,8 @@ annotate_thread_exited (struct thread_info *t, int silent)
   if (annotation_level > 1)
     {
       printf_filtered(("\n\032\032thread-exited,"
-                       "id=\"%d\",group-id=\"i%d\"\n"),
-                      t->global_num, t->inf->num);
+		       "id=\"%d\",group-id=\"i%d\"\n"),
+		      t->global_num, t->inf->num);
     }
 }
 
@@ -435,7 +435,7 @@ annotate_source (const char *filename, int line, int character, int mid,
 
 /* See annotate.h.  */
 
-void
+bool
 annotate_source_line (struct symtab *s, int line, int mid_statement,
 		      CORE_ADDR pc)
 {
@@ -443,16 +443,25 @@ annotate_source_line (struct symtab *s, int line, int mid_statement,
     {
       const std::vector<off_t> *offsets;
       if (!g_source_cache.get_line_charpos (s, &offsets))
-	return;
-
-      /* Don't index off the end of the line_charpos array.  */
+	return false;
       if (line > offsets->size ())
-	return;
+	return false;
 
       annotate_source (s->fullname, line, (int) (*offsets)[line - 1],
-		       mid_statement, get_objfile_arch (SYMTAB_OBJFILE (s)),
+		       mid_statement, SYMTAB_OBJFILE (s)->arch (),
 		       pc);
+
+      /* Update the current symtab and line.  */
+      symtab_and_line sal;
+      sal.pspace = SYMTAB_PSPACE (s);
+      sal.symtab = s;
+      sal.line = line;
+      set_current_source_symtab_and_line (sal);
+
+      return true;
     }
+
+  return false;
 }
 
 
@@ -614,8 +623,9 @@ breakpoint_changed (struct breakpoint *b)
   annotate_breakpoints_invalid ();
 }
 
+void _initialize_annotate ();
 void
-_initialize_annotate (void)
+_initialize_annotate ()
 {
   gdb::observers::breakpoint_created.attach (breakpoint_changed);
   gdb::observers::breakpoint_deleted.attach (breakpoint_changed);

@@ -1,6 +1,6 @@
 /* Top level stuff for GDB, the GNU debugger.
 
-   Copyright (C) 1986-2019 Free Software Foundation, Inc.
+   Copyright (C) 1986-2021 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -28,7 +28,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <ctype.h>
-#include "event-loop.h"
+#include "gdbsupport/event-loop.h"
 #include "ui-out.h"
 
 #include "interps.h"
@@ -53,6 +53,8 @@
 #include "gdbtk/generic/gdbtk.h"
 #endif
 #include "gdbsupport/alt-stack.h"
+#include "observable.h"
+#include "serial.h"
 
 /* The selected interpreter.  This will be used as a set command
    variable, so it should always be malloc'ed - since
@@ -124,7 +126,8 @@ set_gdb_data_directory (const char *new_datadir)
       print_sys_errmsg (new_datadir, save_errno);
     }
   else if (!S_ISDIR (st.st_mode))
-    warning (_("%s is not a directory."), new_datadir);
+    warning (_("%ps is not a directory."),
+	     styled_string (file_name_style.style (), new_datadir));
 
   gdb_datadir = gdb_realpath (new_datadir).get ();
 
@@ -135,7 +138,7 @@ set_gdb_data_directory (const char *new_datadir)
   if (!IS_ABSOLUTE_PATH (gdb_datadir.c_str ()))
     {
       gdb::unique_xmalloc_ptr<char> abs_datadir
-        = gdb_abspath (gdb_datadir.c_str ());
+	= gdb_abspath (gdb_datadir.c_str ());
 
       gdb_datadir = abs_datadir.get ();
     }
@@ -299,8 +302,6 @@ get_init_files (std::vector<std::string> *system_gdbinit,
 	  }
 	}
 
-      const char *homedir = getenv ("HOME");
-
       /* If the .gdbinit file in the current directory is the same as
 	 the $HOME/.gdbinit file, it should not be sourced.  homebuf
 	 and cwdbuf are used in that purpose.  Make sure that the stats
@@ -310,14 +311,7 @@ get_init_files (std::vector<std::string> *system_gdbinit,
       memset (&homebuf, 0, sizeof (struct stat));
       memset (&cwdbuf, 0, sizeof (struct stat));
 
-      if (homedir)
-	{
-	  homeinit = std::string (homedir) + SLASH_STRING + GDBINIT;
-	  if (stat (homeinit.c_str (), &homebuf) != 0)
-	    {
-	      homeinit = "";
-	    }
-	}
+      homeinit = find_gdb_home_config_file (GDBINIT, &homebuf);
 
       if (stat (GDBINIT, &cwdbuf) == 0)
 	{
@@ -326,13 +320,68 @@ get_init_files (std::vector<std::string> *system_gdbinit,
 			 sizeof (struct stat)))
 	    localinit = GDBINIT;
 	}
-      
+
       initialized = 1;
     }
 
   *system_gdbinit = sysgdbinit;
   *home_gdbinit = homeinit;
   *local_gdbinit = localinit;
+}
+
+/* Start up the event loop.  This is the entry point to the event loop
+   from the command loop.  */
+
+static void
+start_event_loop ()
+{
+  /* Loop until there is nothing to do.  This is the entry point to
+     the event loop engine.  gdb_do_one_event will process one event
+     for each invocation.  It blocks waiting for an event and then
+     processes it.  */
+  while (1)
+    {
+      int result = 0;
+
+      try
+	{
+	  result = gdb_do_one_event ();
+	}
+      catch (const gdb_exception &ex)
+	{
+	  exception_print (gdb_stderr, ex);
+
+	  /* If any exception escaped to here, we better enable
+	     stdin.  Otherwise, any command that calls async_disable_stdin,
+	     and then throws, will leave stdin inoperable.  */
+	  SWITCH_THRU_ALL_UIS ()
+	    {
+	      async_enable_stdin ();
+	    }
+	  /* If we long-jumped out of do_one_event, we probably didn't
+	     get around to resetting the prompt, which leaves readline
+	     in a messed-up state.  Reset it here.  */
+	  current_ui->prompt_state = PROMPT_NEEDED;
+	  gdb::observers::command_error.notify ();
+	  /* This call looks bizarre, but it is required.  If the user
+	     entered a command that caused an error,
+	     after_char_processing_hook won't be called from
+	     rl_callback_read_char_wrapper.  Using a cleanup there
+	     won't work, since we want this function to be called
+	     after a new prompt is printed.  */
+	  if (after_char_processing_hook)
+	    (*after_char_processing_hook) ();
+	  /* Maybe better to set a flag to be checked somewhere as to
+	     whether display the prompt or not.  */
+	}
+
+      if (result < 0)
+	break;
+    }
+
+  /* We are done with the event loop.  There are no more event sources
+     to listen to.  So we exit GDB.  */
+  return;
 }
 
 /* Call command_loop.  */
@@ -391,7 +440,8 @@ typedef void (catch_command_errors_const_ftype) (const char *, int);
 
 static int
 catch_command_errors (catch_command_errors_const_ftype command,
-		      const char *arg, int from_tty)
+		      const char *arg, int from_tty,
+		      bool do_bp_actions = false)
 {
   try
     {
@@ -400,6 +450,10 @@ catch_command_errors (catch_command_errors_const_ftype command,
       command (arg, from_tty);
 
       maybe_wait_sync_command_done (was_sync);
+
+      /* Do any commands attached to breakpoint we stopped at.  */
+      if (do_bp_actions)
+	bpstat_do_actions ();
     }
   catch (const gdb_exception &e)
     {
@@ -466,6 +520,26 @@ struct cmdarg
      is not owned by this structure despite it is 'const'.  */
   char *string;
 };
+
+/* From CMDARG_VEC execute command files (matching FILE_TYPE) or commands
+   (matching CMD_TYPE).  Update the value in *RET if and scripts or
+   commands are executed.  */
+
+static void
+execute_cmdargs (const std::vector<struct cmdarg> *cmdarg_vec,
+		 cmdarg_kind file_type, cmdarg_kind cmd_type,
+		 int *ret)
+{
+  for (const auto &cmdarg_p : *cmdarg_vec)
+    {
+      if (cmdarg_p.type == file_type)
+	*ret = catch_command_errors (source_script, cmdarg_p.string,
+				     !batch_flag);
+      else if (cmdarg_p.type == cmd_type)
+	*ret = catch_command_errors (execute_command, cmdarg_p.string,
+				     !batch_flag, true);
+    }
+}
 
 static void
 captured_main_1 (struct captured_main_args *context)
@@ -574,14 +648,9 @@ captured_main_1 (struct captured_main_args *context)
   gdb_datadir = relocate_gdb_directory (GDB_DATADIR,
 					GDB_DATADIR_RELOCATABLE);
 
-#ifdef WITH_PYTHON_PATH
-  {
-    /* For later use in helping Python find itself.  */
-    char *tmp = concat (WITH_PYTHON_PATH, SLASH_STRING, "lib", (char *) NULL);
-
-    python_libdir = relocate_gdb_directory (tmp, PYTHON_PATH_RELOCATABLE);
-    xfree (tmp);
-  }
+#ifdef WITH_PYTHON_LIBDIR
+  python_libdir = relocate_gdb_directory (WITH_PYTHON_LIBDIR,
+					  PYTHON_LIBDIR_RELOCATABLE);
 #endif
 
 #ifdef RELOC_SRCDIR
@@ -734,7 +803,7 @@ captured_main_1 (struct captured_main_args *context)
 	    break;
 	  case OPT_WINDOWS:
 	    /* FIXME: cagney/2003-03-01: Not sure if this option is
-               actually useful, and if it is, what it should do.  */
+	       actually useful, and if it is, what it should do.  */
 #ifdef GDBTK
 	    /* --windows is equivalent to -i=insight.  */
 	    xfree (interpreter_p);
@@ -828,7 +897,7 @@ captured_main_1 (struct captured_main_args *context)
 	      else
 		baud_rate = rate;
 	    }
-            break;
+	    break;
 	  case 'l':
 	    {
 	      int timeout;
@@ -954,7 +1023,6 @@ captured_main_1 (struct captured_main_args *context)
   if (print_help)
     {
       print_gdb_help (gdb_stdout);
-      fputs_unfiltered ("\n", gdb_stdout);
       exit (0);
     }
 
@@ -973,7 +1041,7 @@ captured_main_1 (struct captured_main_args *context)
   if (!quiet && strcmp (interpreter_p, INTERP_MI1) == 0)
     {
       /* Print all the junk at the top, with trailing "..." if we are
-         about to read a symbol file (possibly slowly).  */
+	 about to read a symbol file (possibly slowly).  */
       print_gdb_version (gdb_stdout, true);
       if (symarg)
 	printf_filtered ("..");
@@ -994,7 +1062,7 @@ captured_main_1 (struct captured_main_args *context)
   if (!quiet && !current_interp_named_p (INTERP_MI1))
     {
       /* Print all the junk at the top, with trailing "..." if we are
-         about to read a symbol file (possibly slowly).  */
+	 about to read a symbol file (possibly slowly).  */
       print_gdb_version (gdb_stdout, true);
       if (symarg)
 	printf_filtered ("..");
@@ -1027,22 +1095,7 @@ captured_main_1 (struct captured_main_args *context)
     ret = catch_command_errors (source_script, home_gdbinit.c_str (), 0);
 
   /* Process '-ix' and '-iex' options early.  */
-  for (i = 0; i < cmdarg_vec.size (); i++)
-    {
-      const struct cmdarg &cmdarg_p = cmdarg_vec[i];
-
-      switch (cmdarg_p.type)
-	{
-	case CMDARG_INIT_FILE:
-	  ret = catch_command_errors (source_script, cmdarg_p.string,
-				      !batch_flag);
-	  break;
-	case CMDARG_INIT_COMMAND:
-	  ret = catch_command_errors (execute_command, cmdarg_p.string,
-				      !batch_flag);
-	  break;
-	}
-    }
+  execute_cmdargs (&cmdarg_vec, CMDARG_INIT_FILE, CMDARG_INIT_COMMAND, &ret);
 
   /* Now perform all the actions indicated by the arguments.  */
   if (cdarg != NULL)
@@ -1064,8 +1117,8 @@ captured_main_1 (struct captured_main_args *context)
       && strcmp (execarg, symarg) == 0)
     {
       /* The exec file and the symbol-file are the same.  If we can't
-         open it, better only print one error message.
-         catch_command_errors returns non-zero on success!  */
+	 open it, better only print one error message.
+	 catch_command_errors returns non-zero on success!  */
       ret = catch_command_errors (exec_file_attach, execarg,
 				  !batch_flag);
       if (ret != 0)
@@ -1120,7 +1173,7 @@ captured_main_1 (struct captured_main_args *context)
     }
 
   if (ttyarg != NULL)
-    set_inferior_io_terminal (ttyarg);
+    current_inferior ()->set_tty (ttyarg);
 
   /* Error messages should no longer be distinguished with extra output.  */
   warning_pre_print = _("warning: ");
@@ -1153,22 +1206,7 @@ captured_main_1 (struct captured_main_args *context)
     load_auto_scripts_for_objfile (objfile);
 
   /* Process '-x' and '-ex' options.  */
-  for (i = 0; i < cmdarg_vec.size (); i++)
-    {
-      const struct cmdarg &cmdarg_p = cmdarg_vec[i];
-
-      switch (cmdarg_p.type)
-	{
-	case CMDARG_FILE:
-	  ret = catch_command_errors (source_script, cmdarg_p.string,
-				      !batch_flag);
-	  break;
-	case CMDARG_COMMAND:
-	  ret = catch_command_errors (execute_command, cmdarg_p.string,
-				      !batch_flag);
-	  break;
-	}
-    }
+  execute_cmdargs (&cmdarg_vec, CMDARG_FILE, CMDARG_COMMAND, &ret);
 
   /* Read in the old history after all the command files have been
      read.  */
@@ -1265,13 +1303,13 @@ Selection of debuggee and its files:\n\n\
 Initial commands and command files:\n\n\
   --command=FILE, -x Execute GDB commands from FILE.\n\
   --init-command=FILE, -ix\n\
-                     Like -x but execute commands before loading inferior.\n\
+		     Like -x but execute commands before loading inferior.\n\
   --eval-command=COMMAND, -ex\n\
-                     Execute a single GDB command.\n\
-                     May be used multiple times and in conjunction\n\
-                     with --command.\n\
+		     Execute a single GDB command.\n\
+		     May be used multiple times and in conjunction\n\
+		     with --command.\n\
   --init-eval-command=COMMAND, -iex\n\
-                     Like -ex but before loading inferior.\n\
+		     Like -ex but before loading inferior.\n\
   --nh               Do not read ~/.gdbinit.\n\
   --nx               Do not read any .gdbinit files in any directory.\n\n\
 "), stream);
@@ -1279,7 +1317,7 @@ Initial commands and command files:\n\n\
 Output and user interface control:\n\n\
   --fullname         Output information used by emacs-GDB interface.\n\
   --interpreter=INTERP\n\
-                     Select a specific interpreter / user interface\n\
+		     Select a specific interpreter / user interface\n\
   --tty=TTY          Use TTY for input/output by the program being debugged.\n\
   -w                 Use the GUI interface.\n\
   --nw               Do not use the GUI interface.\n\
@@ -1292,14 +1330,14 @@ Output and user interface control:\n\n\
   fputs_unfiltered (_("\
   --dbx              DBX compatibility mode.\n\
   -q, --quiet, --silent\n\
-                     Do not print version number on startup.\n\n\
+		     Do not print version number on startup.\n\n\
 "), stream);
   fputs_unfiltered (_("\
 Operating modes:\n\n\
   --batch            Exit after processing options.\n\
   --batch-silent     Like --batch, but suppress all gdb stdout output.\n\
   --return-child-result\n\
-                     GDB exit code will be the child's exit code.\n\
+		     GDB exit code will be the child's exit code.\n\
   --configuration    Print details about GDB configuration and then exit.\n\
   --help             Print this message and then exit.\n\
   --version          Print version information and then exit.\n\n\
@@ -1309,7 +1347,7 @@ Remote debugging options:\n\n\
 Other options:\n\n\
   --cd=DIR           Change current directory to DIR.\n\
   --data-directory=DIR, -D\n\
-                     Set GDB's data-directory to DIR.\n\
+		     Set GDB's data-directory to DIR.\n\
 "), stream);
   fputs_unfiltered (_("\n\
 At startup, GDB reads the following init files and executes their commands:\n\
@@ -1318,7 +1356,7 @@ At startup, GDB reads the following init files and executes their commands:\n\
     {
       std::string output;
       for (size_t idx = 0; idx < system_gdbinit.size (); ++idx)
-        {
+	{
 	  output += system_gdbinit[idx];
 	  if (idx < system_gdbinit.size () - 1)
 	    output += ", ";
@@ -1340,7 +1378,11 @@ For more information, type \"help\" from within GDB, or consult the\n\
 GDB manual (available as on-line info or a printed manual).\n\
 "), stream);
   if (REPORT_BUGS_TO[0] && stream == gdb_stdout)
-    fprintf_unfiltered (stream, _("\
-Report bugs to \"%s\".\n\
+    fprintf_unfiltered (stream, _("\n\
+Report bugs to %s.\n\
 "), REPORT_BUGS_TO);
+  if (stream == gdb_stdout)
+    fprintf_unfiltered (stream, _("\n\
+You can ask GDB-related questions on the GDB users mailing list\n\
+(gdb@sourceware.org) or on GDB's IRC channel (#gdb on Freenode).\n"));
 }

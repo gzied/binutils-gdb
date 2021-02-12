@@ -1,6 +1,6 @@
 /* Native-dependent code for GNU/Linux AArch64.
 
-   Copyright (C) 2011-2019 Free Software Foundation, Inc.
+   Copyright (C) 2011-2021 Free Software Foundation, Inc.
    Contributed by ARM Ltd.
 
    This file is part of GDB.
@@ -35,6 +35,7 @@
 #include "nat/aarch64-linux.h"
 #include "nat/aarch64-linux-hw-point.h"
 #include "nat/aarch64-sve-linux-ptrace.h"
+#include "nat/linux-btrace.h"
 
 #include "elf/external.h"
 #include "elf/common.h"
@@ -69,9 +70,9 @@ public:
   int remove_hw_breakpoint (struct gdbarch *, struct bp_target_info *) override;
   int region_ok_for_hw_watchpoint (CORE_ADDR, int) override;
   int insert_watchpoint (CORE_ADDR, int, enum target_hw_bp_type,
-			 struct expression *) override;
+                         struct expression *) override;
   int remove_watchpoint (CORE_ADDR, int, enum target_hw_bp_type,
-			 struct expression *) override;
+                         struct expression *) override;
   bool stopped_by_watchpoint () override;
   bool stopped_data_address (CORE_ADDR *) override;
   bool watchpoint_addr_within_range (CORE_ADDR, CORE_ADDR, int) override;
@@ -83,6 +84,16 @@ public:
 
   /* Override the GNU/Linux post attach hook.  */
   void post_attach (int pid) override;
+
+  /*override branch tracing  */
+  struct btrace_target_info *enable_btrace (ptid_t ptid,
+                                            const struct btrace_config *conf) override;
+  void disable_btrace (struct btrace_target_info *tinfo) override;
+  void teardown_btrace (struct btrace_target_info *tinfo) override;
+  enum btrace_error read_btrace (struct btrace_data *data,
+                                 struct btrace_target_info *btinfo,
+                                 enum btrace_read_type type) override;
+  const struct btrace_config *btrace_conf (const struct btrace_target_info *) override;
 
   /* These three defer to common nat/ code.  */
   void low_new_thread (struct lwp_info *lp) override
@@ -97,7 +108,7 @@ public:
 
   /* Add our siginfo layout converter.  */
   bool low_siginfo_fixup (siginfo_t *ptrace, gdb_byte *inf, int direction)
-    override;
+  override;
 
   struct gdbarch *thread_architecture (ptid_t) override;
 };
@@ -183,12 +194,12 @@ aarch64_linux_nat_target::low_forget_process (pid_t pid)
   while (proc != NULL)
     {
       if (proc->pid == pid)
-	{
-	  *proc_link = proc->next;
+        {
+          *proc_link = proc->next;
 
-	  xfree (proc);
-	  return;
-	}
+          xfree (proc);
+          return;
+        }
 
       proc_link = &proc->next;
       proc = *proc_link;
@@ -237,7 +248,7 @@ fetch_gregs_from_thread (struct regcache *regcache)
       int regno;
 
       for (regno = AARCH64_X0_REGNUM; regno <= AARCH64_CPSR_REGNUM; regno++)
-	regcache->raw_supply (regno, &regs[regno - AARCH64_X0_REGNUM]);
+        regcache->raw_supply (regno, &regs[regno - AARCH64_X0_REGNUM]);
     }
 }
 
@@ -274,8 +285,8 @@ store_gregs_to_thread (const struct regcache *regcache)
       int regno;
 
       for (regno = AARCH64_X0_REGNUM; regno <= AARCH64_CPSR_REGNUM; regno++)
-	if (REG_VALID == regcache->get_register_status (regno))
-	  regcache->raw_collect (regno, &regs[regno - AARCH64_X0_REGNUM]);
+        if (REG_VALID == regcache->get_register_status (regno))
+          regcache->raw_collect (regno, &regs[regno - AARCH64_X0_REGNUM]);
     }
 
   ret = ptrace (PTRACE_SETREGSET, tid, NT_PRSTATUS, &iovec);
@@ -308,7 +319,7 @@ fetch_fpregs_from_thread (struct regcache *regcache)
 
       ret = ptrace (PTRACE_GETREGSET, tid, NT_ARM_VFP, &iovec);
       if (ret < 0)
-	perror_with_name (_("Unable to fetch VFP registers."));
+        perror_with_name (_("Unable to fetch VFP registers."));
 
       aarch32_vfp_regcache_supply (regcache, (gdb_byte *) &regs, 32);
     }
@@ -320,10 +331,10 @@ fetch_fpregs_from_thread (struct regcache *regcache)
 
       ret = ptrace (PTRACE_GETREGSET, tid, NT_FPREGSET, &iovec);
       if (ret < 0)
-	perror_with_name (_("Unable to fetch vFP/SIMD registers."));
+        perror_with_name (_("Unable to fetch vFP/SIMD registers."));
 
       for (regno = AARCH64_V0_REGNUM; regno <= AARCH64_V31_REGNUM; regno++)
-	regcache->raw_supply (regno, &regs.vregs[regno - AARCH64_V0_REGNUM]);
+        regcache->raw_supply (regno, &regs.vregs[regno - AARCH64_V0_REGNUM]);
 
       regcache->raw_supply (AARCH64_FPSR_REGNUM, &regs.fpsr);
       regcache->raw_supply (AARCH64_FPCR_REGNUM, &regs.fpcr);
@@ -354,7 +365,7 @@ store_fpregs_to_thread (const struct regcache *regcache)
 
       ret = ptrace (PTRACE_GETREGSET, tid, NT_ARM_VFP, &iovec);
       if (ret < 0)
-	perror_with_name (_("Unable to fetch VFP registers."));
+        perror_with_name (_("Unable to fetch VFP registers."));
 
       aarch32_vfp_regcache_collect (regcache, (gdb_byte *) &regs, 32);
     }
@@ -366,30 +377,30 @@ store_fpregs_to_thread (const struct regcache *regcache)
 
       ret = ptrace (PTRACE_GETREGSET, tid, NT_FPREGSET, &iovec);
       if (ret < 0)
-	perror_with_name (_("Unable to fetch FP/SIMD registers."));
+        perror_with_name (_("Unable to fetch FP/SIMD registers."));
 
       for (regno = AARCH64_V0_REGNUM; regno <= AARCH64_V31_REGNUM; regno++)
-	if (REG_VALID == regcache->get_register_status (regno))
-	  regcache->raw_collect
-	    (regno, (char *) &regs.vregs[regno - AARCH64_V0_REGNUM]);
+        if (REG_VALID == regcache->get_register_status (regno))
+          regcache->raw_collect
+          (regno, (char *) &regs.vregs[regno - AARCH64_V0_REGNUM]);
 
       if (REG_VALID == regcache->get_register_status (AARCH64_FPSR_REGNUM))
-	regcache->raw_collect (AARCH64_FPSR_REGNUM, (char *) &regs.fpsr);
+        regcache->raw_collect (AARCH64_FPSR_REGNUM, (char *) &regs.fpsr);
       if (REG_VALID == regcache->get_register_status (AARCH64_FPCR_REGNUM))
-	regcache->raw_collect (AARCH64_FPCR_REGNUM, (char *) &regs.fpcr);
+        regcache->raw_collect (AARCH64_FPCR_REGNUM, (char *) &regs.fpcr);
     }
 
   if (gdbarch_bfd_arch_info (gdbarch)->bits_per_word == 32)
     {
       ret = ptrace (PTRACE_SETREGSET, tid, NT_ARM_VFP, &iovec);
       if (ret < 0)
-	perror_with_name (_("Unable to store VFP registers."));
+        perror_with_name (_("Unable to store VFP registers."));
     }
   else
     {
       ret = ptrace (PTRACE_SETREGSET, tid, NT_FPREGSET, &iovec);
       if (ret < 0)
-	perror_with_name (_("Unable to store FP/SIMD registers."));
+        perror_with_name (_("Unable to store FP/SIMD registers."));
     }
 }
 
@@ -400,7 +411,7 @@ static void
 fetch_sveregs_from_thread (struct regcache *regcache)
 {
   std::unique_ptr<gdb_byte[]> base
-    = aarch64_sve_get_sveregs (regcache->ptid ().lwp ());
+  = aarch64_sve_get_sveregs (regcache->ptid ().lwp ());
   aarch64_sve_regs_copy_to_reg_buf (regcache, base.get ());
 }
 
@@ -454,16 +465,16 @@ fetch_pauth_masks_from_thread (struct regcache *regcache)
     perror_with_name (_("unable to fetch pauth registers."));
 
   regcache->raw_supply (AARCH64_PAUTH_DMASK_REGNUM (tdep->pauth_reg_base),
-			&pauth_regset[0]);
+                        &pauth_regset[0]);
   regcache->raw_supply (AARCH64_PAUTH_CMASK_REGNUM (tdep->pauth_reg_base),
-			&pauth_regset[1]);
+                        &pauth_regset[1]);
 }
 
 /* Implement the "fetch_registers" target_ops method.  */
 
 void
 aarch64_linux_nat_target::fetch_registers (struct regcache *regcache,
-					   int regno)
+                                           int regno)
 {
   struct gdbarch_tdep *tdep = gdbarch_tdep (regcache->arch ());
 
@@ -471,12 +482,12 @@ aarch64_linux_nat_target::fetch_registers (struct regcache *regcache,
     {
       fetch_gregs_from_thread (regcache);
       if (tdep->has_sve ())
-	fetch_sveregs_from_thread (regcache);
+        fetch_sveregs_from_thread (regcache);
       else
-	fetch_fpregs_from_thread (regcache);
+        fetch_fpregs_from_thread (regcache);
 
       if (tdep->has_pauth ())
-	fetch_pauth_masks_from_thread (regcache);
+        fetch_pauth_masks_from_thread (regcache);
     }
   else if (regno < AARCH64_V0_REGNUM)
     fetch_gregs_from_thread (regcache);
@@ -488,8 +499,8 @@ aarch64_linux_nat_target::fetch_registers (struct regcache *regcache,
   if (tdep->has_pauth ())
     {
       if (regno == AARCH64_PAUTH_DMASK_REGNUM (tdep->pauth_reg_base)
-	  || regno == AARCH64_PAUTH_CMASK_REGNUM (tdep->pauth_reg_base))
-	fetch_pauth_masks_from_thread (regcache);
+          || regno == AARCH64_PAUTH_CMASK_REGNUM (tdep->pauth_reg_base))
+        fetch_pauth_masks_from_thread (regcache);
     }
 }
 
@@ -497,7 +508,7 @@ aarch64_linux_nat_target::fetch_registers (struct regcache *regcache,
 
 void
 aarch64_linux_nat_target::store_registers (struct regcache *regcache,
-					   int regno)
+                                           int regno)
 {
   struct gdbarch_tdep *tdep = gdbarch_tdep (regcache->arch ());
 
@@ -505,9 +516,9 @@ aarch64_linux_nat_target::store_registers (struct regcache *regcache,
     {
       store_gregs_to_thread (regcache);
       if (tdep->has_sve ())
-	store_sveregs_to_thread (regcache);
+        store_sveregs_to_thread (regcache);
       else
-	store_fpregs_to_thread (regcache);
+        store_fpregs_to_thread (regcache);
     }
   else if (regno < AARCH64_V0_REGNUM)
     store_gregs_to_thread (regcache);
@@ -518,16 +529,16 @@ aarch64_linux_nat_target::store_registers (struct regcache *regcache,
 }
 
 /* Fill register REGNO (if it is a general-purpose register) in
-   *GREGSETPS with the value in GDB's register array.  If REGNO is -1,
+ *GREGSETPS with the value in GDB's register array.  If REGNO is -1,
    do this for all registers.  */
 
 void
 fill_gregset (const struct regcache *regcache,
-	      gdb_gregset_t *gregsetp, int regno)
+              gdb_gregset_t *gregsetp, int regno)
 {
   regcache_collect_regset (&aarch64_linux_gregset, regcache,
-			   regno, (gdb_byte *) gregsetp,
-			   AARCH64_LINUX_SIZEOF_GREGSET);
+                           regno, (gdb_byte *) gregsetp,
+                           AARCH64_LINUX_SIZEOF_GREGSET);
 }
 
 /* Fill GDB's register array with the general-purpose register values
@@ -537,21 +548,21 @@ void
 supply_gregset (struct regcache *regcache, const gdb_gregset_t *gregsetp)
 {
   regcache_supply_regset (&aarch64_linux_gregset, regcache, -1,
-			  (const gdb_byte *) gregsetp,
-			  AARCH64_LINUX_SIZEOF_GREGSET);
+                          (const gdb_byte *) gregsetp,
+                          AARCH64_LINUX_SIZEOF_GREGSET);
 }
 
 /* Fill register REGNO (if it is a floating-point register) in
-   *FPREGSETP with the value in GDB's register array.  If REGNO is -1,
+ *FPREGSETP with the value in GDB's register array.  If REGNO is -1,
    do this for all registers.  */
 
 void
 fill_fpregset (const struct regcache *regcache,
-	       gdb_fpregset_t *fpregsetp, int regno)
+               gdb_fpregset_t *fpregsetp, int regno)
 {
   regcache_collect_regset (&aarch64_linux_fpregset, regcache,
-			   regno, (gdb_byte *) fpregsetp,
-			   AARCH64_LINUX_SIZEOF_FPREGSET);
+                           regno, (gdb_byte *) fpregsetp,
+                           AARCH64_LINUX_SIZEOF_FPREGSET);
 }
 
 /* Fill GDB's register array with the floating-point register values
@@ -561,15 +572,15 @@ void
 supply_fpregset (struct regcache *regcache, const gdb_fpregset_t *fpregsetp)
 {
   regcache_supply_regset (&aarch64_linux_fpregset, regcache, -1,
-			  (const gdb_byte *) fpregsetp,
-			  AARCH64_LINUX_SIZEOF_FPREGSET);
+                          (const gdb_byte *) fpregsetp,
+                          AARCH64_LINUX_SIZEOF_FPREGSET);
 }
 
 /* linux_nat_new_fork hook.   */
 
 void
 aarch64_linux_nat_target::low_new_fork (struct lwp_info *parent,
-					pid_t child_pid)
+                                        pid_t child_pid)
 {
   pid_t parent_pid;
   struct aarch64_debug_reg_state *parent_state;
@@ -591,21 +602,21 @@ aarch64_linux_nat_target::low_new_fork (struct lwp_info *parent,
   child_state = aarch64_get_debug_reg_state (child_pid);
   *child_state = *parent_state;
 }
-
+
 
 /* Called by libthread_db.  Returns a pointer to the thread local
    storage (or its descriptor).  */
 
 ps_err_e
 ps_get_thread_area (struct ps_prochandle *ph,
-		    lwpid_t lwpid, int idx, void **base)
+                    lwpid_t lwpid, int idx, void **base)
 {
   int is_64bit_p
-    = (gdbarch_bfd_arch_info (target_gdbarch ())->bits_per_word == 64);
+  = (gdbarch_bfd_arch_info (target_gdbarch ())->bits_per_word == 64);
 
   return aarch64_ps_get_thread_area (ph, lwpid, idx, base, is_64bit_p);
 }
-
+
 
 /* Implement the "post_startup_inferior" target_ops method.  */
 
@@ -632,6 +643,62 @@ aarch64_linux_nat_target::post_attach (int pid)
   linux_nat_target::post_attach (pid);
 }
 
+/* Enable branch tracing.  */
+
+struct btrace_target_info *
+aarch64_linux_nat_target::enable_btrace (ptid_t ptid,
+                                         const struct btrace_config *conf)
+{
+  struct btrace_target_info *tinfo = nullptr;
+  try
+  {
+      tinfo = linux_enable_btrace (ptid, conf);
+  }
+  catch (const gdb_exception_error &exception)
+  {
+      error (_("Could not enable branch tracing for %s: %s"),
+             target_pid_to_str (ptid).c_str (), exception.what ());
+  }
+
+  return tinfo;
+}
+
+/* Disable branch tracing.  */
+
+void
+aarch64_linux_nat_target::disable_btrace (struct btrace_target_info *tinfo)
+{
+  enum btrace_error errcode = linux_disable_btrace (tinfo);
+
+  if (errcode != BTRACE_ERR_NONE)
+    error (_("Could not disable branch tracing."));
+}
+
+/* Teardown branch tracing.  */
+
+void
+aarch64_linux_nat_target::teardown_btrace (struct btrace_target_info *tinfo)
+{
+  /* Ignore errors.  */
+  linux_disable_btrace (tinfo);
+}
+
+enum btrace_error
+aarch64_linux_nat_target::read_btrace (struct btrace_data *data,
+                                       struct btrace_target_info *btinfo,
+                                       enum btrace_read_type type)
+{
+  return linux_read_btrace (data, btinfo, type);
+}
+
+/* See to_btrace_conf in target.h.  */
+
+const struct btrace_config *
+aarch64_linux_nat_target::btrace_conf (const struct btrace_target_info *btinfo)
+{
+  return linux_btrace_conf (btinfo);
+}
+
 /* Implement the "read_description" target_ops method.  */
 
 const struct target_desc *
@@ -653,7 +720,7 @@ aarch64_linux_nat_target::read_description ()
   CORE_ADDR hwcap = linux_get_hwcap (this);
 
   return aarch64_read_description (aarch64_sve_get_vq (tid),
-				   hwcap & AARCH64_HWCAP_PACA);
+                                   hwcap & AARCH64_HWCAP_PACA);
 }
 
 /* Convert a native/host siginfo object, into/from the siginfo in the
@@ -664,7 +731,7 @@ aarch64_linux_nat_target::read_description ()
 
 bool
 aarch64_linux_nat_target::low_siginfo_fixup (siginfo_t *native, gdb_byte *inf,
-					     int direction)
+                                             int direction)
 {
   struct gdbarch *gdbarch = get_frame_arch (get_current_frame ());
 
@@ -673,11 +740,11 @@ aarch64_linux_nat_target::low_siginfo_fixup (siginfo_t *native, gdb_byte *inf,
   if (gdbarch_bfd_arch_info (gdbarch)->bits_per_word == 32)
     {
       if (direction == 0)
-	aarch64_compat_siginfo_from_siginfo ((struct compat_siginfo *) inf,
-					     native);
+        aarch64_compat_siginfo_from_siginfo ((struct compat_siginfo *) inf,
+                                             native);
       else
-	aarch64_siginfo_from_compat_siginfo (native,
-					     (struct compat_siginfo *) inf);
+        aarch64_siginfo_from_compat_siginfo (native,
+                                             (struct compat_siginfo *) inf);
 
       return true;
     }
@@ -697,18 +764,18 @@ aarch64_linux_nat_target::low_siginfo_fixup (siginfo_t *native, gdb_byte *inf,
 
 int
 aarch64_linux_nat_target::can_use_hw_breakpoint (enum bptype type,
-						 int cnt, int othertype)
+                                                 int cnt, int othertype)
 {
   if (type == bp_hardware_watchpoint || type == bp_read_watchpoint
       || type == bp_access_watchpoint || type == bp_watchpoint)
     {
       if (aarch64_num_wp_regs == 0)
-	return 0;
+        return 0;
     }
   else if (type == bp_hardware_breakpoint)
     {
       if (aarch64_num_bp_regs == 0)
-	return 0;
+        return 0;
     }
   else
     gdb_assert_not_reached ("unexpected breakpoint type");
@@ -727,29 +794,29 @@ aarch64_linux_nat_target::can_use_hw_breakpoint (enum bptype type,
 
 int
 aarch64_linux_nat_target::insert_hw_breakpoint (struct gdbarch *gdbarch,
-						struct bp_target_info *bp_tgt)
+                                                struct bp_target_info *bp_tgt)
 {
   int ret;
   CORE_ADDR addr = bp_tgt->placed_address = bp_tgt->reqstd_address;
   int len;
   const enum target_hw_bp_type type = hw_execute;
   struct aarch64_debug_reg_state *state
-    = aarch64_get_debug_reg_state (inferior_ptid.pid ());
+  = aarch64_get_debug_reg_state (inferior_ptid.pid ());
 
   gdbarch_breakpoint_from_pc (gdbarch, &addr, &len);
 
   if (show_debug_regs)
     fprintf_unfiltered
-      (gdb_stdlog,
-       "insert_hw_breakpoint on entry (addr=0x%08lx, len=%d))\n",
-       (unsigned long) addr, len);
+    (gdb_stdlog,
+     "insert_hw_breakpoint on entry (addr=0x%08lx, len=%d))\n",
+     (unsigned long) addr, len);
 
   ret = aarch64_handle_breakpoint (type, addr, len, 1 /* is_insert */, state);
 
   if (show_debug_regs)
     {
       aarch64_show_debug_reg_state (state,
-				    "insert_hw_breakpoint", addr, len, type);
+                                    "insert_hw_breakpoint", addr, len, type);
     }
 
   return ret;
@@ -760,28 +827,28 @@ aarch64_linux_nat_target::insert_hw_breakpoint (struct gdbarch *gdbarch,
 
 int
 aarch64_linux_nat_target::remove_hw_breakpoint (struct gdbarch *gdbarch,
-						struct bp_target_info *bp_tgt)
+                                                struct bp_target_info *bp_tgt)
 {
   int ret;
   CORE_ADDR addr = bp_tgt->placed_address;
   int len = 4;
   const enum target_hw_bp_type type = hw_execute;
   struct aarch64_debug_reg_state *state
-    = aarch64_get_debug_reg_state (inferior_ptid.pid ());
+  = aarch64_get_debug_reg_state (inferior_ptid.pid ());
 
   gdbarch_breakpoint_from_pc (gdbarch, &addr, &len);
 
   if (show_debug_regs)
     fprintf_unfiltered
-      (gdb_stdlog, "remove_hw_breakpoint on entry (addr=0x%08lx, len=%d))\n",
-       (unsigned long) addr, len);
+    (gdb_stdlog, "remove_hw_breakpoint on entry (addr=0x%08lx, len=%d))\n",
+     (unsigned long) addr, len);
 
   ret = aarch64_handle_breakpoint (type, addr, len, 0 /* is_insert */, state);
 
   if (show_debug_regs)
     {
       aarch64_show_debug_reg_state (state,
-				    "remove_hw_watchpoint", addr, len, type);
+                                    "remove_hw_watchpoint", addr, len, type);
     }
 
   return ret;
@@ -795,17 +862,17 @@ aarch64_linux_nat_target::remove_hw_breakpoint (struct gdbarch *gdbarch,
 
 int
 aarch64_linux_nat_target::insert_watchpoint (CORE_ADDR addr, int len,
-					     enum target_hw_bp_type type,
-					     struct expression *cond)
+                                             enum target_hw_bp_type type,
+                                             struct expression *cond)
 {
   int ret;
   struct aarch64_debug_reg_state *state
-    = aarch64_get_debug_reg_state (inferior_ptid.pid ());
+  = aarch64_get_debug_reg_state (inferior_ptid.pid ());
 
   if (show_debug_regs)
     fprintf_unfiltered (gdb_stdlog,
-			"insert_watchpoint on entry (addr=0x%08lx, len=%d)\n",
-			(unsigned long) addr, len);
+                        "insert_watchpoint on entry (addr=0x%08lx, len=%d)\n",
+                        (unsigned long) addr, len);
 
   gdb_assert (type != hw_execute);
 
@@ -814,7 +881,7 @@ aarch64_linux_nat_target::insert_watchpoint (CORE_ADDR addr, int len,
   if (show_debug_regs)
     {
       aarch64_show_debug_reg_state (state,
-				    "insert_watchpoint", addr, len, type);
+                                    "insert_watchpoint", addr, len, type);
     }
 
   return ret;
@@ -827,17 +894,17 @@ aarch64_linux_nat_target::insert_watchpoint (CORE_ADDR addr, int len,
 
 int
 aarch64_linux_nat_target::remove_watchpoint (CORE_ADDR addr, int len,
-					     enum target_hw_bp_type type,
-					     struct expression *cond)
+                                             enum target_hw_bp_type type,
+                                             struct expression *cond)
 {
   int ret;
   struct aarch64_debug_reg_state *state
-    = aarch64_get_debug_reg_state (inferior_ptid.pid ());
+  = aarch64_get_debug_reg_state (inferior_ptid.pid ());
 
   if (show_debug_regs)
     fprintf_unfiltered (gdb_stdlog,
-			"remove_watchpoint on entry (addr=0x%08lx, len=%d)\n",
-			(unsigned long) addr, len);
+                        "remove_watchpoint on entry (addr=0x%08lx, len=%d)\n",
+                        (unsigned long) addr, len);
 
   gdb_assert (type != hw_execute);
 
@@ -846,7 +913,7 @@ aarch64_linux_nat_target::remove_watchpoint (CORE_ADDR addr, int len,
   if (show_debug_regs)
     {
       aarch64_show_debug_reg_state (state,
-				    "remove_watchpoint", addr, len, type);
+                                    "remove_watchpoint", addr, len, type);
     }
 
   return ret;
@@ -877,24 +944,30 @@ aarch64_linux_nat_target::stopped_data_address (CORE_ADDR *addr_p)
       || (siginfo.si_code & 0xffff) != TRAP_HWBKPT)
     return false;
 
+  /* Make sure to ignore the top byte, otherwise we may not recognize a
+     hardware watchpoint hit.  The stopped data addresses coming from the
+     kernel can potentially be tagged addresses.  */
+  struct gdbarch *gdbarch = thread_architecture (inferior_ptid);
+  const CORE_ADDR addr_trap
+  = address_significant (gdbarch, (CORE_ADDR) siginfo.si_addr);
+
   /* Check if the address matches any watched address.  */
   state = aarch64_get_debug_reg_state (inferior_ptid.pid ());
   for (i = aarch64_num_wp_regs - 1; i >= 0; --i)
     {
       const unsigned int offset
-	= aarch64_watchpoint_offset (state->dr_ctrl_wp[i]);
+      = aarch64_watchpoint_offset (state->dr_ctrl_wp[i]);
       const unsigned int len = aarch64_watchpoint_length (state->dr_ctrl_wp[i]);
-      const CORE_ADDR addr_trap = (CORE_ADDR) siginfo.si_addr;
       const CORE_ADDR addr_watch = state->dr_addr_wp[i] + offset;
       const CORE_ADDR addr_watch_aligned = align_down (state->dr_addr_wp[i], 8);
       const CORE_ADDR addr_orig = state->dr_addr_orig_wp[i];
 
       if (state->dr_ref_count_wp[i]
-	  && DR_CONTROL_ENABLED (state->dr_ctrl_wp[i])
-	  && addr_trap >= addr_watch_aligned
-	  && addr_trap < addr_watch + len)
-	{
-	  /* ADDR_TRAP reports the first address of the memory range
+                                 && DR_CONTROL_ENABLED (state->dr_ctrl_wp[i])
+                                 && addr_trap >= addr_watch_aligned
+                                 && addr_trap < addr_watch + len)
+        {
+          /* ADDR_TRAP reports the first address of the memory range
 	     accessed by the CPU, regardless of what was the memory
 	     range watched.  Thus, a large CPU access that straddles
 	     the ADDR_WATCH..ADDR_WATCH+LEN range may result in an
@@ -912,9 +985,9 @@ aarch64_linux_nat_target::stopped_data_address (CORE_ADDR *addr_p)
 	     range.  ADDR_WATCH <= ADDR_TRAP < ADDR_ORIG is a false
 	     positive on kernels older than 4.10.  See PR
 	     external/20207.  */
-	  *addr_p = addr_orig;
-	  return true;
-	}
+          *addr_p = addr_orig;
+          return true;
+        }
     }
 
   return false;
@@ -934,7 +1007,7 @@ aarch64_linux_nat_target::stopped_by_watchpoint ()
 
 bool
 aarch64_linux_nat_target::watchpoint_addr_within_range (CORE_ADDR addr,
-							CORE_ADDR start, int length)
+                                                        CORE_ADDR start, int length)
 {
   return start <= addr && start + length - 1 >= addr;
 }
@@ -959,7 +1032,7 @@ aarch64_linux_nat_target::thread_architecture (ptid_t ptid)
 
   /* Find the current gdbarch the same way as process_stratum_target.  Only
      return it if the current vector length matches the one in the tdep.  */
-  inferior *inf = find_inferior_ptid (ptid);
+  inferior *inf = find_inferior_ptid (this, ptid);
   gdb_assert (inf != NULL);
   if (vq == gdbarch_tdep (inf->gdbarch)->vq)
     return inf->gdbarch;
@@ -970,7 +1043,7 @@ aarch64_linux_nat_target::thread_architecture (ptid_t ptid)
      unavailable, to distinguish from an unset value of 0.  */
   struct gdbarch_info info;
   gdbarch_info_init (&info);
-  info.bfd_arch_info = bfd_lookup_arch (bfd_arch_spu, bfd_mach_spu);
+  info.bfd_arch_info = bfd_lookup_arch (bfd_arch_aarch64, bfd_mach_aarch64);
   info.id = (int *) (vq == 0 ? -1 : vq);
   return gdbarch_find_by_info (info);
 }
@@ -983,21 +1056,22 @@ add_show_debug_regs_command (void)
   /* A maintenance command to enable printing the internal DRi mirror
      variables.  */
   add_setshow_boolean_cmd ("show-debug-regs", class_maintenance,
-			   &show_debug_regs, _("\
+                           &show_debug_regs, _("\
 Set whether to show variables that mirror the AArch64 debug registers."), _("\
 Show whether to show variables that mirror the AArch64 debug registers."), _("\
 Use \"on\" to enable, \"off\" to disable.\n\
 If enabled, the debug registers values are shown when GDB inserts\n\
 or removes a hardware breakpoint or watchpoint, and when the inferior\n\
 triggers a breakpoint or watchpoint."),
-			   NULL,
-			   NULL,
-			   &maintenance_set_cmdlist,
-			   &maintenance_show_cmdlist);
+NULL,
+NULL,
+&maintenance_set_cmdlist,
+&maintenance_show_cmdlist);
 }
 
+void _initialize_aarch64_linux_nat ();
 void
-_initialize_aarch64_linux_nat (void)
+_initialize_aarch64_linux_nat ()
 {
   add_show_debug_regs_command ();
 

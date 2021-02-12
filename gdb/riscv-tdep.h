@@ -1,7 +1,7 @@
 /* Target-dependent header for the RISC-V architecture, for GDB, the
    GNU Debugger.
 
-   Copyright (C) 2018-2019 Free Software Foundation, Inc.
+   Copyright (C) 2018-2021 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -44,7 +44,7 @@ enum
   RISCV_LAST_FP_REGNUM = 64,	/* Last Floating Point Register */
 
   RISCV_FIRST_CSR_REGNUM = 65,  /* First CSR */
-#define DECLARE_CSR(name, num) \
+#define DECLARE_CSR(name, num, class, define_version, abort_version) \
   RISCV_ ## num ## _REGNUM = RISCV_FIRST_CSR_REGNUM + num,
 #include "opcode/riscv-opc.h"
 #undef DECLARE_CSR
@@ -63,6 +63,8 @@ enum
   RISCV_DWARF_REGNUM_X31 = 31,
   RISCV_DWARF_REGNUM_F0 = 32,
   RISCV_DWARF_REGNUM_F31 = 63,
+  RISCV_DWARF_FIRST_CSR = 4096,
+  RISCV_DWARF_LAST_CSR = 8191,
 };
 
 /* RISC-V specific per-architecture information.  */
@@ -79,6 +81,21 @@ struct gdbarch_tdep
 
   /* ISA-specific data types.  */
   struct type *riscv_fpreg_d_type = nullptr;
+
+  /* Use for tracking unknown CSRs in the target description.
+     UNKNOWN_CSRS_FIRST_REGNUM is the number assigned to the first unknown
+     CSR.  All other unknown CSRs will be assigned sequential numbers after
+     this, with UNKNOWN_CSRS_COUNT being the total number of unknown CSRs.  */
+  int unknown_csrs_first_regnum = -1;
+  int unknown_csrs_count = 0;
+
+  /* Some targets (QEMU) are reporting three registers twice in the target
+     description they send.  These three register numbers, when not set to
+     -1, are for the duplicate copies of these registers.  */
+  int duplicate_fflags_regnum = -1;
+  int duplicate_frm_regnum = -1;
+  int duplicate_fcsr_regnum = -1;
+
 };
 
 
@@ -110,6 +127,11 @@ extern int riscv_abi_xlen (struct gdbarch *gdbarch);
    in integer registers) other possible return value are 4, 8, or 16 as
    with RISCV_ISA_FLEN.  */
 extern int riscv_abi_flen (struct gdbarch *gdbarch);
+
+/* Return true if GDBARCH is using the embedded x-regs abi, that is the
+   target only has 16 x-registers, which includes a reduced number of
+   argument registers.  */
+extern bool riscv_abi_embedded (struct gdbarch *gdbarch);
 
 /* Single step based on where the current instruction will take us.  */
 extern std::vector<CORE_ADDR> riscv_software_single_step

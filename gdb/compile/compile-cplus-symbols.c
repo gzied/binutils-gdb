@@ -1,6 +1,6 @@
 /* Convert symbols from GDB to GCC
 
-   Copyright (C) 2014-2019 Free Software Foundation, Inc.
+   Copyright (C) 2014-2021 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -30,7 +30,7 @@
 #include "value.h"
 #include "exceptions.h"
 #include "gdbtypes.h"
-#include "dwarf2loc.h"
+#include "dwarf2/loc.h"
 #include "cp-support.h"
 #include "gdbcmd.h"
 #include "compile-c.h"
@@ -73,9 +73,9 @@ convert_one_symbol (compile_cplus_instance *instance,
       switch (SYMBOL_CLASS (sym.symbol))
 	{
 	case LOC_TYPEDEF:
-	  if (TYPE_CODE (SYMBOL_TYPE (sym.symbol)) == TYPE_CODE_TYPEDEF)
+	  if (SYMBOL_TYPE (sym.symbol)->code () == TYPE_CODE_TYPEDEF)
 	    kind = GCC_CP_SYMBOL_TYPEDEF;
-	  else  if (TYPE_CODE (SYMBOL_TYPE (sym.symbol)) == TYPE_CODE_NAMESPACE)
+	  else  if (SYMBOL_TYPE (sym.symbol)->code () == TYPE_CODE_NAMESPACE)
 	    return;
 	  break;
 
@@ -88,13 +88,13 @@ convert_one_symbol (compile_cplus_instance *instance,
 	  {
 	    kind = GCC_CP_SYMBOL_FUNCTION;
 	    addr = BLOCK_START (SYMBOL_BLOCK_VALUE (sym.symbol));
-	    if (is_global && TYPE_GNU_IFUNC (SYMBOL_TYPE (sym.symbol)))
+	    if (is_global && SYMBOL_TYPE (sym.symbol)->is_gnu_ifunc ())
 	      addr = gnu_ifunc_resolve_addr (target_gdbarch (), addr);
 	  }
 	  break;
 
 	case LOC_CONST:
-	  if (TYPE_CODE (SYMBOL_TYPE (sym.symbol)) == TYPE_CODE_ENUM)
+	  if (SYMBOL_TYPE (sym.symbol)->code () == TYPE_CODE_ENUM)
 	    {
 	      /* Already handled by convert_enum.  */
 	      return;
@@ -208,7 +208,7 @@ convert_one_symbol (compile_cplus_instance *instance,
 
 	  /* Define the decl.  */
 	  instance->plugin ().build_decl
-	    ("variable", name.c_str (), kind, sym_type,
+	    ("variable", name.c_str (), kind.raw (), sym_type,
 	     symbol_name.get (), addr, filename, line);
 
 	  /* Pop scope for non-local symbols.  */
@@ -323,7 +323,7 @@ convert_symbol_bmsym (compile_cplus_instance *instance,
   sym_type = instance->convert_type (type);
   instance->plugin ().push_namespace ("");
   instance->plugin ().build_decl
-    ("minsym", msym->natural_name (), kind, sym_type, nullptr, addr,
+    ("minsym", msym->natural_name (), kind.raw (), sym_type, nullptr, addr,
      nullptr, 0);
   instance->plugin ().pop_binding_level ("");
 }
@@ -442,7 +442,7 @@ gcc_cplus_symbol_address (void *datum, struct gcc_cp_context *gcc_context,
 				"gcc_symbol_address \"%s\": full symbol\n",
 				identifier);
 	  result = BLOCK_START (SYMBOL_BLOCK_VALUE (sym));
-	  if (TYPE_GNU_IFUNC (SYMBOL_TYPE (sym)))
+	  if (SYMBOL_TYPE (sym)->is_gnu_ifunc ())
 	    result = gnu_ifunc_resolve_addr (target_gdbarch (), result);
 	  found = 1;
 	}

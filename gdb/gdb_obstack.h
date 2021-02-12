@@ -1,6 +1,6 @@
 /* Obstack wrapper for GDB.
 
-   Copyright (C) 2002-2019 Free Software Foundation, Inc.
+   Copyright (C) 2002-2021 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -124,6 +124,8 @@ struct auto_obstack : obstack
 
   ~auto_obstack ()
   { obstack_free (this, NULL); }
+
+  DISABLE_COPY_AND_ASSIGN (auto_obstack);
 
   /* Free all memory in the obstack but leave it valid for further
      allocation.  */

@@ -1,5 +1,5 @@
 /* Support for printing Pascal types for GDB, the GNU debugger.
-   Copyright (C) 2000-2019 Free Software Foundation, Inc.
+   Copyright (C) 2000-2021 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -34,26 +34,17 @@
 #include <ctype.h>
 #include "cli/cli-style.h"
 
-static void pascal_type_print_varspec_suffix (struct type *, struct ui_file *,
-					      int, int, int,
-					      const struct type_print_options *);
-
-static void pascal_type_print_derivation_info (struct ui_file *,
-					       struct type *);
-
-
-
-/* LEVEL is the depth to indent lines by.  */
+/* See language.h.  */
 
 void
-pascal_print_type (struct type *type, const char *varstring,
-		   struct ui_file *stream, int show, int level,
-		   const struct type_print_options *flags)
+pascal_language::print_type (struct type *type, const char *varstring,
+			     struct ui_file *stream, int show, int level,
+			     const struct type_print_options *flags) const
 {
   enum type_code code;
   int demangled_args;
 
-  code = TYPE_CODE (type);
+  code = type->code ();
 
   if (show > 0)
     type = check_typedef (type);
@@ -61,7 +52,7 @@ pascal_print_type (struct type *type, const char *varstring,
   if ((code == TYPE_CODE_FUNC
        || code == TYPE_CODE_METHOD))
     {
-      pascal_type_print_varspec_prefix (type, stream, show, 0, flags);
+      type_print_varspec_prefix (type, stream, show, 0, flags);
     }
   /* first the name */
   fputs_filtered (varstring, stream);
@@ -76,26 +67,24 @@ pascal_print_type (struct type *type, const char *varstring,
   if (!(code == TYPE_CODE_FUNC
 	|| code == TYPE_CODE_METHOD))
     {
-      pascal_type_print_varspec_prefix (type, stream, show, 0, flags);
+      type_print_varspec_prefix (type, stream, show, 0, flags);
     }
 
-  pascal_type_print_base (type, stream, show, level, flags);
+  type_print_base (type, stream, show, level, flags);
   /* For demangled function names, we have the arglist as part of the name,
      so don't print an additional pair of ()'s.  */
 
   demangled_args = varstring ? strchr (varstring, '(') != NULL : 0;
-  pascal_type_print_varspec_suffix (type, stream, show, 0, demangled_args,
+  type_print_varspec_suffix (type, stream, show, 0, demangled_args,
 				    flags);
 
 }
 
-/* Print a typedef using Pascal syntax.  TYPE is the underlying type.
-   NEW_SYMBOL is the symbol naming the type.  STREAM is the stream on
-   which to print.  */
+/* See language.h.  */
 
 void
-pascal_print_typedef (struct type *type, struct symbol *new_symbol,
-		      struct ui_file *stream)
+pascal_language::print_typedef (struct type *type, struct symbol *new_symbol,
+				struct ui_file *stream) const
 {
   type = check_typedef (type);
   fprintf_filtered (stream, "type ");
@@ -104,32 +93,11 @@ pascal_print_typedef (struct type *type, struct symbol *new_symbol,
   fprintf_filtered (stream, ";");
 }
 
-/* If TYPE is a derived type, then print out derivation information.
-   Print only the actual base classes of this type, not the base classes
-   of the base classes.  I.e. for the derivation hierarchy:
+/* See p-lang.h.  */
 
-   class A { int a; };
-   class B : public A {int b; };
-   class C : public B {int c; };
-
-   Print the type of class C as:
-
-   class C : public B {
-   int c;
-   }
-
-   Not as the following (like gdb used to), which is not legal C++ syntax for
-   derived types and may be confused with the multiple inheritance form:
-
-   class C : public B : public A {
-   int c;
-   }
-
-   In general, gdb should try to print the types as closely as possible to
-   the form that they appear in the source code.  */
-
-static void
-pascal_type_print_derivation_info (struct ui_file *stream, struct type *type)
+void
+pascal_language::type_print_derivation_info (struct ui_file *stream,
+					     struct type *type) const
 {
   const char *name;
   int i;
@@ -140,7 +108,7 @@ pascal_type_print_derivation_info (struct ui_file *stream, struct type *type)
       fprintf_filtered (stream, "%s%s ",
 			BASETYPE_VIA_PUBLIC (type, i) ? "public" : "private",
 			BASETYPE_VIA_VIRTUAL (type, i) ? " virtual" : "");
-      name = TYPE_NAME (TYPE_BASECLASS (type, i));
+      name = TYPE_BASECLASS (type, i)->name ();
       fprintf_filtered (stream, "%s", name ? name : "(null)");
     }
   if (i > 0)
@@ -149,11 +117,12 @@ pascal_type_print_derivation_info (struct ui_file *stream, struct type *type)
     }
 }
 
-/* Print the Pascal method arguments ARGS to the file STREAM.  */
+/* See p-lang.h.  */
 
 void
-pascal_type_print_method_args (const char *physname, const char *methodname,
-			       struct ui_file *stream)
+pascal_language::type_print_method_args (const char *physname,
+					 const char *methodname,
+					 struct ui_file *stream) const
 {
   int is_constructor = (startswith (physname, "__ct__"));
   int is_destructor = (startswith (physname, "__dt__"));
@@ -195,32 +164,27 @@ pascal_type_print_method_args (const char *physname, const char *methodname,
     }
 }
 
-/* Print any asterisks or open-parentheses needed before the
-   variable name (to describe its type).
-
-   On outermost call, pass 0 for PASSED_A_PTR.
-   On outermost call, SHOW > 0 means should ignore
-   any typename for TYPE and show its details.
-   SHOW is always zero on recursive calls.  */
+/* See p-lang.h.  */
 
 void
-pascal_type_print_varspec_prefix (struct type *type, struct ui_file *stream,
-				  int show, int passed_a_ptr,
-				  const struct type_print_options *flags)
+pascal_language::type_print_varspec_prefix (struct type *type,
+					    struct ui_file *stream,
+					    int show, int passed_a_ptr,
+					    const struct type_print_options *flags) const
 {
   if (type == 0)
     return;
 
-  if (TYPE_NAME (type) && show <= 0)
+  if (type->name () && show <= 0)
     return;
 
   QUIT;
 
-  switch (TYPE_CODE (type))
+  switch (type->code ())
     {
     case TYPE_CODE_PTR:
       fprintf_filtered (stream, "^");
-      pascal_type_print_varspec_prefix (TYPE_TARGET_TYPE (type), stream, 0, 1,
+      type_print_varspec_prefix (TYPE_TARGET_TYPE (type), stream, 0, 1,
 					flags);
       break;			/* Pointer should be handled normally
 				   in pascal.  */
@@ -229,7 +193,7 @@ pascal_type_print_varspec_prefix (struct type *type, struct ui_file *stream,
       if (passed_a_ptr)
 	fprintf_filtered (stream, "(");
       if (TYPE_TARGET_TYPE (type) != NULL
-	  && TYPE_CODE (TYPE_TARGET_TYPE (type)) != TYPE_CODE_VOID)
+	  && TYPE_TARGET_TYPE (type)->code () != TYPE_CODE_VOID)
 	{
 	  fprintf_filtered (stream, "function  ");
 	}
@@ -241,15 +205,15 @@ pascal_type_print_varspec_prefix (struct type *type, struct ui_file *stream,
       if (passed_a_ptr)
 	{
 	  fprintf_filtered (stream, " ");
-	  pascal_type_print_base (TYPE_SELF_TYPE (type),
+	  type_print_base (TYPE_SELF_TYPE (type),
 				  stream, 0, passed_a_ptr, flags);
 	  fprintf_filtered (stream, "::");
 	}
       break;
 
     case TYPE_CODE_REF:
-      pascal_type_print_varspec_prefix (TYPE_TARGET_TYPE (type), stream, 0, 1,
-					flags);
+      type_print_varspec_prefix (TYPE_TARGET_TYPE (type), stream, 0, 1,
+				 flags);
       fprintf_filtered (stream, "&");
       break;
 
@@ -258,7 +222,7 @@ pascal_type_print_varspec_prefix (struct type *type, struct ui_file *stream,
 	fprintf_filtered (stream, "(");
 
       if (TYPE_TARGET_TYPE (type) != NULL
-	  && TYPE_CODE (TYPE_TARGET_TYPE (type)) != TYPE_CODE_VOID)
+	  && TYPE_TARGET_TYPE (type)->code () != TYPE_CODE_VOID)
 	{
 	  fprintf_filtered (stream, "function  ");
 	}
@@ -274,10 +238,10 @@ pascal_type_print_varspec_prefix (struct type *type, struct ui_file *stream,
 	fprintf_filtered (stream, "(");
       fprintf_filtered (stream, "array ");
       if (TYPE_LENGTH (TYPE_TARGET_TYPE (type)) > 0
-	&& !TYPE_ARRAY_UPPER_BOUND_IS_UNDEFINED (type))
+	  && type->bounds ()->high.kind () != PROP_UNDEFINED)
 	fprintf_filtered (stream, "[%s..%s] ",
-			  plongest (TYPE_ARRAY_LOWER_BOUND_VALUE (type)),
-			  plongest (TYPE_ARRAY_UPPER_BOUND_VALUE (type)));
+			  plongest (type->bounds ()->low.const_val ()),
+			  plongest (type->bounds ()->high.const_val ()));
       fprintf_filtered (stream, "of ");
       break;
 
@@ -296,20 +260,23 @@ pascal_type_print_varspec_prefix (struct type *type, struct ui_file *stream,
     case TYPE_CODE_STRING:
     case TYPE_CODE_COMPLEX:
     case TYPE_CODE_TYPEDEF:
+    case TYPE_CODE_FIXED_POINT:
       /* These types need no prefix.  They are listed here so that
-         gcc -Wall will reveal any types that haven't been handled.  */
+	 gcc -Wall will reveal any types that haven't been handled.  */
       break;
     default:
-      error (_("type not handled in pascal_type_print_varspec_prefix()"));
+      gdb_assert_not_reached ("unexpected type");
       break;
     }
 }
 
-static void
-pascal_print_func_args (struct type *type, struct ui_file *stream,
-			const struct type_print_options *flags)
+/* See p-lang.h.  */
+
+void
+pascal_language::print_func_args (struct type *type, struct ui_file *stream,
+				  const struct type_print_options *flags) const
 {
-  int i, len = TYPE_NFIELDS (type);
+  int i, len = type->num_fields ();
 
   if (len)
     {
@@ -323,12 +290,12 @@ pascal_print_func_args (struct type *type, struct ui_file *stream,
 	  wrap_here ("    ");
 	}
       /*  Can we find if it is a var parameter ??
-         if ( TYPE_FIELD(type, i) == )
-         {
-         fprintf_filtered (stream, "var ");
-         } */
-      pascal_print_type (TYPE_FIELD_TYPE (type, i), ""	/* TYPE_FIELD_NAME
-							   seems invalid!  */
+	  if ( TYPE_FIELD(type, i) == )
+	  {
+	    fprintf_filtered (stream, "var ");
+	  } */
+      print_type (type->field (i).type (), ""	/* TYPE_FIELD_NAME
+						   seems invalid!  */
 			 ,stream, -1, 0, flags);
     }
   if (len)
@@ -337,52 +304,51 @@ pascal_print_func_args (struct type *type, struct ui_file *stream,
     }
 }
 
-/* Helper for pascal_type_print_varspec_suffix to print the suffix of
-   a function or method.  */
+/* See p-lang.h.  */
 
-static void
-pascal_type_print_func_varspec_suffix  (struct type *type, struct ui_file *stream,
-					int show, int passed_a_ptr,
-					int demangled_args,
-					const struct type_print_options *flags)
+void
+pascal_language::type_print_func_varspec_suffix  (struct type *type,
+						  struct ui_file *stream,
+						  int show, int passed_a_ptr,
+						  int demangled_args,
+						  const struct type_print_options *flags) const
 {
   if (TYPE_TARGET_TYPE (type) == NULL
-      || TYPE_CODE (TYPE_TARGET_TYPE (type)) != TYPE_CODE_VOID)
+      || TYPE_TARGET_TYPE (type)->code () != TYPE_CODE_VOID)
     {
       fprintf_filtered (stream, " : ");
-      pascal_type_print_varspec_prefix (TYPE_TARGET_TYPE (type),
+      type_print_varspec_prefix (TYPE_TARGET_TYPE (type),
 					stream, 0, 0, flags);
 
       if (TYPE_TARGET_TYPE (type) == NULL)
 	type_print_unknown_return_type (stream);
       else
-	pascal_type_print_base (TYPE_TARGET_TYPE (type), stream, show, 0,
+	type_print_base (TYPE_TARGET_TYPE (type), stream, show, 0,
 				flags);
 
-      pascal_type_print_varspec_suffix (TYPE_TARGET_TYPE (type), stream, 0,
-					passed_a_ptr, 0, flags);
+      type_print_varspec_suffix (TYPE_TARGET_TYPE (type), stream, 0,
+				 passed_a_ptr, 0, flags);
     }
 }
 
-/* Print any array sizes, function arguments or close parentheses
-   needed after the variable name (to describe its type).
-   Args work like pascal_type_print_varspec_prefix.  */
+/* See p-lang.h.  */
 
-static void
-pascal_type_print_varspec_suffix (struct type *type, struct ui_file *stream,
-				  int show, int passed_a_ptr,
-				  int demangled_args,
-				  const struct type_print_options *flags)
+void
+pascal_language::type_print_varspec_suffix (struct type *type,
+					    struct ui_file *stream,
+					    int show, int passed_a_ptr,
+					    int demangled_args,
+					    const struct type_print_options *flags) const
 {
   if (type == 0)
     return;
 
-  if (TYPE_NAME (type) && show <= 0)
+  if (type->name () && show <= 0)
     return;
 
   QUIT;
 
-  switch (TYPE_CODE (type))
+  switch (type->code ())
     {
     case TYPE_CODE_ARRAY:
       if (passed_a_ptr)
@@ -392,25 +358,23 @@ pascal_type_print_varspec_suffix (struct type *type, struct ui_file *stream,
     case TYPE_CODE_METHOD:
       if (passed_a_ptr)
 	fprintf_filtered (stream, ")");
-      pascal_type_print_method_args ("",
-				     "",
-				     stream);
-      pascal_type_print_func_varspec_suffix (type, stream, show,
+      type_print_method_args ("", "", stream);
+      type_print_func_varspec_suffix (type, stream, show,
 					     passed_a_ptr, 0, flags);
       break;
 
     case TYPE_CODE_PTR:
     case TYPE_CODE_REF:
-      pascal_type_print_varspec_suffix (TYPE_TARGET_TYPE (type),
-					stream, 0, 1, 0, flags);
+      type_print_varspec_suffix (TYPE_TARGET_TYPE (type),
+				 stream, 0, 1, 0, flags);
       break;
 
     case TYPE_CODE_FUNC:
       if (passed_a_ptr)
 	fprintf_filtered (stream, ")");
       if (!demangled_args)
-	pascal_print_func_args (type, stream, flags);
-      pascal_type_print_func_varspec_suffix (type, stream, show,
+	print_func_args (type, stream, flags);
+      type_print_func_varspec_suffix (type, stream, show,
 					     passed_a_ptr, 0, flags);
       break;
 
@@ -429,34 +393,21 @@ pascal_type_print_varspec_suffix (struct type *type, struct ui_file *stream,
     case TYPE_CODE_STRING:
     case TYPE_CODE_COMPLEX:
     case TYPE_CODE_TYPEDEF:
+    case TYPE_CODE_FIXED_POINT:
       /* These types do not need a suffix.  They are listed so that
-         gcc -Wall will report types that may not have been considered.  */
+	 gcc -Wall will report types that may not have been considered.  */
       break;
     default:
-      error (_("type not handled in pascal_type_print_varspec_suffix()"));
+      gdb_assert_not_reached ("unexpected type");
       break;
     }
 }
 
-/* Print the name of the type (or the ultimate pointer target,
-   function value or array element), or the description of a
-   structure or union.
-
-   SHOW positive means print details about the type (e.g. enum values),
-   and print structure elements passing SHOW - 1 for show.
-   SHOW negative means just print the type name or struct tag if there is one.
-   If there is no name, print something sensible but concise like
-   "struct {...}".
-   SHOW zero means just print the type name or struct tag if there is one.
-   If there is no name, print something sensible but not as concise like
-   "struct {int x; int y;}".
-
-   LEVEL is the number of spaces to indent by.
-   We increase it for some recursive calls.  */
+/* See p-lang.h.  */
 
 void
-pascal_type_print_base (struct type *type, struct ui_file *stream, int show,
-			int level, const struct type_print_options *flags)
+pascal_language::type_print_base (struct type *type, struct ui_file *stream, int show,
+				  int level, const struct type_print_options *flags) const
 {
   int i;
   int len;
@@ -476,10 +427,10 @@ pascal_type_print_base (struct type *type, struct ui_file *stream, int show,
     }
 
   /* void pointer */
-  if ((TYPE_CODE (type) == TYPE_CODE_PTR)
-      && (TYPE_CODE (TYPE_TARGET_TYPE (type)) == TYPE_CODE_VOID))
+  if ((type->code () == TYPE_CODE_PTR)
+      && (TYPE_TARGET_TYPE (type)->code () == TYPE_CODE_VOID))
     {
-      fputs_filtered (TYPE_NAME (type) ? TYPE_NAME (type) : "pointer",
+      fputs_filtered (type->name () ? type->name () : "pointer",
 		      stream);
       return;
     }
@@ -487,45 +438,34 @@ pascal_type_print_base (struct type *type, struct ui_file *stream, int show,
      just print the type name directly from the type.  */
 
   if (show <= 0
-      && TYPE_NAME (type) != NULL)
+      && type->name () != NULL)
     {
-      fputs_filtered (TYPE_NAME (type), stream);
+      fputs_filtered (type->name (), stream);
       return;
     }
 
   type = check_typedef (type);
 
-  switch (TYPE_CODE (type))
+  switch (type->code ())
     {
     case TYPE_CODE_TYPEDEF:
     case TYPE_CODE_PTR:
     case TYPE_CODE_REF:
-      /* case TYPE_CODE_FUNC:
-         case TYPE_CODE_METHOD: */
-      pascal_type_print_base (TYPE_TARGET_TYPE (type), stream, show, level,
-			      flags);
+      type_print_base (TYPE_TARGET_TYPE (type), stream, show, level,
+		       flags);
       break;
 
     case TYPE_CODE_ARRAY:
-      /* pascal_type_print_varspec_prefix (TYPE_TARGET_TYPE (type),
-	                                   stream, 0, 0);
-         pascal_type_print_base (TYPE_TARGET_TYPE (type),
-	                         stream, show, level);
-         pascal_type_print_varspec_suffix (TYPE_TARGET_TYPE (type),
-	                                   stream, 0, 0, 0); */
-      pascal_print_type (TYPE_TARGET_TYPE (type), NULL, stream, 0, 0, flags);
+      print_type (TYPE_TARGET_TYPE (type), NULL, stream, 0, 0, flags);
       break;
 
     case TYPE_CODE_FUNC:
     case TYPE_CODE_METHOD:
-      /*
-         pascal_type_print_base (TYPE_TARGET_TYPE (type), stream, show, level);
-         only after args !!  */
       break;
     case TYPE_CODE_STRUCT:
-      if (TYPE_NAME (type) != NULL)
+      if (type->name () != NULL)
 	{
-	  fputs_filtered (TYPE_NAME (type), stream);
+	  fputs_filtered (type->name (), stream);
 	  fputs_filtered (" = ", stream);
 	}
       if (HAVE_CPLUS_STRUCT (type))
@@ -539,9 +479,9 @@ pascal_type_print_base (struct type *type, struct ui_file *stream, int show,
       goto struct_union;
 
     case TYPE_CODE_UNION:
-      if (TYPE_NAME (type) != NULL)
+      if (type->name () != NULL)
 	{
-	  fputs_filtered (TYPE_NAME (type), stream);
+	  fputs_filtered (type->name (), stream);
 	  fputs_filtered (" = ", stream);
 	}
       fprintf_filtered (stream, "case <?> of ");
@@ -551,20 +491,22 @@ pascal_type_print_base (struct type *type, struct ui_file *stream, int show,
       if (show < 0)
 	{
 	  /* If we just printed a tag name, no need to print anything else.  */
-	  if (TYPE_NAME (type) == NULL)
+	  if (type->name () == NULL)
 	    fprintf_filtered (stream, "{...}");
 	}
-      else if (show > 0 || TYPE_NAME (type) == NULL)
+      else if (show > 0 || type->name () == NULL)
 	{
-	  pascal_type_print_derivation_info (stream, type);
+	  type_print_derivation_info (stream, type);
 
 	  fprintf_filtered (stream, "\n");
-	  if ((TYPE_NFIELDS (type) == 0) && (TYPE_NFN_FIELDS (type) == 0))
+	  if ((type->num_fields () == 0) && (TYPE_NFN_FIELDS (type) == 0))
 	    {
-	      if (TYPE_STUB (type))
-		fprintfi_filtered (level + 4, stream, "<incomplete type>\n");
+	      if (type->is_stub ())
+		fprintf_filtered (stream, "%*s<incomplete type>\n",
+				  level + 4, "");
 	      else
-		fprintfi_filtered (level + 4, stream, "<no data fields>\n");
+		fprintf_filtered (stream, "%*s<no data fields>\n",
+				  level + 4, "");
 	    }
 
 	  /* Start off with no specific section type, so we can print
@@ -576,7 +518,7 @@ pascal_type_print_base (struct type *type, struct ui_file *stream, int show,
 	  /* If there is a base class for this type,
 	     do not print the field that it occupies.  */
 
-	  len = TYPE_NFIELDS (type);
+	  len = type->num_fields ();
 	  for (i = TYPE_N_BASECLASSES (type); i < len; i++)
 	    {
 	      QUIT;
@@ -586,7 +528,7 @@ pascal_type_print_base (struct type *type, struct ui_file *stream, int show,
 		continue;
 
 	      /* If this is a pascal object or class we can print the
-	         various section labels.  */
+		 various section labels.  */
 
 	      if (HAVE_CPLUS_STRUCT (type))
 		{
@@ -595,8 +537,8 @@ pascal_type_print_base (struct type *type, struct ui_file *stream, int show,
 		      if (section_type != s_protected)
 			{
 			  section_type = s_protected;
-			  fprintfi_filtered (level + 2, stream,
-					     "protected\n");
+			  fprintf_filtered (stream, "%*sprotected\n",
+					    level + 2, "");
 			}
 		    }
 		  else if (TYPE_FIELD_PRIVATE (type, i))
@@ -604,7 +546,8 @@ pascal_type_print_base (struct type *type, struct ui_file *stream, int show,
 		      if (section_type != s_private)
 			{
 			  section_type = s_private;
-			  fprintfi_filtered (level + 2, stream, "private\n");
+			  fprintf_filtered (stream, "%*sprivate\n",
+					    level + 2, "");
 			}
 		    }
 		  else
@@ -612,18 +555,19 @@ pascal_type_print_base (struct type *type, struct ui_file *stream, int show,
 		      if (section_type != s_public)
 			{
 			  section_type = s_public;
-			  fprintfi_filtered (level + 2, stream, "public\n");
+			  fprintf_filtered (stream, "%*spublic\n",
+					    level + 2, "");
 			}
 		    }
 		}
 
 	      print_spaces_filtered (level + 4, stream);
-	      if (field_is_static (&TYPE_FIELD (type, i)))
+	      if (field_is_static (&type->field (i)))
 		fprintf_filtered (stream, "static ");
-	      pascal_print_type (TYPE_FIELD_TYPE (type, i),
+	      print_type (type->field (i).type (),
 				 TYPE_FIELD_NAME (type, i),
 				 stream, show - 1, level + 4, flags);
-	      if (!field_is_static (&TYPE_FIELD (type, i))
+	      if (!field_is_static (&type->field (i))
 		  && TYPE_FIELD_PACKED (type, i))
 		{
 		  /* It is a bitfield.  This code does not attempt
@@ -651,8 +595,8 @@ pascal_type_print_base (struct type *type, struct ui_file *stream, int show,
 	      const char *method_name = TYPE_FN_FIELDLIST_NAME (type, i);
 
 	      /* this is GNU C++ specific
-	         how can we know constructor/destructor?
-	         It might work for GNU pascal.  */
+		 how can we know constructor/destructor?
+		 It might work for GNU pascal.  */
 	      for (j = 0; j < len2; j++)
 		{
 		  const char *physname = TYPE_FN_FIELD_PHYSNAME (f, j);
@@ -666,8 +610,8 @@ pascal_type_print_base (struct type *type, struct ui_file *stream, int show,
 		      if (section_type != s_protected)
 			{
 			  section_type = s_protected;
-			  fprintfi_filtered (level + 2, stream,
-					     "protected\n");
+			  fprintf_filtered (stream, "%*sprotected\n",
+					    level + 2, "");
 			}
 		    }
 		  else if (TYPE_FN_FIELD_PRIVATE (f, j))
@@ -675,7 +619,8 @@ pascal_type_print_base (struct type *type, struct ui_file *stream, int show,
 		      if (section_type != s_private)
 			{
 			  section_type = s_private;
-			  fprintfi_filtered (level + 2, stream, "private\n");
+			  fprintf_filtered (stream, "%*sprivate\n",
+					    level + 2, "");
 			}
 		    }
 		  else
@@ -683,7 +628,8 @@ pascal_type_print_base (struct type *type, struct ui_file *stream, int show,
 		      if (section_type != s_public)
 			{
 			  section_type = s_public;
-			  fprintfi_filtered (level + 2, stream, "public\n");
+			  fprintf_filtered (stream, "%*spublic\n",
+					    level + 2, "");
 			}
 		    }
 
@@ -707,8 +653,7 @@ pascal_type_print_base (struct type *type, struct ui_file *stream, int show,
 		      fprintf_filtered (stream, "destructor  ");
 		    }
 		  else if (TYPE_TARGET_TYPE (TYPE_FN_FIELD_TYPE (f, j)) != 0
-			   && TYPE_CODE (TYPE_TARGET_TYPE (
-				TYPE_FN_FIELD_TYPE (f, j))) != TYPE_CODE_VOID)
+			   && TYPE_TARGET_TYPE (TYPE_FN_FIELD_TYPE(f, j))->code () != TYPE_CODE_VOID)
 		    {
 		      fprintf_filtered (stream, "function  ");
 		    }
@@ -718,13 +663,10 @@ pascal_type_print_base (struct type *type, struct ui_file *stream, int show,
 		    }
 		  /* This does not work, no idea why !!  */
 
-		  pascal_type_print_method_args (physname,
-						 method_name,
-						 stream);
+		  type_print_method_args (physname, method_name, stream);
 
 		  if (TYPE_TARGET_TYPE (TYPE_FN_FIELD_TYPE (f, j)) != 0
-		      && TYPE_CODE (TYPE_TARGET_TYPE (
-			   TYPE_FN_FIELD_TYPE (f, j))) != TYPE_CODE_VOID)
+		      && TYPE_TARGET_TYPE (TYPE_FN_FIELD_TYPE(f, j))->code () != TYPE_CODE_VOID)
 		    {
 		      fputs_filtered (" : ", stream);
 		      type_print (TYPE_TARGET_TYPE (TYPE_FN_FIELD_TYPE (f, j)),
@@ -736,31 +678,31 @@ pascal_type_print_base (struct type *type, struct ui_file *stream, int show,
 		  fprintf_filtered (stream, ";\n");
 		}
 	    }
-	  fprintfi_filtered (level, stream, "end");
+	  fprintf_filtered (stream, "%*send", level, "");
 	}
       break;
 
     case TYPE_CODE_ENUM:
-      if (TYPE_NAME (type) != NULL)
+      if (type->name () != NULL)
 	{
-	  fputs_filtered (TYPE_NAME (type), stream);
+	  fputs_filtered (type->name (), stream);
 	  if (show > 0)
 	    fputs_filtered (" ", stream);
 	}
       /* enum is just defined by
-         type enume_name = (enum_member1,enum_member2,...)  */
+	 type enume_name = (enum_member1,enum_member2,...)  */
       fprintf_filtered (stream, " = ");
       wrap_here ("    ");
       if (show < 0)
 	{
 	  /* If we just printed a tag name, no need to print anything else.  */
-	  if (TYPE_NAME (type) == NULL)
+	  if (type->name () == NULL)
 	    fprintf_filtered (stream, "(...)");
 	}
-      else if (show > 0 || TYPE_NAME (type) == NULL)
+      else if (show > 0 || type->name () == NULL)
 	{
 	  fprintf_filtered (stream, "(");
-	  len = TYPE_NFIELDS (type);
+	  len = type->num_fields ();
 	  lastval = 0;
 	  for (i = 0; i < len; i++)
 	    {
@@ -799,15 +741,15 @@ pascal_type_print_base (struct type *type, struct ui_file *stream, int show,
       {
 	struct type *target = TYPE_TARGET_TYPE (type);
 
-	print_type_scalar (target, TYPE_LOW_BOUND (type), stream);
+	print_type_scalar (target, type->bounds ()->low.const_val (), stream);
 	fputs_filtered ("..", stream);
-	print_type_scalar (target, TYPE_HIGH_BOUND (type), stream);
+	print_type_scalar (target, type->bounds ()->high.const_val (), stream);
       }
       break;
 
     case TYPE_CODE_SET:
       fputs_filtered ("set of ", stream);
-      pascal_print_type (TYPE_INDEX_TYPE (type), "", stream,
+      print_type (type->index_type (), "", stream,
 			 show - 1, level, flags);
       break;
 
@@ -817,12 +759,12 @@ pascal_type_print_base (struct type *type, struct ui_file *stream, int show,
 
     default:
       /* Handle types not explicitly handled by the other cases,
-         such as fundamental types.  For these, just print whatever
-         the type name is, as recorded in the type itself.  If there
-         is no type name, then complain.  */
-      if (TYPE_NAME (type) != NULL)
+	 such as fundamental types.  For these, just print whatever
+	 the type name is, as recorded in the type itself.  If there
+	 is no type name, then complain.  */
+      if (type->name () != NULL)
 	{
-	  fputs_filtered (TYPE_NAME (type), stream);
+	  fputs_filtered (type->name (), stream);
 	}
       else
 	{
@@ -830,7 +772,7 @@ pascal_type_print_base (struct type *type, struct ui_file *stream, int show,
 	     an error ().  */
 	  fprintf_styled (stream, metadata_style.style (),
 			  "<invalid unnamed pascal type code %d>",
-			  TYPE_CODE (type));
+			  type->code ());
 	}
       break;
     }

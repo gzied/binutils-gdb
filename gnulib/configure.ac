@@ -1,5 +1,5 @@
 dnl Autoconf configure script for GDB, the GNU debugger.
-dnl Copyright (C) 1995-2019 Free Software Foundation, Inc.
+dnl Copyright (C) 1995-2021 Free Software Foundation, Inc.
 dnl
 dnl This file is part of GDB.
 dnl
@@ -27,10 +27,11 @@ AM_MAINTAINER_MODE
 
 AC_PROG_CC
 AC_USE_SYSTEM_EXTENSIONS
+# Needs to run before gl_EARLY so it can override AC_SYS_LARGEFILE included
+# there.
+ACX_LARGEFILE
 gl_EARLY
 AM_PROG_CC_STDC
-
-ACX_LARGEFILE
 
 AC_CONFIG_AUX_DIR(..)
 AC_CANONICAL_SYSTEM
@@ -54,6 +55,8 @@ AC_CHECK_TOOL(AR, ar)
 # ---------------------- #
 # Checks for libraries.  #
 # ---------------------- #
+
+AC_CONFIG_FILES(Makefile.gnulib.inc)
 
 AC_OUTPUT(Makefile import/Makefile,
 [

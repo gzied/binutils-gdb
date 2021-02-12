@@ -1,5 +1,5 @@
 /* as.h - global header file
-   Copyright (C) 1987-2019 Free Software Foundation, Inc.
+   Copyright (C) 1987-2021 Free Software Foundation, Inc.
 
    This file is part of GAS, the GNU Assembler.
 
@@ -413,6 +413,7 @@ extern enum debug_info_type debug_type;
 extern int use_gnu_debug_info_extensions;
 COMMON bfd_boolean flag_dwarf_sections;
 extern int flag_dwarf_cie_version;
+extern unsigned int dwarf_level;
 
 /* Maximum level of macro nesting.  */
 extern int max_macro_nest;
@@ -564,6 +565,7 @@ int generic_force_reloc (struct fix *);
 
 #include "write.h"
 #include "frags.h"
+#include "hashtab.h"
 #include "hash.h"
 #include "read.h"
 #include "symbols.h"
@@ -586,6 +588,10 @@ COMMON int flag_m68k_mri;
 #define DOLLAR_AMBIGU flag_m68k_mri
 #else
 #define flag_m68k_mri 0
+#endif
+
+#ifndef TC_STRING_ESCAPES
+#define TC_STRING_ESCAPES 1
 #endif
 
 #ifdef WARN_COMMENTS

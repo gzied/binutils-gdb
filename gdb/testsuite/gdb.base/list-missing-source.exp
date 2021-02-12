@@ -1,4 +1,4 @@
-# Copyright 2019 Free Software Foundation, Inc.
+# Copyright 2019-2021 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -29,6 +29,7 @@ main ()
 }
 }
 close $fd
+set srcfile [remote_download host $srcfile]
 
 # Compile the source file.
 set options "debug"
@@ -39,7 +40,7 @@ if  { [gdb_compile "${srcfile}" "${binfile}" \
 }
 
 # Now delete the source file.
-file delete $srcfile
+remote_file host delete $srcfile
 
 # Now start GDB, run to main and try to list the source.
 clean_restart ${binfile}

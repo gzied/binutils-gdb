@@ -1,6 +1,6 @@
 /* Top level stuff for GDB, the GNU debugger.
 
-   Copyright (C) 1986-2019 Free Software Foundation, Inc.
+   Copyright (C) 1986-2021 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -21,7 +21,8 @@
 #define TOP_H
 
 #include "gdbsupport/buffer.h"
-#include "event-loop.h"
+#include "gdbsupport/event-loop.h"
+#include "gdbsupport/next-iterator.h"
 #include "value.h"
 
 struct tl_interp_info;
@@ -206,9 +207,12 @@ public:
 #define SWITCH_THRU_ALL_UIS()		\
   for (switch_thru_all_uis stau_state; !stau_state.done (); stau_state.next ())
 
-/* Traverse over all UIs.  */
-#define ALL_UIS(UI)				\
-  for (UI = ui_list; UI; UI = UI->next)		\
+/* An adapter that can be used to traverse over all UIs.  */
+static inline
+next_adapter<ui> all_uis ()
+{
+  return next_adapter<ui> (ui_list);
+}
 
 /* Register the UI's input file descriptor in the event loop.  */
 extern void ui_register_input_event_handler (struct ui *ui);
@@ -269,10 +273,6 @@ extern void set_prompt (const char *s);
 
 extern int gdb_in_secondary_prompt_p (struct ui *ui);
 
-/* From random places.  */
-extern int readnow_symbol_files;
-extern int readnever_symbol_files;
-
 /* Perform _initialize initialization.  */
 extern void gdb_init (char *);
 
@@ -281,16 +281,12 @@ extern void gdb_init (char *);
 extern int source_line_number;
 extern std::string source_file_name;
 extern bool history_expansion_p;
-extern int server_command;
+extern bool server_command;
 extern char *lim_at_start;
 
 extern void gdb_add_history (const char *);
 
 extern void show_commands (const char *args, int from_tty);
-
-extern void set_history (const char *, int);
-
-extern void show_history (const char *, int);
 
 extern void set_verbose (const char *, int, struct cmd_list_element *);
 

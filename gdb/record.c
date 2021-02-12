@@ -1,6 +1,6 @@
 /* Process record and replay target for GDB, the GNU debugger.
 
-   Copyright (C) 2008-2019 Free Software Foundation, Inc.
+   Copyright (C) 2008-2021 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -74,8 +74,8 @@ require_record_target (void)
 
   t = find_record_target ();
   if (t == NULL)
-    error (_("No record target is currently active.\n"
-	     "Use one of the \"target record-<TAB><TAB>\" commands first."));
+    error (_("No recording is currently active.\n"
+	     "Use the \"record full\" or \"record btrace\" command first."));
 
   return t;
 }
@@ -118,6 +118,8 @@ record_start (const char *method, const char *format, int from_tty)
 	execute_command_to_string ("record btrace bts", from_tty, false);
       else if (strcmp (format, "pt") == 0)
 	execute_command_to_string ("record btrace pt", from_tty, false);
+      else if (strcmp (format, "etm") == 0)
+	execute_command_to_string ("record btrace etm", from_tty, false);
       else
 	error (_("Invalid format."));
     }
@@ -314,23 +316,6 @@ cmd_record_stop (const char *args, int from_tty)
   gdb::observers::record_changed.notify (current_inferior (), 0, NULL, NULL);
 }
 
-/* The "set record" command.  */
-
-static void
-set_record_command (const char *args, int from_tty)
-{
-  printf_unfiltered (_("\"set record\" must be followed "
-		       "by an appropriate subcommand.\n"));
-  help_list (set_record_cmdlist, "set record ", all_commands, gdb_stdout);
-}
-
-/* The "show record" command.  */
-
-static void
-show_record_command (const char *args, int from_tty)
-{
-  cmd_show_list (show_record_cmdlist, from_tty, "");
-}
 
 /* The "info record" command.  */
 
@@ -342,7 +327,7 @@ info_record_command (const char *args, int from_tty)
   t = find_record_target ();
   if (t == NULL)
     {
-      printf_filtered (_("No record target is currently active.\n"));
+      printf_filtered (_("No recording is currently active.\n"));
       return;
     }
 
@@ -366,7 +351,7 @@ cmd_record_save (const char *args, int from_tty)
     {
       /* Default recfile name is "gdb_record.PID".  */
       xsnprintf (recfilename_buffer, sizeof (recfilename_buffer),
-                "gdb_record.%d", inferior_ptid.pid ());
+		"gdb_record.%d", inferior_ptid.pid ());
       recfilename = recfilename_buffer;
     }
 
@@ -772,8 +757,9 @@ set_record_call_history_size (const char *args, int from_tty,
 			 &record_call_history_size);
 }
 
+void _initialize_record ();
 void
-_initialize_record (void)
+_initialize_record ()
 {
   struct cmd_list_element *c;
 
@@ -782,8 +768,8 @@ _initialize_record (void)
 			     _("Show debugging of record/replay feature."),
 			     _("When enabled, debugging output for "
 			       "record/replay feature is displayed."),
-			     NULL, show_record_debug, &setdebuglist,
-			     &showdebuglist);
+			       NULL, show_record_debug, &setdebuglist,
+			       &showdebuglist);
 
   add_setshow_uinteger_cmd ("instruction-history-size", no_class,
 			    &record_insn_history_size_setshow_var, _("\
@@ -807,13 +793,13 @@ A size of \"unlimited\" means unlimited lines.  The default is 10."),
   set_cmd_completer (c, filename_completer);
 
   add_com_alias ("rec", "record", class_obscure, 1);
-  add_prefix_cmd ("record", class_support, set_record_command,
-		  _("Set record options."), &set_record_cmdlist,
-		  "set record ", 0, &setlist);
+  add_basic_prefix_cmd ("record", class_support,
+			_("Set record options."), &set_record_cmdlist,
+			"set record ", 0, &setlist);
   add_alias_cmd ("rec", "record", class_obscure, 1, &setlist);
-  add_prefix_cmd ("record", class_support, show_record_command,
-		  _("Show record options."), &show_record_cmdlist,
-		  "show record ", 0, &showlist);
+  add_show_prefix_cmd ("record", class_support,
+		       _("Show record options."), &show_record_cmdlist,
+		       "show record ", 0, &showlist);
   add_alias_cmd ("rec", "record", class_obscure, 1, &showlist);
   add_prefix_cmd ("record", class_support, info_record_command,
 		  _("Info record options."), &info_record_cmdlist,
@@ -829,13 +815,13 @@ Default filename is 'gdb_record.PROCESS_ID'."),
 
   add_cmd ("delete", class_obscure, cmd_record_delete,
 	   _("Delete the rest of execution log and start recording it anew."),
-           &record_cmdlist);
+	   &record_cmdlist);
   add_alias_cmd ("d", "delete", class_obscure, 1, &record_cmdlist);
   add_alias_cmd ("del", "delete", class_obscure, 1, &record_cmdlist);
 
   add_cmd ("stop", class_obscure, cmd_record_stop,
 	   _("Stop the record/replay target."),
-           &record_cmdlist);
+	   &record_cmdlist);
   add_alias_cmd ("s", "stop", class_obscure, 1, &record_cmdlist);
 
   add_prefix_cmd ("goto", class_obscure, cmd_record_goto, _("\
@@ -870,7 +856,7 @@ If the second argument is preceded by '+' or '-', it specifies the distance \
 from the first argument.\n\
 The number of instructions to disassemble can be defined with \"set record \
 instruction-history-size\"."),
-           &record_cmdlist);
+	   &record_cmdlist);
 
   add_cmd ("function-call-history", class_obscure, cmd_record_call_history, _("\
 Prints the execution history at function granularity.\n\
@@ -890,7 +876,7 @@ If the second argument is preceded by '+' or '-', it specifies the distance \
 from the first argument.\n\
 The number of functions to print can be defined with \"set record \
 function-call-history-size\"."),
-           &record_cmdlist);
+	   &record_cmdlist);
 
   /* Sync command control variables.  */
   record_insn_history_size_setshow_var = record_insn_history_size;

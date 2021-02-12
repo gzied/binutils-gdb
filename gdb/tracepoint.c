@@ -1,6 +1,6 @@
 /* Tracing functionality for remote targets in custom GDB protocol
 
-   Copyright (C) 1997-2019 Free Software Foundation, Inc.
+   Copyright (C) 1997-2021 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -651,7 +651,7 @@ validate_actionline (const char *line, struct breakpoint *b)
   if (*p == '#')		/* comment line */
     return;
 
-  c = lookup_cmd (&p, cmdlist, "", -1, 1);
+  c = lookup_cmd (&p, cmdlist, "", NULL, -1, 1);
   if (c == 0)
     error (_("`%s' is not a tracepoint action, or is ambiguous."), p);
 
@@ -687,7 +687,7 @@ validate_actionline (const char *line, struct breakpoint *b)
 	      expression_up exp = parse_exp_1 (&p, loc->address,
 					       block_for_pc (loc->address), 1);
 
-	      if (exp->elts[0].opcode == OP_VAR_VALUE)
+	      if (exp->first_opcode () == OP_VAR_VALUE)
 		{
 		  if (SYMBOL_CLASS (exp->elts[2].symbol) == LOC_CONST)
 		    {
@@ -942,7 +942,7 @@ collection_list::collect_symbol (struct symbol *sym,
 	}
       /* A struct may be a C++ class with static fields, go to general
 	 expression handling.  */
-      if (TYPE_CODE (SYMBOL_TYPE (sym)) == TYPE_CODE_STRUCT)
+      if (SYMBOL_TYPE (sym)->code () == TYPE_CODE_STRUCT)
 	treat_as_expr = 1;
       else
 	add_memrange (gdbarch, memrange_absolute, offset, len, scope);
@@ -954,7 +954,7 @@ collection_list::collect_symbol (struct symbol *sym,
       add_local_register (gdbarch, reg, scope);
       /* Check for doubles stored in two registers.  */
       /* FIXME: how about larger types stored in 3 or more regs?  */
-      if (TYPE_CODE (SYMBOL_TYPE (sym)) == TYPE_CODE_FLT &&
+      if (SYMBOL_TYPE (sym)->code () == TYPE_CODE_FLT &&
 	  len > register_size (gdbarch, reg))
 	add_local_register (gdbarch, reg + 1, scope);
       break;
@@ -1220,18 +1220,18 @@ collection_list::stringify ()
 	}
 
       {
-        bfd_signed_vma length
+	bfd_signed_vma length
 	  = m_memranges[i].end - m_memranges[i].start;
 
-        /* The "%X" conversion specifier expects an unsigned argument,
-           so passing -1 (memrange_absolute) to it directly gives you
-           "FFFFFFFF" (or more, depending on sizeof (unsigned)).
-           Special-case it.  */
-        if (m_memranges[i].type == memrange_absolute)
-          sprintf (end, "M-1,%s,%lX", phex_nz (m_memranges[i].start, 0),
+	/* The "%X" conversion specifier expects an unsigned argument,
+	   so passing -1 (memrange_absolute) to it directly gives you
+	   "FFFFFFFF" (or more, depending on sizeof (unsigned)).
+	   Special-case it.  */
+	if (m_memranges[i].type == memrange_absolute)
+	  sprintf (end, "M-1,%s,%lX", phex_nz (m_memranges[i].start, 0),
 		   (long) length);
-        else
-          sprintf (end, "M%X,%s,%lX", m_memranges[i].type,
+	else
+	  sprintf (end, "M%X,%s,%lX", m_memranges[i].type,
 		   phex_nz (m_memranges[i].start, 0), (long) length);
       }
 
@@ -1266,16 +1266,12 @@ collection_list::stringify ()
   return str_list;
 }
 
-/* Add the printed expression EXP to *LIST.  */
+/* Add the expression STR to M_COMPUTED.  */
 
 void
-collection_list::append_exp (struct expression *exp)
+collection_list::append_exp (std::string &&str)
 {
-  string_file tmp_stream;
-
-  print_expression (exp, &tmp_stream);
-
-  m_computed.push_back (std::move (tmp_stream.string ()));
+  m_computed.push_back (std::move (str));
 }
 
 void
@@ -1303,7 +1299,7 @@ encode_actions_1 (struct command_line *action,
       action_exp = action->line;
       action_exp = skip_spaces (action_exp);
 
-      cmd = lookup_cmd (&action_exp, cmdlist, "", -1, 1);
+      cmd = lookup_cmd (&action_exp, cmdlist, "", NULL, -1, 1);
       if (cmd == 0)
 	error (_("Bad action list item: %s"), action_exp);
 
@@ -1379,11 +1375,12 @@ encode_actions_1 (struct command_line *action,
 		{
 		  unsigned long addr;
 
+		  const char *exp_start = action_exp;
 		  expression_up exp = parse_exp_1 (&action_exp, tloc->address,
 						   block_for_pc (tloc->address),
 						   1);
 
-		  switch (exp->elts[0].opcode)
+		  switch (exp->first_opcode ())
 		    {
 		    case OP_REGISTER:
 		      {
@@ -1412,7 +1409,8 @@ encode_actions_1 (struct command_line *action,
 					     memrange_absolute, addr,
 					     TYPE_LENGTH (exp->elts[1].type),
 					     tloc->address);
-		      collect->append_exp (exp.get ());
+		      collect->append_exp (std::string (exp_start,
+							action_exp));
 		      break;
 
 		    case OP_VAR_VALUE:
@@ -1441,7 +1439,8 @@ encode_actions_1 (struct command_line *action,
 		      collect->add_ax_registers (aexpr.get ());
 
 		      collect->add_aexpr (std::move (aexpr));
-		      collect->append_exp (exp.get ());
+		      collect->append_exp (std::string (exp_start,
+							action_exp));
 		      break;
 		    }		/* switch */
 		}		/* do */
@@ -2205,10 +2204,10 @@ tfind_1 (enum trace_find_type type, int num,
       enum print_what print_what;
 
       /* NOTE: in imitation of the step command, try to determine
-         whether we have made a transition from one function to
-         another.  If so, we'll print the "stack frame" (ie. the new
-         function and it's arguments) -- otherwise we'll just show the
-         new source line.  */
+	 whether we have made a transition from one function to
+	 another.  If so, we'll print the "stack frame" (ie. the new
+	 function and it's arguments) -- otherwise we'll just show the
+	 new source line.  */
 
       if (frame_id_eq (old_frame_id,
 		       get_frame_id (get_current_frame ())))
@@ -2256,7 +2255,7 @@ tfind_command_1 (const char *args, int from_tty)
     { /* TFIND with no args means find NEXT trace frame.  */
       if (traceframe_number == -1)
 	frameno = 0;	/* "next" is first one.  */
-        else
+	else
 	frameno = traceframe_number + 1;
     }
   else if (0 == strcmp (args, "-"))
@@ -2668,12 +2667,12 @@ trace_dump_actions (struct command_line *action,
       action_exp = skip_spaces (action_exp);
 
       /* The collection actions to be done while stepping are
-         bracketed by the commands "while-stepping" and "end".  */
+	 bracketed by the commands "while-stepping" and "end".  */
 
       if (*action_exp == '#')	/* comment line */
 	continue;
 
-      cmd = lookup_cmd (&action_exp, cmdlist, "", -1, 1);
+      cmd = lookup_cmd (&action_exp, cmdlist, "", NULL, -1, 1);
       if (cmd == 0)
 	error (_("Bad action list item: %s"), action_exp);
 
@@ -3980,8 +3979,9 @@ static const struct internalvar_funcs sdata_funcs =
 cmd_list_element *while_stepping_cmd_element = nullptr;
 
 /* module initialization */
+void _initialize_tracepoint ();
 void
-_initialize_tracepoint (void)
+_initialize_tracepoint ()
 {
   struct cmd_list_element *c;
 
@@ -4097,8 +4097,8 @@ one or more \"collect\" commands, to specify what to collect\n\
 while single-stepping.\n\n\
 Note: this command can only be used in a tracepoint \"actions\" list."));
 
-  add_com_alias ("ws", "while-stepping", class_alias, 0);
-  add_com_alias ("stepping", "while-stepping", class_alias, 0);
+  add_com_alias ("ws", "while-stepping", class_trace, 0);
+  add_com_alias ("stepping", "while-stepping", class_trace, 0);
 
   add_com ("collect", class_trace, collect_pseudocommand, _("\
 Specify one or more data items to be collected at a tracepoint.\n\

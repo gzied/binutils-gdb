@@ -1,5 +1,5 @@
 /* Styling for ui_file
-   Copyright (C) 2018-2019 Free Software Foundation, Inc.
+   Copyright (C) 2018-2021 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -126,8 +126,14 @@ struct ui_file_style
   private:
 
     bool m_simple;
-    int m_value;
-    uint8_t m_red, m_green, m_blue;
+    union
+    {
+      int m_value;
+      struct
+      {
+	uint8_t m_red, m_green, m_blue;
+      };
+    };
   };
 
   /* Intensity settings that are available.  */

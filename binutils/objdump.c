@@ -1,5 +1,5 @@
 /* objdump.c -- dump information about an object file.
-   Copyright (C) 1990-2019 Free Software Foundation, Inc.
+   Copyright (C) 1990-2021 Free Software Foundation, Inc.
 
    This file is part of GNU Binutils.
 
@@ -93,6 +93,7 @@ static int dump_dynamic_reloc_info;	/* -R */
 static int dump_ar_hdrs;		/* -a */
 static int dump_private_headers;	/* -p */
 static char *dump_private_options;	/* -P */
+static int no_addresses;		/* --no-addresses */
 static int prefix_addresses;		/* --prefix-addresses */
 static int with_line_numbers;		/* -l */
 static bfd_boolean with_source_code;	/* -S */
@@ -124,6 +125,9 @@ static size_t prefix_length;
 static bfd_boolean unwind_inlines;	/* --inlines.  */
 static const char * disasm_sym;		/* Disassembly start symbol.  */
 static const char * source_comment;     /* --source_comment.  */
+static bfd_boolean visualize_jumps = FALSE;          /* --visualize-jumps.  */
+static bfd_boolean color_output = FALSE;             /* --visualize-jumps=color.  */
+static bfd_boolean extended_color_output = FALSE;    /* --visualize-jumps=extended-color.  */
 
 static int demangle_flags = DMGL_ANSI | DMGL_PARAMS;
 
@@ -147,7 +151,6 @@ static int include_path_count;
 struct objdump_disasm_info
 {
   bfd *              abfd;
-  asection *         sec;
   bfd_boolean        require_sec;
   arelent **         dynrelbuf;
   long               dynrelcount;
@@ -199,6 +202,9 @@ static const struct objdump_private_desc * const objdump_private_vectors[] =
     OBJDUMP_PRIVATE_VECTORS
     NULL
   };
+
+/* The list of detected jumps inside a function.  */
+static struct jump_info *detected_jumps = NULL;
 
 static void usage (FILE *, int) ATTRIBUTE_NORETURN;
 static void
@@ -223,13 +229,19 @@ usage (FILE *stream, int status)
   -g, --debugging          Display debug information in object file\n\
   -e, --debugging-tags     Display debug information using ctags style\n\
   -G, --stabs              Display (in raw form) any STABS info in the file\n\
-  -W[lLiaprmfFsoRtUuTgAckK] or\n\
+  -W[lLiaprmfFsoORtUuTgAckK] or\n\
   --dwarf[=rawline,=decodedline,=info,=abbrev,=pubnames,=aranges,=macro,=frames,\n\
-          =frames-interp,=str,=loc,=Ranges,=pubtypes,\n\
+          =frames-interp,=str,=str-offsets,=loc,=Ranges,=pubtypes,\n\
           =gdb_index,=trace_info,=trace_abbrev,=trace_aranges,\n\
           =addr,=cu_index,=links,=follow-links]\n\
                            Display DWARF info in the file\n\
+"));
+#ifdef ENABLE_LIBCTF
+  fprintf (stream, _("\
   --ctf=SECTION            Display CTF info from SECTION\n\
+"));
+#endif
+  fprintf (stream, _("\
   -t, --syms               Display the contents of the symbol table(s)\n\
   -T, --dynamic-syms       Display the contents of the dynamic symbol table\n\
   -r, --reloc              Display the relocation entries in the file\n\
@@ -265,6 +277,7 @@ usage (FILE *stream, int status)
   -z, --disassemble-zeroes       Do not skip blocks of zeroes when disassembling\n\
       --start-address=ADDR       Only process data whose address is >= ADDR\n\
       --stop-address=ADDR        Only process data whose address is < ADDR\n\
+      --no-addresses             Do not print address alongside disassembly\n\
       --prefix-addresses         Print complete address alongside disassembly\n\
       --[no-]show-raw-insn       Display hex alongside symbolic disassembly\n\
       --insn-width=WIDTH         Display WIDTH bytes on a single line for -d\n\
@@ -277,9 +290,17 @@ usage (FILE *stream, int status)
       --dwarf-depth=N        Do not display DIEs at depth N or greater\n\
       --dwarf-start=N        Display DIEs starting with N, at the same depth\n\
                              or deeper\n\
-      --dwarf-check          Make additional dwarf internal consistency checks.\
-      \n\
-      --ctf-parent=SECTION     Use SECTION as the CTF parent\n\n"));
+      --dwarf-check          Make additional dwarf internal consistency checks.\n"));
+#ifdef ENABLE_LIBCTF
+      fprintf (stream, _("\
+      --ctf-parent=SECTION     Use SECTION as the CTF parent\n"));
+#endif
+      fprintf (stream, _("\
+      --visualize-jumps          Visualize jumps by drawing ASCII art lines\n\
+      --visualize-jumps=color    Use colors in the ASCII art\n\
+      --visualize-jumps=extended-color   Use extended 8-bit color codes\n\
+      --visualize-jumps=off      Disable jump visualization\n\n"));
+
       list_supported_targets (program_name, stream);
       list_supported_architectures (program_name, stream);
 
@@ -316,8 +337,11 @@ enum option_values
     OPTION_NO_RECURSE_LIMIT,
     OPTION_INLINES,
     OPTION_SOURCE_COMMENT,
+#ifdef ENABLE_LIBCTF
     OPTION_CTF,
-    OPTION_CTF_PARENT
+    OPTION_CTF_PARENT,
+#endif
+    OPTION_VISUALIZE_JUMPS
   };
 
 static struct option long_options[]=
@@ -347,6 +371,7 @@ static struct option long_options[]=
   {"info", no_argument, NULL, 'i'},
   {"line-numbers", no_argument, NULL, 'l'},
   {"no-show-raw-insn", no_argument, &show_raw_insn, -1},
+  {"no-addresses", no_argument, &no_addresses, 1},
   {"prefix-addresses", no_argument, &prefix_addresses, 1},
   {"recurse-limit", no_argument, NULL, OPTION_RECURSE_LIMIT},
   {"recursion-limit", no_argument, NULL, OPTION_RECURSE_LIMIT},
@@ -361,8 +386,10 @@ static struct option long_options[]=
   {"special-syms", no_argument, &dump_special_syms, 1},
   {"include", required_argument, NULL, 'I'},
   {"dwarf", optional_argument, NULL, OPTION_DWARF},
+#ifdef ENABLE_LIBCTF
   {"ctf", required_argument, NULL, OPTION_CTF},
   {"ctf-parent", required_argument, NULL, OPTION_CTF_PARENT},
+#endif
   {"stabs", no_argument, NULL, 'G'},
   {"start-address", required_argument, NULL, OPTION_START_ADDRESS},
   {"stop-address", required_argument, NULL, OPTION_STOP_ADDRESS},
@@ -377,6 +404,7 @@ static struct option long_options[]=
   {"dwarf-start", required_argument, 0, OPTION_DWARF_START},
   {"dwarf-check", no_argument, 0, OPTION_DWARF_CHECK},
   {"inlines", no_argument, 0, OPTION_INLINES},
+  {"visualize-jumps", optional_argument, 0, OPTION_VISUALIZE_JUMPS},
   {0, no_argument, 0, 0}
 };
 
@@ -804,6 +832,8 @@ remove_useless_symbols (asymbol **symbols, long count)
   return out_ptr - symbols;
 }
 
+static const asection *compare_section;
+
 /* Sort symbols into value order.  */
 
 static int
@@ -815,8 +845,7 @@ compare_symbols (const void *ap, const void *bp)
   const char *bn;
   size_t anl;
   size_t bnl;
-  bfd_boolean af;
-  bfd_boolean bf;
+  bfd_boolean as, af, bs, bf;
   flagword aflags;
   flagword bflags;
 
@@ -825,10 +854,16 @@ compare_symbols (const void *ap, const void *bp)
   else if (bfd_asymbol_value (a) < bfd_asymbol_value (b))
     return -1;
 
-  if (a->section > b->section)
-    return 1;
-  else if (a->section < b->section)
+  /* Prefer symbols from the section currently being disassembled.
+     Don't sort symbols from other sections by section, since there
+     isn't much reason to prefer one section over another otherwise.
+     See sym_ok comment for why we compare by section name.  */
+  as = strcmp (compare_section->name, a->section->name) == 0;
+  bs = strcmp (compare_section->name, b->section->name) == 0;
+  if (as && !bs)
     return -1;
+  if (!as && bs)
+    return 1;
 
   an = bfd_asymbol_name (a);
   bn = bfd_asymbol_name (b);
@@ -854,7 +889,8 @@ compare_symbols (const void *ap, const void *bp)
 
 #define file_symbol(s, sn, snl)			\
   (((s)->flags & BSF_FILE) != 0			\
-   || ((sn)[(snl) - 2] == '.'			\
+   || ((snl) > 2				\
+       && (sn)[(snl) - 2] == '.'		\
        && ((sn)[(snl) - 1] == 'o'		\
 	   || (sn)[(snl) - 1] == 'a')))
 
@@ -866,8 +902,8 @@ compare_symbols (const void *ap, const void *bp)
   if (! af && bf)
     return -1;
 
-  /* Try to sort global symbols before local symbols before function
-     symbols before debugging symbols.  */
+  /* Sort function and object symbols before global symbols before
+     local symbols before section symbols before debugging symbols.  */
 
   aflags = a->flags;
   bflags = b->flags;
@@ -879,9 +915,23 @@ compare_symbols (const void *ap, const void *bp)
       else
 	return -1;
     }
+  if ((aflags & BSF_SECTION_SYM) != (bflags & BSF_SECTION_SYM))
+    {
+      if ((aflags & BSF_SECTION_SYM) != 0)
+	return 1;
+      else
+	return -1;
+    }
   if ((aflags & BSF_FUNCTION) != (bflags & BSF_FUNCTION))
     {
       if ((aflags & BSF_FUNCTION) != 0)
+	return -1;
+      else
+	return 1;
+    }
+  if ((aflags & BSF_OBJECT) != (bflags & BSF_OBJECT))
+    {
+      if ((aflags & BSF_OBJECT) != 0)
 	return -1;
       else
 	return 1;
@@ -997,7 +1047,8 @@ objdump_print_symname (bfd *abfd, struct disassemble_info *inf,
     }
 
   if ((sym->flags & (BSF_SECTION_SYM | BSF_SYNTHETIC)) == 0)
-    version_string = bfd_get_symbol_version_string (abfd, sym, &hidden);
+    version_string = bfd_get_symbol_version_string (abfd, sym, TRUE,
+						    &hidden);
 
   if (bfd_is_und_section (bfd_asymbol_section (sym)))
     hidden = TRUE;
@@ -1031,6 +1082,13 @@ sym_ok (bfd_boolean               want_section,
 {
   if (want_section)
     {
+      /* NB: An object file can have different sections with the same
+         section name.  Compare compare section pointers if they have
+	 the same owner.  */
+      if (sorted_syms[place]->section->owner == sec->owner
+	  && sorted_syms[place]->section != sec)
+	return FALSE;
+
       /* Note - we cannot just compare section pointers because they could
 	 be different, but the same...  Ie the symbol that we are trying to
 	 find could have come from a separate debug info file.  Under such
@@ -1078,7 +1136,7 @@ find_symbol_for_address (bfd_vma vma,
 
   aux = (struct objdump_disasm_info *) inf->application_data;
   abfd = aux->abfd;
-  sec = aux->sec;
+  sec = inf->section;
   opb = inf->octets_per_byte;
 
   /* Perform a binary search looking for the closest symbol to the
@@ -1103,14 +1161,11 @@ find_symbol_for_address (bfd_vma vma,
 
   /* The symbol we want is now in min, the low end of the range we
      were searching.  If there are several symbols with the same
-     value, we want the first (non-section/non-debugging) one.  */
+     value, we want the first one.  */
   thisplace = min;
   while (thisplace > 0
 	 && (bfd_asymbol_value (sorted_syms[thisplace])
-	     == bfd_asymbol_value (sorted_syms[thisplace - 1]))
-	 && ((sorted_syms[thisplace - 1]->flags
-	      & (BSF_SECTION_SYM | BSF_DEBUGGING)) == 0)
-	 )
+	     == bfd_asymbol_value (sorted_syms[thisplace - 1])))
     --thisplace;
 
   /* Prefer a symbol in the current section if we have multple symbols
@@ -1264,13 +1319,17 @@ objdump_print_addr_with_sym (bfd *abfd, asection *sec, asymbol *sym,
 			     bfd_vma vma, struct disassemble_info *inf,
 			     bfd_boolean skip_zeroes)
 {
-  objdump_print_value (vma, inf, skip_zeroes);
+  if (!no_addresses)
+    {
+      objdump_print_value (vma, inf, skip_zeroes);
+      (*inf->fprintf_func) (inf->stream, " ");
+    }
 
   if (sym == NULL)
     {
       bfd_vma secaddr;
 
-      (*inf->fprintf_func) (inf->stream, " <%s",
+      (*inf->fprintf_func) (inf->stream, "<%s",
 			    sanitize_string (bfd_section_name (sec)));
       secaddr = bfd_section_vma (sec);
       if (vma < secaddr)
@@ -1287,7 +1346,7 @@ objdump_print_addr_with_sym (bfd *abfd, asection *sec, asymbol *sym,
     }
   else
     {
-      (*inf->fprintf_func) (inf->stream, " <");
+      (*inf->fprintf_func) (inf->stream, "<");
 
       objdump_print_symname (abfd, inf, sym);
 
@@ -1337,12 +1396,16 @@ objdump_print_addr (bfd_vma vma,
 
   if (sorted_symcount < 1)
     {
-      (*inf->fprintf_func) (inf->stream, "0x");
-      objdump_print_value (vma, inf, skip_zeroes);
+      if (!no_addresses)
+	{
+	  (*inf->fprintf_func) (inf->stream, "0x");
+	  objdump_print_value (vma, inf, skip_zeroes);
+	}
 
       if (display_file_offsets)
 	inf->fprintf_func (inf->stream, _(" (File Offset: 0x%lx)"),
-			   (long int)(aux->sec->filepos + (vma - aux->sec->vma)));
+			   (long int) (inf->section->filepos
+				       + (vma - inf->section->vma)));
       return;
     }
 
@@ -1362,7 +1425,7 @@ objdump_print_addr (bfd_vma vma,
   if (!skip_find)
     sym = find_symbol_for_address (vma, inf, NULL);
 
-  objdump_print_addr_with_sym (aux->abfd, aux->sec, sym, vma, inf,
+  objdump_print_addr_with_sym (aux->abfd, inf->section, sym, vma, inf,
 			       skip_zeroes);
 }
 
@@ -1672,7 +1735,7 @@ show_line (bfd *abfd, asection *section, bfd_vma addr_offset)
 
 	  /* Skip selected directory levels.  */
 	  for (s = fname + 1; *s != '\0' && level < prefix_strip; s++)
-	    if (IS_DIR_SEPARATOR(*s))
+	    if (IS_DIR_SEPARATOR (*s))
 	      {
 		fname = s;
 		level++;
@@ -1695,8 +1758,22 @@ show_line (bfd *abfd, asection *section, bfd_vma addr_offset)
 	  && (prev_functionname == NULL
 	      || strcmp (functionname, prev_functionname) != 0))
 	{
-	  printf ("%s():\n", sanitize_string (functionname));
+	  char *demangle_alloc = NULL;
+	  if (do_demangle && functionname[0] != '\0')
+	    {
+	      /* Demangle the name.  */
+	      demangle_alloc = bfd_demangle (abfd, functionname,
+	                                          demangle_flags);
+	    }
+
+	  /* Demangling adds trailing parens, so don't print those.  */
+	  if (demangle_alloc != NULL)
+	    printf ("%s:\n", sanitize_string (demangle_alloc));
+	  else
+	    printf ("%s():\n", sanitize_string (functionname));
+
 	  prev_line = -1;
+	  free (demangle_alloc);
 	}
       if (linenumber > 0
 	  && (linenumber != prev_line
@@ -1826,6 +1903,595 @@ objdump_sprintf (SFILE *f, const char *format, ...)
   return n;
 }
 
+/* Code for generating (colored) diagrams of control flow start and end
+   points.  */
+
+/* Structure used to store the properties of a jump.  */
+
+struct jump_info
+{
+  /* The next jump, or NULL if this is the last object.  */
+  struct jump_info *next;
+  /* The previous jump, or NULL if this is the first object.  */
+  struct jump_info *prev;
+  /* The start addresses of the jump.  */
+  struct
+    {
+      /* The list of start addresses.  */
+      bfd_vma *addresses;
+      /* The number of elements.  */
+      size_t count;
+      /* The maximum number of elements that fit into the array.  */
+      size_t max_count;
+    } start;
+  /* The end address of the jump.  */
+  bfd_vma end;
+  /* The drawing level of the jump.  */
+  int level;
+};
+
+/* Construct a jump object for a jump from start
+   to end with the corresponding level.  */
+
+static struct jump_info *
+jump_info_new (bfd_vma start, bfd_vma end, int level)
+{
+  struct jump_info *result = xmalloc (sizeof (struct jump_info));
+
+  result->next = NULL;
+  result->prev = NULL;
+  result->start.addresses = xmalloc (sizeof (bfd_vma *) * 2);
+  result->start.addresses[0] = start;
+  result->start.count = 1;
+  result->start.max_count = 2;
+  result->end = end;
+  result->level = level;
+
+  return result;
+}
+
+/* Free a jump object and return the next object
+   or NULL if this was the last one.  */
+
+static struct jump_info *
+jump_info_free (struct jump_info *ji)
+{
+  struct jump_info *result = NULL;
+
+  if (ji)
+    {
+      result = ji->next;
+      if (ji->start.addresses)
+	free (ji->start.addresses);
+      free (ji);
+    }
+
+  return result;
+}
+
+/* Get the smallest value of all start and end addresses.  */
+
+static bfd_vma
+jump_info_min_address (const struct jump_info *ji)
+{
+  bfd_vma min_address = ji->end;
+  size_t i;
+
+  for (i = ji->start.count; i-- > 0;)
+    if (ji->start.addresses[i] < min_address)
+      min_address = ji->start.addresses[i];
+  return min_address;
+}
+
+/* Get the largest value of all start and end addresses.  */
+
+static bfd_vma
+jump_info_max_address (const struct jump_info *ji)
+{
+  bfd_vma max_address = ji->end;
+  size_t i;
+
+  for (i = ji->start.count; i-- > 0;)
+    if (ji->start.addresses[i] > max_address)
+      max_address = ji->start.addresses[i];
+  return max_address;
+}
+
+/* Get the target address of a jump.  */
+
+static bfd_vma
+jump_info_end_address (const struct jump_info *ji)
+{
+  return ji->end;
+}
+
+/* Test if an address is one of the start addresses of a jump.  */
+
+static bfd_boolean
+jump_info_is_start_address (const struct jump_info *ji, bfd_vma address)
+{
+  bfd_boolean result = FALSE;
+  size_t i;
+
+  for (i = ji->start.count; i-- > 0;)
+    if (address == ji->start.addresses[i])
+      {
+	result = TRUE;
+	break;
+      }
+
+  return result;
+}
+
+/* Test if an address is the target address of a jump.  */
+
+static bfd_boolean
+jump_info_is_end_address (const struct jump_info *ji, bfd_vma address)
+{
+  return (address == ji->end);
+}
+
+/* Get the difference between the smallest and largest address of a jump.  */
+
+static bfd_vma
+jump_info_size (const struct jump_info *ji)
+{
+  return jump_info_max_address (ji) - jump_info_min_address (ji);
+}
+
+/* Unlink a jump object from a list.  */
+
+static void
+jump_info_unlink (struct jump_info *node,
+		  struct jump_info **base)
+{
+  if (node->next)
+    node->next->prev = node->prev;
+  if (node->prev)
+    node->prev->next = node->next;
+  else
+    *base = node->next;
+  node->next = NULL;
+  node->prev = NULL;
+}
+
+/* Insert unlinked jump info node into a list.  */
+
+static void
+jump_info_insert (struct jump_info *node,
+		  struct jump_info *target,
+		  struct jump_info **base)
+{
+  node->next = target;
+  node->prev = target->prev;
+  target->prev = node;
+  if (node->prev)
+    node->prev->next = node;
+  else
+    *base = node;
+}
+
+/* Add unlinked node to the front of a list.  */
+
+static void
+jump_info_add_front (struct jump_info *node,
+		     struct jump_info **base)
+{
+  node->next = *base;
+  if (node->next)
+    node->next->prev = node;
+  node->prev = NULL;
+  *base = node;
+}
+
+/* Move linked node to target position.  */
+
+static void
+jump_info_move_linked (struct jump_info *node,
+		       struct jump_info *target,
+		       struct jump_info **base)
+{
+  /* Unlink node.  */
+  jump_info_unlink (node, base);
+  /* Insert node at target position.  */
+  jump_info_insert (node, target, base);
+}
+
+/* Test if two jumps intersect.  */
+
+static bfd_boolean
+jump_info_intersect (const struct jump_info *a,
+		     const struct jump_info *b)
+{
+  return ((jump_info_max_address (a) >= jump_info_min_address (b))
+	  && (jump_info_min_address (a) <= jump_info_max_address (b)));
+}
+
+/* Merge two compatible jump info objects.  */
+
+static void
+jump_info_merge (struct jump_info **base)
+{
+  struct jump_info *a;
+
+  for (a = *base; a; a = a->next)
+    {
+      struct jump_info *b;
+
+      for (b = a->next; b; b = b->next)
+	{
+	  /* Merge both jumps into one.  */
+	  if (a->end == b->end)
+	    {
+	      /* Reallocate addresses.  */
+	      size_t needed_size = a->start.count + b->start.count;
+	      size_t i;
+
+	      if (needed_size > a->start.max_count)
+		{
+		  a->start.max_count += b->start.max_count;
+		  a->start.addresses =
+		    xrealloc (a->start.addresses,
+			      a->start.max_count * sizeof (bfd_vma *));
+		}
+
+	      /* Append start addresses.  */
+	      for (i = 0; i < b->start.count; ++i)
+		a->start.addresses[a->start.count++] =
+		  b->start.addresses[i];
+
+	      /* Remove and delete jump.  */
+	      struct jump_info *tmp = b->prev;
+	      jump_info_unlink (b, base);
+	      jump_info_free (b);
+	      b = tmp;
+	    }
+	}
+    }
+}
+
+/* Sort jumps by their size and starting point using a stable
+   minsort. This could be improved if sorting performance is
+   an issue, for example by using mergesort.  */
+
+static void
+jump_info_sort (struct jump_info **base)
+{
+  struct jump_info *current_element = *base;
+
+  while (current_element)
+    {
+      struct jump_info *best_match = current_element;
+      struct jump_info *runner = current_element->next;
+      bfd_vma best_size = jump_info_size (best_match);
+
+      while (runner)
+	{
+	  bfd_vma runner_size = jump_info_size (runner);
+
+	  if ((runner_size < best_size)
+	      || ((runner_size == best_size)
+		  && (jump_info_min_address (runner)
+		      < jump_info_min_address (best_match))))
+	    {
+	      best_match = runner;
+	      best_size = runner_size;
+	    }
+
+	  runner = runner->next;
+	}
+
+      if (best_match == current_element)
+	current_element = current_element->next;
+      else
+	jump_info_move_linked (best_match, current_element, base);
+    }
+}
+
+/* Visualize all jumps at a given address.  */
+
+static void
+jump_info_visualize_address (bfd_vma address,
+			     int max_level,
+			     char *line_buffer,
+			     uint8_t *color_buffer)
+{
+  struct jump_info *ji = detected_jumps;
+  size_t len = (max_level + 1) * 3;
+
+  /* Clear line buffer.  */
+  memset (line_buffer, ' ', len);
+  memset (color_buffer, 0, len);
+
+  /* Iterate over jumps and add their ASCII art.  */
+  while (ji)
+    {
+      /* Discard jumps that are never needed again.  */
+      if (jump_info_max_address (ji) < address)
+	{
+	  struct jump_info *tmp = ji;
+
+	  ji = ji->next;
+	  jump_info_unlink (tmp, &detected_jumps);
+	  jump_info_free (tmp);
+	  continue;
+	}
+
+      /* This jump intersects with the current address.  */
+      if (jump_info_min_address (ji) <= address)
+	{
+	  /* Hash target address to get an even
+	     distribution between all values.  */
+	  bfd_vma hash_address = jump_info_end_address (ji);
+	  uint8_t color = iterative_hash_object (hash_address, 0);
+	  /* Fetch line offset.  */
+	  int offset = (max_level - ji->level) * 3;
+
+	  /* Draw start line.  */
+	  if (jump_info_is_start_address (ji, address))
+	    {
+	      size_t i = offset + 1;
+
+	      for (; i < len - 1; ++i)
+		if (line_buffer[i] == ' ')
+		  {
+		    line_buffer[i] = '-';
+		    color_buffer[i] = color;
+		  }
+
+	      if (line_buffer[i] == ' ')
+		{
+		  line_buffer[i] = '-';
+		  color_buffer[i] = color;
+		}
+	      else if (line_buffer[i] == '>')
+		{
+		  line_buffer[i] = 'X';
+		  color_buffer[i] = color;
+		}
+
+	      if (line_buffer[offset] == ' ')
+		{
+		  if (address <= ji->end)
+		    line_buffer[offset] =
+		      (jump_info_min_address (ji) == address) ? '/': '+';
+		  else
+		    line_buffer[offset] =
+		      (jump_info_max_address (ji) == address) ? '\\': '+';
+		  color_buffer[offset] = color;
+		}
+	    }
+	  /* Draw jump target.  */
+	  else if (jump_info_is_end_address (ji, address))
+	    {
+	      size_t i = offset + 1;
+
+	      for (; i < len - 1; ++i)
+		if (line_buffer[i] == ' ')
+		  {
+		    line_buffer[i] = '-';
+		    color_buffer[i] = color;
+		  }
+
+	      if (line_buffer[i] == ' ')
+		{
+		  line_buffer[i] = '>';
+		  color_buffer[i] = color;
+		}
+	      else if (line_buffer[i] == '-')
+		{
+		  line_buffer[i] = 'X';
+		  color_buffer[i] = color;
+		}
+
+	      if (line_buffer[offset] == ' ')
+		{
+		  if (jump_info_min_address (ji) < address)
+		    line_buffer[offset] =
+		      (jump_info_max_address (ji) > address) ? '>' : '\\';
+		  else
+		    line_buffer[offset] = '/';
+		  color_buffer[offset] = color;
+		}
+	    }
+	  /* Draw intermediate line segment.  */
+	  else if (line_buffer[offset] == ' ')
+	    {
+	      line_buffer[offset] = '|';
+	      color_buffer[offset] = color;
+	    }
+	}
+
+      ji = ji->next;
+    }
+}
+
+/* Clone of disassemble_bytes to detect jumps inside a function.  */
+/* FIXME: is this correct? Can we strip it down even further?  */
+
+static struct jump_info *
+disassemble_jumps (struct disassemble_info * inf,
+		   disassembler_ftype        disassemble_fn,
+		   bfd_vma                   start_offset,
+		   bfd_vma                   stop_offset,
+		   bfd_vma		     rel_offset,
+		   arelent ***               relppp,
+		   arelent **                relppend)
+{
+  struct objdump_disasm_info *aux;
+  struct jump_info *jumps = NULL;
+  asection *section;
+  bfd_vma addr_offset;
+  unsigned int opb = inf->octets_per_byte;
+  int octets = opb;
+  SFILE sfile;
+
+  aux = (struct objdump_disasm_info *) inf->application_data;
+  section = inf->section;
+
+  sfile.alloc = 120;
+  sfile.buffer = (char *) xmalloc (sfile.alloc);
+  sfile.pos = 0;
+
+  inf->insn_info_valid = 0;
+  inf->fprintf_func = (fprintf_ftype) objdump_sprintf;
+  inf->stream = &sfile;
+
+  addr_offset = start_offset;
+  while (addr_offset < stop_offset)
+    {
+      int previous_octets;
+
+      /* Remember the length of the previous instruction.  */
+      previous_octets = octets;
+      octets = 0;
+
+      sfile.pos = 0;
+      inf->bytes_per_line = 0;
+      inf->bytes_per_chunk = 0;
+      inf->flags = ((disassemble_all ? DISASSEMBLE_DATA : 0)
+        | (wide_output ? WIDE_OUTPUT : 0));
+      if (machine)
+	inf->flags |= USER_SPECIFIED_MACHINE_TYPE;
+
+      if (inf->disassembler_needs_relocs
+	  && (bfd_get_file_flags (aux->abfd) & EXEC_P) == 0
+	  && (bfd_get_file_flags (aux->abfd) & DYNAMIC) == 0
+	  && *relppp < relppend)
+	{
+	  bfd_signed_vma distance_to_rel;
+
+	  distance_to_rel = (**relppp)->address - (rel_offset + addr_offset);
+
+	  /* Check to see if the current reloc is associated with
+	     the instruction that we are about to disassemble.  */
+	  if (distance_to_rel == 0
+	      /* FIXME: This is wrong.  We are trying to catch
+		 relocs that are addressed part way through the
+		 current instruction, as might happen with a packed
+		 VLIW instruction.  Unfortunately we do not know the
+		 length of the current instruction since we have not
+		 disassembled it yet.  Instead we take a guess based
+		 upon the length of the previous instruction.  The
+		 proper solution is to have a new target-specific
+		 disassembler function which just returns the length
+		 of an instruction at a given address without trying
+		 to display its disassembly. */
+	      || (distance_to_rel > 0
+		&& distance_to_rel < (bfd_signed_vma) (previous_octets/ opb)))
+	    {
+	      inf->flags |= INSN_HAS_RELOC;
+	    }
+	}
+
+      if (! disassemble_all
+	  && (section->flags & (SEC_CODE | SEC_HAS_CONTENTS))
+	  == (SEC_CODE | SEC_HAS_CONTENTS))
+	/* Set a stop_vma so that the disassembler will not read
+	   beyond the next symbol.  We assume that symbols appear on
+	   the boundaries between instructions.  We only do this when
+	   disassembling code of course, and when -D is in effect.  */
+	inf->stop_vma = section->vma + stop_offset;
+
+      inf->stop_offset = stop_offset;
+
+      /* Extract jump information.  */
+      inf->insn_info_valid = 0;
+      octets = (*disassemble_fn) (section->vma + addr_offset, inf);
+      /* Test if a jump was detected.  */
+      if (inf->insn_info_valid
+	  && ((inf->insn_type == dis_branch)
+	      || (inf->insn_type == dis_condbranch)
+	      || (inf->insn_type == dis_jsr)
+	      || (inf->insn_type == dis_condjsr))
+	  && (inf->target >= section->vma + start_offset)
+	  && (inf->target < section->vma + stop_offset))
+	{
+	  struct jump_info *ji =
+	    jump_info_new (section->vma + addr_offset, inf->target, -1);
+	  jump_info_add_front (ji, &jumps);
+	}
+
+      inf->stop_vma = 0;
+
+      addr_offset += octets / opb;
+    }
+
+  inf->fprintf_func = (fprintf_ftype) fprintf;
+  inf->stream = stdout;
+
+  free (sfile.buffer);
+
+  /* Merge jumps.  */
+  jump_info_merge (&jumps);
+  /* Process jumps.  */
+  jump_info_sort (&jumps);
+
+  /* Group jumps by level.  */
+  struct jump_info *last_jump = jumps;
+  int max_level = -1;
+
+  while (last_jump)
+    {
+      /* The last jump is part of the next group.  */
+      struct jump_info *base = last_jump;
+      /* Increment level.  */
+      base->level = ++max_level;
+
+      /* Find jumps that can be combined on the same
+	 level, with the largest jumps tested first.
+	 This has the advantage that large jumps are on
+	 lower levels and do not intersect with small
+	 jumps that get grouped on higher levels.  */
+      struct jump_info *exchange_item = last_jump->next;
+      struct jump_info *it = exchange_item;
+
+      for (; it; it = it->next)
+	{
+	  /* Test if the jump intersects with any
+	     jump from current group.  */
+	  bfd_boolean ok = TRUE;
+	  struct jump_info *it_collision;
+
+	  for (it_collision = base;
+	       it_collision != exchange_item;
+	       it_collision = it_collision->next)
+	    {
+	      /* This jump intersects so we leave it out.  */
+	      if (jump_info_intersect (it_collision, it))
+		{
+		  ok = FALSE;
+		  break;
+		}
+	    }
+
+	  /* Add jump to group.  */
+	  if (ok)
+	    {
+	      /* Move current element to the front.  */
+	      if (it != exchange_item)
+		{
+		  struct jump_info *save = it->prev;
+		  jump_info_move_linked (it, exchange_item, &jumps);
+		  last_jump = it;
+		  it = save;
+		}
+	      else
+		{
+		  last_jump = exchange_item;
+		  exchange_item = exchange_item->next;
+		}
+	      last_jump->level = max_level;
+	    }
+	}
+
+      /* Move to next group.  */
+      last_jump = exchange_item;
+    }
+
+  return jumps;
+}
+
 /* The number of zeroes we want to see before we start skipping them.
    The number is arbitrarily chosen.  */
 
@@ -1846,6 +2512,47 @@ null_print (const void * stream ATTRIBUTE_UNUSED, const char * format ATTRIBUTE_
   return 1;
 }
 
+/* Print out jump visualization.  */
+
+static void
+print_jump_visualisation (bfd_vma addr, int max_level, char *line_buffer,
+			  uint8_t *color_buffer)
+{
+  if (!line_buffer)
+    return;
+
+  jump_info_visualize_address (addr, max_level, line_buffer, color_buffer);
+
+  size_t line_buffer_size = strlen (line_buffer);
+  char last_color = 0;
+  size_t i;
+
+  for (i = 0; i <= line_buffer_size; ++i)
+    {
+      if (color_output)
+	{
+	  uint8_t color = (i < line_buffer_size) ? color_buffer[i]: 0;
+
+	  if (color != last_color)
+	    {
+	      if (color)
+		if (extended_color_output)
+		  /* Use extended 8bit color, but
+		     do not choose dark colors.  */
+		  printf ("\033[38;5;%dm", 124 + (color % 108));
+		else
+		  /* Use simple terminal colors.  */
+		  printf ("\033[%dm", 31 + (color % 7));
+	      else
+		/* Clear color.  */
+		printf ("\033[0m");
+	      last_color = color;
+	    }
+	}
+      putchar ((i < line_buffer_size) ? line_buffer[i]: ' ');
+    }
+}
+
 /* Disassemble some data in memory between given values.  */
 
 static void
@@ -1861,17 +2568,17 @@ disassemble_bytes (struct disassemble_info * inf,
 {
   struct objdump_disasm_info *aux;
   asection *section;
-  int octets_per_line;
-  int skip_addr_chars;
+  unsigned int octets_per_line;
+  unsigned int skip_addr_chars;
   bfd_vma addr_offset;
   unsigned int opb = inf->octets_per_byte;
   unsigned int skip_zeroes = inf->skip_zeroes;
   unsigned int skip_zeroes_at_end = inf->skip_zeroes_at_end;
-  int octets = opb;
+  size_t octets;
   SFILE sfile;
 
   aux = (struct objdump_disasm_info *) inf->application_data;
-  section = aux->sec;
+  section = inf->section;
 
   sfile.alloc = 120;
   sfile.buffer = (char *) xmalloc (sfile.alloc);
@@ -1889,7 +2596,7 @@ disassemble_bytes (struct disassemble_info * inf,
      zeroes in chunks of 4, ensuring that there is always a leading
      zero remaining.  */
   skip_addr_chars = 0;
-  if (! prefix_addresses)
+  if (!no_addresses && !prefix_addresses)
     {
       char buf[30];
 
@@ -1908,10 +2615,34 @@ disassemble_bytes (struct disassemble_info * inf,
 
   inf->insn_info_valid = 0;
 
+  /* Determine maximum level. */
+  uint8_t *color_buffer = NULL;
+  char *line_buffer = NULL;
+  int max_level = -1;
+
+  /* Some jumps were detected.  */
+  if (detected_jumps)
+    {
+      struct jump_info *ji;
+
+      /* Find maximum jump level.  */
+      for (ji = detected_jumps; ji; ji = ji->next)
+	{
+	  if (ji->level > max_level)
+	    max_level = ji->level;
+	}
+
+      /* Allocate buffers.  */
+      size_t len = (max_level + 1) * 3 + 1;
+      line_buffer = xmalloc (len);
+      line_buffer[len - 1] = 0;
+      color_buffer = xmalloc (len);
+      color_buffer[len - 1] = 0;
+    }
+
   addr_offset = start_offset;
   while (addr_offset < stop_offset)
     {
-      bfd_vma z;
       bfd_boolean need_nl = FALSE;
 
       octets = 0;
@@ -1921,46 +2652,49 @@ disassemble_bytes (struct disassemble_info * inf,
 
       /* If we see more than SKIP_ZEROES octets of zeroes, we just
 	 print `...'.  */
-      for (z = addr_offset * opb; z < stop_offset * opb; z++)
-	if (data[z] != 0)
-	  break;
+      if (! disassemble_zeroes)
+	for (; addr_offset * opb + octets < stop_offset * opb; octets++)
+	  if (data[addr_offset * opb + octets] != 0)
+	    break;
       if (! disassemble_zeroes
 	  && (inf->insn_info_valid == 0
 	      || inf->branch_delay_insns == 0)
-	  && (z - addr_offset * opb >= skip_zeroes
-	      || (z == stop_offset * opb &&
-		  z - addr_offset * opb < skip_zeroes_at_end)))
+	  && (octets >= skip_zeroes
+	      || (addr_offset * opb + octets == stop_offset * opb
+		  && octets < skip_zeroes_at_end)))
 	{
 	  /* If there are more nonzero octets to follow, we only skip
 	     zeroes in multiples of 4, to try to avoid running over
 	     the start of an instruction which happens to start with
 	     zero.  */
-	  if (z != stop_offset * opb)
-	    z = addr_offset * opb + ((z - addr_offset * opb) &~ 3);
-
-	  octets = z - addr_offset * opb;
+	  if (addr_offset * opb + octets != stop_offset * opb)
+	    octets &= ~3;
 
 	  /* If we are going to display more data, and we are displaying
 	     file offsets, then tell the user how many zeroes we skip
 	     and the file offset from where we resume dumping.  */
-	  if (display_file_offsets && ((addr_offset + (octets / opb)) < stop_offset))
-	    printf ("\t... (skipping %d zeroes, resuming at file offset: 0x%lx)\n",
-		    octets / opb,
+	  if (display_file_offsets
+	      && addr_offset + octets / opb < stop_offset)
+	    printf (_("\t... (skipping %lu zeroes, "
+		      "resuming at file offset: 0x%lx)\n"),
+		    (unsigned long) (octets / opb),
 		    (unsigned long) (section->filepos
-				     + (addr_offset + (octets / opb))));
+				     + addr_offset + octets / opb));
 	  else
 	    printf ("\t...\n");
 	}
       else
 	{
 	  char buf[50];
-	  int bpc = 0;
-	  int pb = 0;
+	  unsigned int bpc = 0;
+	  unsigned int pb = 0;
 
 	  if (with_line_numbers || with_source_code)
 	    show_line (aux->abfd, section, addr_offset);
 
-	  if (! prefix_addresses)
+	  if (no_addresses)
+	    printf ("\t");
+	  else if (!prefix_addresses)
 	    {
 	      char *s;
 
@@ -1979,8 +2713,14 @@ disassemble_bytes (struct disassemble_info * inf,
 	      putchar (' ');
 	    }
 
+	  print_jump_visualisation (section->vma + addr_offset,
+				    max_level, line_buffer,
+				    color_buffer);
+
 	  if (insns)
 	    {
+	      int insn_size;
+
 	      sfile.pos = 0;
 	      inf->fprintf_func = (fprintf_ftype) objdump_sprintf;
 	      inf->stream = &sfile;
@@ -1997,13 +2737,13 @@ disassemble_bytes (struct disassemble_info * inf,
 		  && *relppp < relppend)
 		{
 		  bfd_signed_vma distance_to_rel;
-		  int insn_size = 0;
 		  int max_reloc_offset
 		    = aux->abfd->arch_info->max_reloc_offset_into_insn;
 
 		  distance_to_rel = ((**relppp)->address - rel_offset
 				     - addr_offset);
 
+		  insn_size = 0;
 		  if (distance_to_rel > 0
 		      && (max_reloc_offset < 0
 			  || distance_to_rel <= max_reloc_offset))
@@ -2044,8 +2784,8 @@ disassemble_bytes (struct disassemble_info * inf,
 		}
 
 	      if (! disassemble_all
-		  && (section->flags & (SEC_CODE | SEC_HAS_CONTENTS))
-		  == (SEC_CODE | SEC_HAS_CONTENTS))
+		  && ((section->flags & (SEC_CODE | SEC_HAS_CONTENTS))
+		      == (SEC_CODE | SEC_HAS_CONTENTS)))
 		/* Set a stop_vma so that the disassembler will not read
 		   beyond the next symbol.  We assume that symbols appear on
 		   the boundaries between instructions.  We only do this when
@@ -2053,21 +2793,22 @@ disassemble_bytes (struct disassemble_info * inf,
 		inf->stop_vma = section->vma + stop_offset;
 
 	      inf->stop_offset = stop_offset;
-	      octets = (*disassemble_fn) (section->vma + addr_offset, inf);
+	      insn_size = (*disassemble_fn) (section->vma + addr_offset, inf);
+	      octets = insn_size;
 
 	      inf->stop_vma = 0;
 	      inf->fprintf_func = (fprintf_ftype) fprintf;
 	      inf->stream = stdout;
 	      if (insn_width == 0 && inf->bytes_per_line != 0)
 		octets_per_line = inf->bytes_per_line;
-	      if (octets < (int) opb)
+	      if (insn_size < (int) opb)
 		{
 		  if (sfile.pos)
 		    printf ("%s\n", sfile.buffer);
-		  if (octets >= 0)
+		  if (insn_size >= 0)
 		    {
 		      non_fatal (_("disassemble_fn returned length %d"),
-				 octets);
+				 insn_size);
 		      exit_status = 1;
 		    }
 		  break;
@@ -2113,11 +2854,11 @@ disassemble_bytes (struct disassemble_info * inf,
 		  /* PR 21580: Check for a buffer ending early.  */
 		  if (j + bpc <= stop_offset * opb)
 		    {
-		      int k;
+		      unsigned int k;
 
 		      if (inf->display_endian == BFD_ENDIAN_LITTLE)
 			{
-			  for (k = bpc - 1; k >= 0; k--)
+			  for (k = bpc; k-- != 0; )
 			    printf ("%02x", (unsigned) data[j + k]);
 			}
 		      else
@@ -2131,7 +2872,7 @@ disassemble_bytes (struct disassemble_info * inf,
 
 	      for (; pb < octets_per_line; pb += bpc)
 		{
-		  int k;
+		  unsigned int k;
 
 		  for (k = 0; k < bpc; k++)
 		    printf ("  ");
@@ -2162,12 +2903,21 @@ disassemble_bytes (struct disassemble_info * inf,
 		  putchar ('\n');
 		  j = addr_offset * opb + pb;
 
-		  bfd_sprintf_vma (aux->abfd, buf, section->vma + j / opb);
-		  for (s = buf + skip_addr_chars; *s == '0'; s++)
-		    *s = ' ';
-		  if (*s == '\0')
-		    *--s = '0';
-		  printf ("%s:\t", buf + skip_addr_chars);
+		  if (no_addresses)
+		    printf ("\t");
+		  else
+		    {
+		      bfd_sprintf_vma (aux->abfd, buf, section->vma + j / opb);
+		      for (s = buf + skip_addr_chars; *s == '0'; s++)
+			*s = ' ';
+		      if (*s == '\0')
+			*--s = '0';
+		      printf ("%s:\t", buf + skip_addr_chars);
+		    }
+
+		  print_jump_visualisation (section->vma + j / opb,
+					    max_level, line_buffer,
+					    color_buffer);
 
 		  pb += octets_per_line;
 		  if (pb > octets)
@@ -2177,11 +2927,11 @@ disassemble_bytes (struct disassemble_info * inf,
 		      /* PR 21619: Check for a buffer ending early.  */
 		      if (j + bpc <= stop_offset * opb)
 			{
-			  int k;
+			  unsigned int k;
 
 			  if (inf->display_endian == BFD_ENDIAN_LITTLE)
 			    {
-			      for (k = bpc - 1; k >= 0; k--)
+			      for (k = bpc; k-- != 0; )
 				printf ("%02x", (unsigned) data[j + k]);
 			    }
 			  else
@@ -2215,15 +2965,19 @@ disassemble_bytes (struct disassemble_info * inf,
 	      else
 		printf ("\t\t\t");
 
-	      objdump_print_value (section->vma - rel_offset + q->address,
-				   inf, TRUE);
+	      if (!no_addresses)
+		{
+		  objdump_print_value (section->vma - rel_offset + q->address,
+				       inf, TRUE);
+		  printf (": ");
+		}
 
 	      if (q->howto == NULL)
-		printf (": *unknown*\t");
+		printf ("*unknown*\t");
 	      else if (q->howto->name)
-		printf (": %s\t", q->howto->name);
+		printf ("%s\t", q->howto->name);
 	      else
-		printf (": %d\t", q->howto->type);
+		printf ("%d\t", q->howto->type);
 
 	      if (q->sym_ptr_ptr == NULL || *q->sym_ptr_ptr == NULL)
 		printf ("*unknown*");
@@ -2248,8 +3002,8 @@ disassemble_bytes (struct disassemble_info * inf,
 
 	      if (q->addend)
 		{
-		  bfd_signed_vma addend = q->addend;
-		  if (addend < 0)
+		  bfd_vma addend = q->addend;
+		  if ((bfd_signed_vma) addend < 0)
 		    {
 		      printf ("-0x");
 		      addend = -addend;
@@ -2272,6 +3026,8 @@ disassemble_bytes (struct disassemble_info * inf,
     }
 
   free (sfile.buffer);
+  free (line_buffer);
+  free (color_buffer);
 }
 
 static void
@@ -2384,11 +3140,15 @@ disassemble_section (bfd *abfd, asection *section, void *inf)
       return;
     }
 
-  paux->sec = section;
   pinfo->buffer = data;
   pinfo->buffer_vma = section->vma;
   pinfo->buffer_length = datasize;
   pinfo->section = section;
+
+  /* Sort the symbols into value and section order.  */
+  compare_section = section;
+  if (sorted_symcount > 1)
+    qsort (sorted_syms, sorted_symcount, sizeof (asymbol *), compare_symbols);
 
   /* Skip over the relocs belonging to addresses below the
      start address.  */
@@ -2589,9 +3349,42 @@ disassemble_section (bfd *abfd, asection *section, void *inf)
 	insns = FALSE;
 
       if (do_print)
-	disassemble_bytes (pinfo, paux->disassemble_fn, insns, data,
-			   addr_offset, nextstop_offset,
-			   rel_offset, &rel_pp, rel_ppend);
+	{
+	  /* Resolve symbol name.  */
+	  if (visualize_jumps && abfd && sym && sym->name)
+	    {
+	      struct disassemble_info di;
+	      SFILE sf;
+
+	      sf.alloc = strlen (sym->name) + 40;
+	      sf.buffer = (char*) xmalloc (sf.alloc);
+	      sf.pos = 0;
+	      di.fprintf_func = (fprintf_ftype) objdump_sprintf;
+	      di.stream = &sf;
+
+	      objdump_print_symname (abfd, &di, sym);
+
+	      /* Fetch jump information.  */
+	      detected_jumps = disassemble_jumps
+		(pinfo, paux->disassemble_fn,
+		 addr_offset, nextstop_offset,
+		 rel_offset, &rel_pp, rel_ppend);
+
+	      /* Free symbol name.  */
+	      free (sf.buffer);
+	    }
+
+	  /* Add jumps to output.  */
+	  disassemble_bytes (pinfo, paux->disassemble_fn, insns, data,
+			     addr_offset, nextstop_offset,
+			     rel_offset, &rel_pp, rel_ppend);
+
+	  /* Free jumps.  */
+	  while (detected_jumps)
+	    {
+	      detected_jumps = jump_info_free (detected_jumps);
+	    }
+	}
 
       addr_offset = nextstop_offset;
       sym = nextsym;
@@ -2622,19 +3415,19 @@ disassemble_data (bfd *abfd)
   sorted_symcount = symcount ? symcount : dynsymcount;
   sorted_syms = (asymbol **) xmalloc ((sorted_symcount + synthcount)
                                       * sizeof (asymbol *));
-  memcpy (sorted_syms, symcount ? syms : dynsyms,
-	  sorted_symcount * sizeof (asymbol *));
+  if (sorted_symcount != 0)
+    {
+      memcpy (sorted_syms, symcount ? syms : dynsyms,
+	      sorted_symcount * sizeof (asymbol *));
 
-  sorted_symcount = remove_useless_symbols (sorted_syms, sorted_symcount);
+      sorted_symcount = remove_useless_symbols (sorted_syms, sorted_symcount);
+    }
 
   for (i = 0; i < synthcount; ++i)
     {
       sorted_syms[sorted_symcount] = synthsyms + i;
       ++sorted_symcount;
     }
-
-  /* Sort the symbols into section and symbol order.  */
-  qsort (sorted_syms, sorted_symcount, sizeof (asymbol *), compare_symbols);
 
   init_disassemble_info (&disasm_info, stdout, (fprintf_ftype) fprintf);
 
@@ -2699,6 +3492,8 @@ disassemble_data (bfd *abfd)
        instead.  */
     disasm_info.endian = BFD_ENDIAN_UNKNOWN;
 
+  disasm_info.endian_code = disasm_info.endian;
+
   /* Allow the target to customize the info structure.  */
   disassemble_init_for_target (& disasm_info);
 
@@ -2731,6 +3526,7 @@ disassemble_data (bfd *abfd)
   if (aux.dynrelbuf != NULL)
     free (aux.dynrelbuf);
   free (sorted_syms);
+  disassemble_free_target (&disasm_info);
 }
 
 static bfd_boolean
@@ -2924,6 +3720,33 @@ open_debug_file (const char * pathname)
   
   return data;
 }
+
+#if HAVE_LIBDEBUGINFOD
+/* Return a hex string represention of the build-id.  */
+
+unsigned char *
+get_build_id (void * data)
+{
+  unsigned i;
+  char * build_id_str;
+  bfd * abfd = (bfd *) data;
+  const struct bfd_build_id * build_id;
+
+  build_id = abfd->build_id;
+  if (build_id == NULL)
+    return NULL;
+
+  build_id_str = malloc (build_id->size * 2 + 1);
+  if (build_id_str == NULL)
+    return NULL;
+
+  for (i = 0; i < build_id->size; i++)
+    sprintf (build_id_str + (i * 2), "%02x", build_id->data[i]);
+  build_id_str[build_id->size * 2] = '\0';
+
+  return (unsigned char *)build_id_str;
+}
+#endif /* HAVE_LIBDEBUGINFOD */
 
 static void
 dump_dwarf_section (bfd *abfd, asection *section,
@@ -3199,7 +4022,7 @@ dump_bfd_header (bfd *abfd)
 				   bfd_get_mach (abfd)));
   printf (_("flags 0x%08x:\n"), abfd->flags & ~BFD_FLAGS_FOR_BFD_USE_MASK);
 
-#define PF(x, y)    if (abfd->flags & x) {printf("%s%s", comma, y); comma=", ";}
+#define PF(x, y)    if (abfd->flags & x) {printf ("%s%s", comma, y); comma=", ";}
   PF (HAS_RELOC, "HAS_RELOC");
   PF (EXEC_P, "EXEC_P");
   PF (HAS_LINENO, "HAS_LINENO");
@@ -3216,6 +4039,7 @@ dump_bfd_header (bfd *abfd)
 }
 
 
+#ifdef ENABLE_LIBCTF
 /* Formatting callback function passed to ctf_dump.  Returns either the pointer
    it is passed, or a pointer to newly-allocated storage, in which case
    dump_ctf() will free it when it no longer needs it.  */
@@ -3247,12 +4071,35 @@ make_ctfsect (const char *name, bfd_byte *data,
   return ctfsect;
 }
 
+/* Dump CTF errors/warnings.  */
+static void
+dump_ctf_errs (ctf_dict_t *fp)
+{
+  ctf_next_t *it = NULL;
+  char *errtext;
+  int is_warning;
+  int err;
+
+  /* Dump accumulated errors and warnings.  */
+  while ((errtext = ctf_errwarning_next (fp, &it, &is_warning, &err)) != NULL)
+    {
+      non_fatal (_("%s: %s"), is_warning ? _("warning"): _("error"),
+		 errtext);
+      free (errtext);
+    }
+  if (err != ECTF_NEXT_END)
+    {
+      non_fatal (_("CTF error: cannot get CTF errors: `%s'"),
+		 ctf_errmsg (err));
+    }
+}
+
 /* Dump one CTF archive member.  */
 
 static int
-dump_ctf_archive_member (ctf_file_t *ctf, const char *name, void *arg)
+dump_ctf_archive_member (ctf_dict_t *ctf, const char *name, void *arg)
 {
-  ctf_file_t *parent = (ctf_file_t *) arg;
+  ctf_dict_t *parent = (ctf_dict_t *) arg;
   const char *things[] = {"Header", "Labels", "Data objects",
 			  "Function objects", "Variables", "Types", "Strings",
 			  ""};
@@ -3288,11 +4135,14 @@ dump_ctf_archive_member (ctf_file_t *ctf, const char *name, void *arg)
 
       if (ctf_errno (ctf))
 	{
-	  non_fatal (_("Iteration failed: %s, %s\n"), *thing,
+	  non_fatal (_("Iteration failed: %s, %s"), *thing,
 		   ctf_errmsg (ctf_errno (ctf)));
 	  break;
 	}
     }
+
+  dump_ctf_errs (ctf);
+
   return 0;
 }
 
@@ -3305,7 +4155,7 @@ dump_ctf (bfd *abfd, const char *sect_name, const char *parent_name)
   bfd_byte *ctfdata, *parentdata = NULL;
   bfd_size_type ctfsize, parentsize;
   ctf_sect_t ctfsect;
-  ctf_file_t *parent = NULL;
+  ctf_dict_t *parent = NULL;
   int err;
 
   if ((ctfdata = read_section_stabs (abfd, sect_name, &ctfsize, NULL)) == NULL)
@@ -3321,7 +4171,8 @@ dump_ctf (bfd *abfd, const char *sect_name, const char *parent_name)
   ctfsect = make_ctfsect (sect_name, ctfdata, ctfsize);
   if ((ctfa = ctf_bfdopen_ctfsect (abfd, &ctfsect, &err)) == NULL)
     {
-      non_fatal (_("CTF open failure: %s\n"), ctf_errmsg (err));
+      dump_ctf_errs (NULL);
+      non_fatal (_("CTF open failure: %s"), ctf_errmsg (err));
       bfd_fatal (bfd_get_filename (abfd));
     }
 
@@ -3330,7 +4181,8 @@ dump_ctf (bfd *abfd, const char *sect_name, const char *parent_name)
       ctfsect = make_ctfsect (parent_name, parentdata, parentsize);
       if ((parenta = ctf_bfdopen_ctfsect (abfd, &ctfsect, &err)) == NULL)
 	{
-	  non_fatal (_("CTF open failure: %s\n"), ctf_errmsg (err));
+	  dump_ctf_errs (NULL);
+	  non_fatal (_("CTF open failure: %s"), ctf_errmsg (err));
 	  bfd_fatal (bfd_get_filename (abfd));
 	}
 
@@ -3342,21 +4194,32 @@ dump_ctf (bfd *abfd, const char *sect_name, const char *parent_name)
   /* Assume that the applicable parent archive member is the default one.
      (This is what all known implementations are expected to do, if they
      put CTFs and their parents in archives together.)  */
-  if ((parent = ctf_arc_open_by_name (lookparent, NULL, &err)) == NULL)
+  if ((parent = ctf_dict_open (lookparent, NULL, &err)) == NULL)
     {
-      non_fatal (_("CTF open failure: %s\n"), ctf_errmsg (err));
+      dump_ctf_errs (NULL);
+      non_fatal (_("CTF open failure: %s"), ctf_errmsg (err));
       bfd_fatal (bfd_get_filename (abfd));
     }
 
   printf (_("Contents of CTF section %s:\n"), sanitize_string (sect_name));
 
-  ctf_archive_iter (ctfa, dump_ctf_archive_member, parent);
-  ctf_file_close (parent);
+  if ((err = ctf_archive_iter (ctfa, dump_ctf_archive_member, parent)) != 0)
+    {
+      dump_ctf_errs (NULL);
+      non_fatal (_("CTF archive member open failure: %s"), ctf_errmsg (err));
+      bfd_fatal (bfd_get_filename (abfd));
+    }
+  ctf_dict_close (parent);
   ctf_close (ctfa);
   ctf_close (parenta);
   free (parentdata);
   free (ctfdata);
 }
+#else
+static void
+dump_ctf (bfd *abfd ATTRIBUTE_UNUSED, const char *sect_name ATTRIBUTE_UNUSED,
+	  const char *parent_name ATTRIBUTE_UNUSED) {}
+#endif
 
 
 static void
@@ -3437,10 +4300,10 @@ dump_section (bfd *abfd, asection *section, void *dummy ATTRIBUTE_UNUSED)
   int count;
   int width;
 
-  if ((section->flags & SEC_HAS_CONTENTS) == 0)
+  if (! process_section_p (section))
     return;
 
-  if (! process_section_p (section))
+  if ((section->flags & SEC_HAS_CONTENTS) == 0)
     return;
 
   if ((datasize = bfd_section_size (section)) == 0)
@@ -3743,7 +4606,7 @@ dump_reloc_set (bfd *abfd, asection *sec, arelent **relpp, long relcount)
 	     Undo this transformation, otherwise the output
 	     will be confusing.  */
 	  if (abfd->xvec->flavour == bfd_target_elf_flavour
-	      && elf_tdata(abfd)->elf_header->e_machine == EM_SPARCV9
+	      && elf_tdata (abfd)->elf_header->e_machine == EM_SPARCV9
 	      && relcount > 1
 	      && !strcmp (q->howto->name, "R_SPARC_LO10"))
 	    {
@@ -4390,6 +5253,25 @@ main (int argc, char **argv)
 	case OPTION_INLINES:
 	  unwind_inlines = TRUE;
 	  break;
+	case OPTION_VISUALIZE_JUMPS:
+	  visualize_jumps = TRUE;
+	  color_output = FALSE;
+	  extended_color_output = FALSE;
+	  if (optarg != NULL)
+	    {
+	      if (streq (optarg, "color"))
+		color_output = TRUE;
+	      else if (streq (optarg, "extended-color"))
+		{
+		  color_output = TRUE;
+		  extended_color_output = TRUE;
+		}
+	      else if (streq (optarg, "off"))
+		visualize_jumps = FALSE;
+	      else
+		nonfatal (_("unrecognized argument to --visualize-option"));
+	    }
+	  break;
 	case 'E':
 	  if (strcmp (optarg, "B") == 0)
 	    endian = BFD_ENDIAN_BIG;
@@ -4519,6 +5401,7 @@ main (int argc, char **argv)
 	case OPTION_DWARF_CHECK:
 	  dwarf_check = TRUE;
 	  break;
+#ifdef ENABLE_LIBCTF
 	case OPTION_CTF:
 	  dump_ctf_section_info = TRUE;
 	  dump_ctf_section_name = xstrdup (optarg);
@@ -4527,6 +5410,7 @@ main (int argc, char **argv)
 	case OPTION_CTF_PARENT:
 	  dump_ctf_parent_name = xstrdup (optarg);
 	  break;
+#endif
 	case 'G':
 	  dump_stab_section_info = TRUE;
 	  seenflag = TRUE;

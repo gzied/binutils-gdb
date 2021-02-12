@@ -1,6 +1,6 @@
 /* Low level interface to i386 running the GNU Hurd.
 
-   Copyright (C) 1992-2019 Free Software Foundation, Inc.
+   Copyright (C) 1992-2021 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -230,7 +230,7 @@ i386_gnu_nat_target::store_registers (struct regcache *regcache, int regno)
 	}
 
       /* Save the T bit.  We might try to restore the %eflags register
-         below, but changing the T bit would seriously confuse GDB.  */
+	 below, but changing the T bit would seriously confuse GDB.  */
       trace = ((struct i386_thread_state *)state)->efl & 0x100;
 
       if (!was_aborted && was_valid)
@@ -425,8 +425,9 @@ i386_gnu_dr_get_control (void)
 }
 #endif /* i386_DEBUG_STATE */
 
+void _initialize_i386gnu_nat ();
 void
-_initialize_i386gnu_nat (void)
+_initialize_i386gnu_nat ()
 {
 #ifdef i386_DEBUG_STATE
   x86_dr_low.set_control = i386_gnu_dr_set_control;
@@ -437,6 +438,8 @@ _initialize_i386gnu_nat (void)
   x86_dr_low.get_control = i386_gnu_dr_get_control;
   x86_set_debug_register_length (4);
 #endif /* i386_DEBUG_STATE */
+
+  gnu_target = &the_i386_gnu_nat_target;
 
   /* Register the target.  */
   add_inf_child_target (&the_i386_gnu_nat_target);

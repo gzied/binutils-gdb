@@ -1,6 +1,6 @@
 /* Intel 387 floating point stuff.
 
-   Copyright (C) 1988-2019 Free Software Foundation, Inc.
+   Copyright (C) 1988-2021 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -332,7 +332,7 @@ i387_convert_register_p (struct gdbarch *gdbarch, int regnum,
       /* Floating point registers must be converted unless we are
 	 accessing them in their hardware type or TYPE is not float.  */
       if (type == i387_ext_type (gdbarch)
-	  || TYPE_CODE (type) != TYPE_CODE_FLT)
+	  || type->code () != TYPE_CODE_FLT)
 	return 0;
       else
 	return 1;
@@ -355,7 +355,7 @@ i387_register_to_value (struct frame_info *frame, int regnum,
   gdb_assert (i386_fp_regnum_p (gdbarch, regnum));
 
   /* We only support floating-point values.  */
-  if (TYPE_CODE (type) != TYPE_CODE_FLT)
+  if (type->code () != TYPE_CODE_FLT)
     {
       warning (_("Cannot convert floating-point register value "
 	       "to non-floating-point type."));
@@ -387,7 +387,7 @@ i387_value_to_register (struct frame_info *frame, int regnum,
   gdb_assert (i386_fp_regnum_p (gdbarch, regnum));
 
   /* We only support floating-point values.  */
-  if (TYPE_CODE (type) != TYPE_CODE_FLT)
+  if (type->code () != TYPE_CODE_FLT)
     {
       warning (_("Cannot convert non-floating-point type "
 	       "to floating-point register value."));
@@ -502,7 +502,7 @@ i387_collect_fsave (const struct regcache *regcache, int regnum, void *fsave)
     if (regnum == -1 || regnum == i)
       {
 	/* Most of the FPU control registers occupy only 16 bits in
-           the fsave area.  Give those a special treatment.  */
+	   the fsave area.  Give those a special treatment.  */
 	if (i >= I387_FCTRL_REGNUM (tdep)
 	    && i != I387_FIOFF_REGNUM (tdep) && i != I387_FOOFF_REGNUM (tdep))
 	  {
@@ -513,7 +513,7 @@ i387_collect_fsave (const struct regcache *regcache, int regnum, void *fsave)
 	    if (i == I387_FOP_REGNUM (tdep))
 	      {
 		/* The opcode occupies only 11 bits.  Make sure we
-                   don't touch the other bits.  */
+		   don't touch the other bits.  */
 		buf[1] &= ((1 << 3) - 1);
 		buf[1] |= ((FSAVE_ADDR (tdep, regs, i))[1] & ~((1 << 3) - 1));
 	      }
@@ -633,7 +633,7 @@ i387_supply_fxsave (struct regcache *regcache, int regnum, const void *fxsave)
 		    if (val[0] & (1 << fpreg))
 		      {
 			int thisreg = (fpreg + 8 - top) % 8 
-			               + I387_ST0_REGNUM (tdep);
+				       + I387_ST0_REGNUM (tdep);
 			tag = i387_tag (FXSAVE_ADDR (tdep, regs, thisreg));
 		      }
 		    else
@@ -679,7 +679,7 @@ i387_collect_fxsave (const struct regcache *regcache, int regnum, void *fxsave)
     if (regnum == -1 || regnum == i)
       {
 	/* Most of the FPU control registers occupy only 16 bits in
-           the fxsave area.  Give those a special treatment.  */
+	   the fxsave area.  Give those a special treatment.  */
 	if (i >= I387_FCTRL_REGNUM (tdep) && i < I387_XMM0_REGNUM (tdep)
 	    && i != I387_FIOFF_REGNUM (tdep) && i != I387_FOOFF_REGNUM (tdep))
 	  {
@@ -690,7 +690,7 @@ i387_collect_fxsave (const struct regcache *regcache, int regnum, void *fxsave)
 	    if (i == I387_FOP_REGNUM (tdep))
 	      {
 		/* The opcode occupies only 11 bits.  Make sure we
-                   don't touch the other bits.  */
+		   don't touch the other bits.  */
 		buf[1] &= ((1 << 3) - 1);
 		buf[1] |= ((FXSAVE_ADDR (tdep, regs, i))[1] & ~((1 << 3) - 1));
 	      }

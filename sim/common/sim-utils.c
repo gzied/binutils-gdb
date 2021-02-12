@@ -1,5 +1,5 @@
 /* Miscellaneous simulator utilities.
-   Copyright (C) 1997-2019 Free Software Foundation, Inc.
+   Copyright (C) 1997-2021 Free Software Foundation, Inc.
    Contributed by Cygnus Support.
 
 This file is part of GDB, the GNU debugger.
@@ -20,14 +20,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 #include "sim-main.h"
 #include "sim-assert.h"
 
-#ifdef HAVE_STDLIB_H
 #include <stdlib.h>
-#endif
-
-#ifdef HAVE_TIME_H
 #include <time.h>
-#endif
-
 #ifdef HAVE_SYS_TIME_H
 #include <sys/time.h> /* needed by sys/resource.h */
 #endif
@@ -35,14 +29,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 #ifdef HAVE_SYS_RESOURCE_H
 #include <sys/resource.h>
 #endif
-
-#ifdef HAVE_STRING_H
 #include <string.h>
-#else
-#ifdef HAVE_STRINGS_H
-#include <strings.h>
-#endif
-#endif
 
 #include "libiberty.h"
 #include "bfd.h"
@@ -355,8 +342,8 @@ map_to_str (unsigned map)
     case io_map: return "io";
     default:
       {
-	static char str[10];
-	sprintf (str, "(%ld)", (long) map);
+	static char str[16];
+	snprintf (str, sizeof(str), "(%ld)", (long) map);
 	return str;
       }
     }
@@ -385,8 +372,8 @@ access_to_str (unsigned access)
     case access_read_write_exec_io: return "read_write_exec_io";
     default:
       {
-	static char str[10];
-	sprintf (str, "(%ld)", (long) access);
+	static char str[16];
+	snprintf (str, sizeof(str), "(%ld)", (long) access);
 	return str;
       }
     }

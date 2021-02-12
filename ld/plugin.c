@@ -1,5 +1,5 @@
 /* Plugin control for the GNU linker.
-   Copyright (C) 2010-2019 Free Software Foundation, Inc.
+   Copyright (C) 2010-2021 Free Software Foundation, Inc.
 
    This file is part of the GNU Binutils.
 
@@ -21,6 +21,7 @@
 #include "sysdep.h"
 #include "libiberty.h"
 #include "bfd.h"
+#if BFD_SUPPORTS_PLUGINS
 #include "bfdlink.h"
 #include "bfdver.h"
 #include "ctf-api.h"
@@ -175,7 +176,7 @@ static bfd_boolean plugin_notice (struct bfd_link_info *,
 				  struct bfd_link_hash_entry *,
 				  bfd *, asection *, bfd_vma, flagword);
 
-static const bfd_target * plugin_object_p (bfd *);
+static bfd_cleanup plugin_object_p (bfd *);
 
 #if !defined (HAVE_DLFCN_H) && defined (HAVE_WINDOWS_H)
 
@@ -336,7 +337,7 @@ plugin_get_ir_dummy_bfd (const char *name, bfd *srctemplate)
 	    return abfd;
 	}
     }
-report_error:
+ report_error:
   einfo (_("%F%P: could not create dummy IR bfd: %E\n"));
   return NULL;
 }
@@ -414,7 +415,7 @@ asymbol_from_plugin_symbol (bfd *abfd, asymbol *asym,
 
   if (bfd_get_flavour (abfd) == bfd_target_elf_flavour)
     {
-      elf_symbol_type *elfsym = elf_symbol_from (abfd, asym);
+      elf_symbol_type *elfsym = elf_symbol_from (asym);
       unsigned char visibility;
 
       if (!elfsym)
@@ -1164,7 +1165,12 @@ plugin_strdup (bfd *abfd, const char *str)
   return copy;
 }
 
-static const bfd_target *
+static void
+plugin_cleanup (bfd *abfd ATTRIBUTE_UNUSED)
+{
+}
+
+static bfd_cleanup
 plugin_object_p (bfd *ibfd)
 {
   int claimed;
@@ -1179,14 +1185,14 @@ plugin_object_p (bfd *ibfd)
   if (ibfd->plugin_format != bfd_plugin_unknown)
     {
       if (ibfd->plugin_format == bfd_plugin_yes)
-	return ibfd->plugin_dummy_bfd->xvec;
+	return plugin_cleanup;
       else
 	return NULL;
     }
 
   /* We create a dummy BFD, initially empty, to house whatever symbols
      the plugin may want to add.  */
-  abfd = plugin_get_ir_dummy_bfd (ibfd->filename, ibfd);
+  abfd = plugin_get_ir_dummy_bfd (bfd_get_filename (ibfd), ibfd);
 
   input = bfd_alloc (abfd, sizeof (*input));
   if (input == NULL)
@@ -1196,7 +1202,7 @@ plugin_object_p (bfd *ibfd)
   if (!bfd_plugin_open_input (ibfd, &file))
     return NULL;
 
-  if (file.name == ibfd->filename)
+  if (file.name == bfd_get_filename (ibfd))
     {
       /* We must copy filename attached to ibfd if it is not an archive
 	 member since it may be freed by bfd_close below.  */
@@ -1212,7 +1218,7 @@ plugin_object_p (bfd *ibfd)
   input->use_mmap = FALSE;
   input->offset = file.offset;
   input->filesize = file.filesize;
-  input->name = plugin_strdup (abfd, ibfd->filename);
+  input->name = plugin_strdup (abfd, bfd_get_filename (ibfd));
 
   claimed = 0;
 
@@ -1239,7 +1245,8 @@ plugin_object_p (bfd *ibfd)
       ibfd->plugin_format = bfd_plugin_yes;
       ibfd->plugin_dummy_bfd = abfd;
       bfd_make_readable (abfd);
-      return abfd->xvec;
+      abfd->no_export = ibfd->no_export;
+      return plugin_cleanup;
     }
   else
     {
@@ -1426,12 +1433,18 @@ plugin_notice (struct bfd_link_info *info,
 	 new value from a real BFD.  Weak symbols are not normally
 	 overridden by a new weak definition, and strong symbols
 	 will normally cause multiple definition errors.  Avoid
-	 this by making the symbol appear to be undefined.  */
-      else if (((h->type == bfd_link_hash_defweak
-		 || h->type == bfd_link_hash_defined)
-		&& is_ir_dummy_bfd (sym_bfd = h->u.def.section->owner))
-	       || (h->type == bfd_link_hash_common
-		   && is_ir_dummy_bfd (sym_bfd = h->u.c.p->section->owner)))
+	 this by making the symbol appear to be undefined.
+
+	 NB: We change the previous definition in the IR object to
+	 undefweak only after all LTO symbols have been read or for
+	 non-ELF targets.  */
+      else if ((info->lto_all_symbols_read
+		|| bfd_get_flavour (abfd) != bfd_target_elf_flavour)
+	       && (((h->type == bfd_link_hash_defweak
+		     || h->type == bfd_link_hash_defined)
+		    && is_ir_dummy_bfd (sym_bfd = h->u.def.section->owner))
+		   || (h->type == bfd_link_hash_common
+		       && is_ir_dummy_bfd (sym_bfd = h->u.c.p->section->owner))))
 	{
 	  h->type = bfd_link_hash_undefweak;
 	  h->u.undef.abfd = sym_bfd;
@@ -1456,3 +1469,4 @@ plugin_notice (struct bfd_link_info *info,
 				      abfd, section, value, flags);
   return TRUE;
 }
+#endif /* BFD_SUPPORTS_PLUGINS */

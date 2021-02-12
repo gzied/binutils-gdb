@@ -1,6 +1,6 @@
 /* Go language support routines for GDB, the GNU debugger.
 
-   Copyright (C) 2012-2019 Free Software Foundation, Inc.
+   Copyright (C) 2012-2021 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -73,26 +73,26 @@ gccgo_string_p (struct type *type)
 {
   /* gccgo strings don't necessarily have a name we can use.  */
 
-  if (TYPE_NFIELDS (type) == 2)
+  if (type->num_fields () == 2)
     {
-      struct type *type0 = TYPE_FIELD_TYPE (type, 0);
-      struct type *type1 = TYPE_FIELD_TYPE (type, 1);
+      struct type *type0 = type->field (0).type ();
+      struct type *type1 = type->field (1).type ();
 
       type0 = check_typedef (type0);
       type1 = check_typedef (type1);
 
-      if (TYPE_CODE (type0) == TYPE_CODE_PTR
+      if (type0->code () == TYPE_CODE_PTR
 	  && strcmp (TYPE_FIELD_NAME (type, 0), "__data") == 0
-	  && TYPE_CODE (type1) == TYPE_CODE_INT
+	  && type1->code () == TYPE_CODE_INT
 	  && strcmp (TYPE_FIELD_NAME (type, 1), "__length") == 0)
 	{
 	  struct type *target_type = TYPE_TARGET_TYPE (type0);
 
 	  target_type = check_typedef (target_type);
 
-	  if (TYPE_CODE (target_type) == TYPE_CODE_INT
+	  if (target_type->code () == TYPE_CODE_INT
 	      && TYPE_LENGTH (target_type) == 1
-	      && strcmp (TYPE_NAME (target_type), "uint8") == 0)
+	      && strcmp (target_type->name (), "uint8") == 0)
 	    return 1;
 	}
     }
@@ -106,9 +106,9 @@ gccgo_string_p (struct type *type)
 static int
 sixg_string_p (struct type *type)
 {
-  if (TYPE_NFIELDS (type) == 2
-      && TYPE_NAME (type) != NULL
-      && strcmp (TYPE_NAME (type), "string") == 0)
+  if (type->num_fields () == 2
+      && type->name () != NULL
+      && strcmp (type->name (), "string") == 0)
     return 1;
 
   return 0;
@@ -129,16 +129,6 @@ go_classify_struct_type (struct type *type)
     return GO_TYPE_STRING;
 
   return GO_TYPE_NONE;
-}
-
-/* Return true if TYPE is a string.  */
-
-static bool
-go_is_string_type_p (struct type *type)
-{
-  type = check_typedef (type);
-  return (TYPE_CODE (type) == TYPE_CODE_STRUCT
-	  && go_classify_struct_type (type) == GO_TYPE_STRING);
 }
 
 /* Subroutine of unpack_mangled_go_symbol to simplify it.
@@ -344,7 +334,7 @@ unpack_mangled_go_symbol (const char *mangled_name,
    thus not too much effort is currently put into it.  */
 
 char *
-go_demangle (const char *mangled_name, int options)
+go_language::demangle_symbol (const char *mangled_name, int options) const
 {
   struct obstack tempbuf;
   char *result;
@@ -396,13 +386,12 @@ go_demangle (const char *mangled_name, int options)
   return result;
 }
 
-/* la_sniff_from_mangled_name for Go.  */
+/* See language.h.  */
 
-static int
-go_sniff_from_mangled_name (const char *mangled, char **demangled)
+const struct exp_descriptor *
+go_language::expression_ops () const
 {
-  *demangled = go_demangle (mangled, 0);
-  return *demangled != NULL;
+  return &exp_descriptor_c;
 }
 
 /* Given a Go symbol, return its package or NULL if unknown.
@@ -420,7 +409,7 @@ go_symbol_package_name (const struct symbol *sym)
   char *name_buf;
   char *result;
 
-  gdb_assert (SYMBOL_LANGUAGE (sym) == language_go);
+  gdb_assert (sym->language () == language_go);
   name_buf = unpack_mangled_go_symbol (mangled_name,
 				       &package_name, &object_name,
 				       &method_type_package_name,
@@ -463,11 +452,11 @@ go_block_package_name (const struct block *block)
   return NULL;
 }
 
-/* Table mapping opcodes into strings for printing operators
-   and precedences of the operators.
+/* See go-lang.h.
+
    TODO(dje): &^ ?  */
 
-static const struct op_print go_op_print_tab[] =
+const struct op_print go_language::op_print_tab[] =
 {
   {",", BINOP_COMMA, PREC_COMMA, 0},
   {"=", BINOP_ASSIGN, PREC_ASSIGN, 1},
@@ -501,130 +490,47 @@ static const struct op_print go_op_print_tab[] =
   {NULL, OP_NULL, PREC_SUFFIX, 0}
 };
 
-enum go_primitive_types {
-  go_primitive_type_void,
-  go_primitive_type_char,
-  go_primitive_type_bool,
-  go_primitive_type_int,
-  go_primitive_type_uint,
-  go_primitive_type_uintptr,
-  go_primitive_type_int8,
-  go_primitive_type_int16,
-  go_primitive_type_int32,
-  go_primitive_type_int64,
-  go_primitive_type_uint8,
-  go_primitive_type_uint16,
-  go_primitive_type_uint32,
-  go_primitive_type_uint64,
-  go_primitive_type_float32,
-  go_primitive_type_float64,
-  go_primitive_type_complex64,
-  go_primitive_type_complex128,
-  nr_go_primitive_types
-};
+/* See language.h.  */
 
-static void
-go_language_arch_info (struct gdbarch *gdbarch,
-		       struct language_arch_info *lai)
+void
+go_language::language_arch_info (struct gdbarch *gdbarch,
+				 struct language_arch_info *lai) const
 {
   const struct builtin_go_type *builtin = builtin_go_type (gdbarch);
 
-  lai->string_char_type = builtin->builtin_char;
+  /* Helper function to allow shorter lines below.  */
+  auto add  = [&] (struct type * t) -> struct type *
+  {
+    lai->add_primitive_type (t);
+    return t;
+  };
 
-  lai->primitive_type_vector
-    = GDBARCH_OBSTACK_CALLOC (gdbarch, nr_go_primitive_types + 1,
-			      struct type *);
+  add (builtin->builtin_void);
+  add (builtin->builtin_char);
+  add (builtin->builtin_bool);
+  add (builtin->builtin_int);
+  add (builtin->builtin_uint);
+  add (builtin->builtin_uintptr);
+  add (builtin->builtin_int8);
+  add (builtin->builtin_int16);
+  add (builtin->builtin_int32);
+  add (builtin->builtin_int64);
+  add (builtin->builtin_uint8);
+  add (builtin->builtin_uint16);
+  add (builtin->builtin_uint32);
+  add (builtin->builtin_uint64);
+  add (builtin->builtin_float32);
+  add (builtin->builtin_float64);
+  add (builtin->builtin_complex64);
+  add (builtin->builtin_complex128);
 
-  lai->primitive_type_vector [go_primitive_type_void]
-    = builtin->builtin_void;
-  lai->primitive_type_vector [go_primitive_type_char]
-    = builtin->builtin_char;
-  lai->primitive_type_vector [go_primitive_type_bool]
-    = builtin->builtin_bool;
-  lai->primitive_type_vector [go_primitive_type_int]
-    = builtin->builtin_int;
-  lai->primitive_type_vector [go_primitive_type_uint]
-    = builtin->builtin_uint;
-  lai->primitive_type_vector [go_primitive_type_uintptr]
-    = builtin->builtin_uintptr;
-  lai->primitive_type_vector [go_primitive_type_int8]
-    = builtin->builtin_int8;
-  lai->primitive_type_vector [go_primitive_type_int16]
-    = builtin->builtin_int16;
-  lai->primitive_type_vector [go_primitive_type_int32]
-    = builtin->builtin_int32;
-  lai->primitive_type_vector [go_primitive_type_int64]
-    = builtin->builtin_int64;
-  lai->primitive_type_vector [go_primitive_type_uint8]
-    = builtin->builtin_uint8;
-  lai->primitive_type_vector [go_primitive_type_uint16]
-    = builtin->builtin_uint16;
-  lai->primitive_type_vector [go_primitive_type_uint32]
-    = builtin->builtin_uint32;
-  lai->primitive_type_vector [go_primitive_type_uint64]
-    = builtin->builtin_uint64;
-  lai->primitive_type_vector [go_primitive_type_float32]
-    = builtin->builtin_float32;
-  lai->primitive_type_vector [go_primitive_type_float64]
-    = builtin->builtin_float64;
-  lai->primitive_type_vector [go_primitive_type_complex64]
-    = builtin->builtin_complex64;
-  lai->primitive_type_vector [go_primitive_type_complex128]
-    = builtin->builtin_complex128;
-
-  lai->bool_type_symbol = "bool";
-  lai->bool_type_default = builtin->builtin_bool;
+  lai->set_string_char_type (builtin->builtin_char);
+  lai->set_bool_type (builtin->builtin_bool, "bool");
 }
 
-extern const struct language_defn go_language_defn =
-{
-  "go",
-  "Go",
-  language_go,
-  range_check_off,
-  case_sensitive_on,
-  array_row_major,
-  macro_expansion_no,
-  NULL,
-  &exp_descriptor_c,
-  go_parse,
-  null_post_parser,
-  c_printchar,			/* Print a character constant.  */
-  c_printstr,			/* Function to print string constant.  */
-  c_emit_char,			/* Print a single char.  */
-  go_print_type,		/* Print a type using appropriate syntax.  */
-  c_print_typedef,		/* Print a typedef using appropriate
-				   syntax.  */
-  go_val_print,			/* Print a value using appropriate syntax.  */
-  c_value_print,		/* Print a top-level value.  */
-  default_read_var_value,	/* la_read_var_value */
-  NULL,				/* Language specific skip_trampoline.  */
-  NULL,				/* name_of_this */
-  false,			/* la_store_sym_names_in_linkage_form_p */
-  basic_lookup_symbol_nonlocal, 
-  basic_lookup_transparent_type,
-  go_demangle,			/* Language specific symbol demangler.  */
-  go_sniff_from_mangled_name,
-  NULL,				/* Language specific
-				   class_name_from_physname.  */
-  go_op_print_tab,		/* Expression operators for printing.  */
-  1,				/* C-style arrays.  */
-  0,				/* String lower bound.  */
-  default_word_break_characters,
-  default_collect_symbol_completion_matches,
-  go_language_arch_info,
-  default_print_array_index,
-  default_pass_by_reference,
-  c_watch_location_expression,
-  NULL,				/* la_get_symbol_name_matcher */
-  iterate_over_symbols,
-  default_search_name_hash,
-  &default_varobj_ops,
-  NULL,
-  NULL,
-  go_is_string_type_p,
-  "{...}"			/* la_struct_too_deep_ellipsis */
-};
+/* Single instance of the Go language class.  */
+
+static go_language go_language_defn;
 
 static void *
 build_go_types (struct gdbarch *gdbarch)
@@ -665,11 +571,9 @@ build_go_types (struct gdbarch *gdbarch)
   builtin_go_type->builtin_float64
     = arch_float_type (gdbarch, 64, "float64", floatformats_ieee_double);
   builtin_go_type->builtin_complex64
-    = arch_complex_type (gdbarch, "complex64",
-			 builtin_go_type->builtin_float32);
+    = init_complex_type ("complex64", builtin_go_type->builtin_float32);
   builtin_go_type->builtin_complex128
-    = arch_complex_type (gdbarch, "complex128",
-			 builtin_go_type->builtin_float64);
+    = init_complex_type ("complex128", builtin_go_type->builtin_float64);
 
   return builtin_go_type;
 }
@@ -682,8 +586,9 @@ builtin_go_type (struct gdbarch *gdbarch)
   return (const struct builtin_go_type *) gdbarch_data (gdbarch, go_type_data);
 }
 
+void _initialize_go_language ();
 void
-_initialize_go_language (void)
+_initialize_go_language ()
 {
   go_type_data = gdbarch_data_register_post_init (build_go_types);
 }

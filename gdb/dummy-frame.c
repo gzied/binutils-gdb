@@ -1,6 +1,6 @@
 /* Code dealing with dummy stack frames, for GDB, the GNU debugger.
 
-   Copyright (C) 1986-2019 Free Software Foundation, Inc.
+   Copyright (C) 1986-2021 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -273,7 +273,7 @@ find_dummy_frame_dtor (dummy_frame_dtor_ftype *dtor, void *dtor_data)
    them up at least once whenever we start a new inferior.  */
 
 static void
-cleanup_dummy_frames (struct target_ops *target, int from_tty)
+cleanup_dummy_frames (inferior *inf)
 {
   while (dummy_frame_stack != NULL)
     remove_dummy_frame (&dummy_frame_stack);
@@ -431,8 +431,9 @@ maintenance_print_dummy_frames (const char *args, int from_tty)
     }
 }
 
+void _initialize_dummy_frame ();
 void
-_initialize_dummy_frame (void)
+_initialize_dummy_frame ()
 {
   add_cmd ("dummy-frames", class_maintenance, maintenance_print_dummy_frames,
 	   _("Print the contents of the internal dummy-frame stack."),

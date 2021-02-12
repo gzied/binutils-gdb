@@ -1,6 +1,6 @@
 /* Python interface to lazy strings.
 
-   Copyright (C) 2010-2019 Free Software Foundation, Inc.
+   Copyright (C) 2010-2021 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -24,7 +24,7 @@
 #include "valprint.h"
 #include "language.h"
 
-typedef struct {
+struct lazy_string_object {
   PyObject_HEAD
 
   /*  Holds the address of the lazy string.  */
@@ -51,7 +51,7 @@ typedef struct {
      This is recorded as a PyObject so that we take advantage of support for
      preserving the type should its owning objfile go away.  */
   PyObject *type;
-} lazy_string_object;
+};
 
 extern PyTypeObject lazy_string_object_type
     CPYCHECKER_TYPE_OBJECT_FOR_TYPEDEF ("lazy_string_object");
@@ -61,7 +61,7 @@ stpy_get_address (PyObject *self, void *closure)
 {
   lazy_string_object *self_string = (lazy_string_object *) self;
 
-  return gdb_py_long_from_ulongest (self_string->address);
+  return gdb_py_object_from_ulongest (self_string->address).release ();
 }
 
 static PyObject *
@@ -88,7 +88,7 @@ stpy_get_length (PyObject *self, void *closure)
 {
   lazy_string_object *self_string = (lazy_string_object *) self;
 
-  return PyLong_FromLong (self_string->length);
+  return gdb_py_object_from_longest (self_string->length).release ();
 }
 
 static PyObject *
@@ -120,7 +120,7 @@ stpy_convert_to_value (PyObject *self, PyObject *args)
 
       gdb_assert (type != NULL);
       realtype = check_typedef (type);
-      switch (TYPE_CODE (realtype))
+      switch (realtype->code ())
 	{
 	case TYPE_CODE_PTR:
 	  /* If a length is specified we need to convert this to an array
@@ -194,7 +194,7 @@ gdbpy_create_lazy_string_object (CORE_ADDR address, long length,
     }
 
   realtype = check_typedef (type);
-  switch (TYPE_CODE (realtype))
+  switch (realtype->code ())
     {
     case TYPE_CODE_ARRAY:
       {
@@ -258,7 +258,7 @@ stpy_lazy_string_elt_type (lazy_string_object *lazy)
   gdb_assert (type != NULL);
   realtype = check_typedef (type);
 
-  switch (TYPE_CODE (realtype))
+  switch (realtype->code ())
     {
     case TYPE_CODE_PTR:
     case TYPE_CODE_ARRAY:

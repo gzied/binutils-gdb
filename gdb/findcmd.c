@@ -1,6 +1,6 @@
 /* The find command.
 
-   Copyright (C) 2008-2019 Free Software Foundation, Inc.
+   Copyright (C) 2008-2021 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
@@ -280,8 +280,9 @@ find_command (const char *args, int from_tty)
 		     found_count > 1 ? "s" : "");
 }
 
+void _initialize_mem_search ();
 void
-_initialize_mem_search (void)
+_initialize_mem_search ()
 {
   add_cmd ("find", class_vars, find_command, _("\
 Search memory for a sequence of bytes.\n\
@@ -291,6 +292,7 @@ find [/SIZE-CHAR] [/MAX-COUNT] START-ADDRESS, +LENGTH, EXPR1 [, EXPR2 ...]\n\
 SIZE-CHAR is one of b,h,w,g for 8,16,32,64 bit values respectively,\n\
 and if not specified the size is taken from the type of the expression\n\
 in the current language.\n\
+The two-address form specifies an inclusive range.\n\
 Note that this means for example that in the case of C-like languages\n\
 a search for an untyped 0x42 will search for \"(int) 0x42\"\n\
 which is typically four bytes, and a search for a string \"hello\" will\n\
